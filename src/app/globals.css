@@ -1,0 +1,101 @@
+@import "tailwindcss";
+:root {
+  --bg: #08080d;
+  --panel: #0d0d15;
+  --surface: #15151f;
+  --border: #ffffff14;
+  --text: #e9e9f2;
+  --muted: #9191a8;
+  --accent: #6366f1;
+}
+html[data-theme="light"] {
+  --bg: #f5f6fa;
+  --panel: #fff;
+  --surface: #f0f1f6;
+  --border: #14141f1a;
+  --text: #14141f;
+  --muted: #63637a;
+}
+@theme inline {
+  --color-base: var(--bg);
+  --color-panel: var(--panel);
+  --color-surface: var(--surface);
+  --color-line: var(--border);
+  --color-ink: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: Arial, Helvetica, sans-serif;
+  background-image: radial-gradient(
+    ellipse at top left,
+    color-mix(in srgb, var(--accent) 7%, transparent),
+    transparent 60%
+  );
+}
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+button:not(:disabled),
+select {
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.5;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+@layer components {
+  .card {
+    @apply rounded-2xl border border-line bg-panel;
+  }
+  .btn {
+    @apply inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium transition hover:border-accent hover:text-ink disabled:cursor-not-allowed;
+  }
+  .icon-btn {
+    @apply inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-line bg-surface transition hover:border-accent;
+  }
+  .field {
+    @apply w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-muted;
+  }
+  .label {
+    @apply mb-2 block text-sm font-medium text-muted;
+  }
+}
+dialog {
+  margin: auto;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 0;
+  width: min(94vw, 560px);
+  max-height: 90dvh;
+  box-shadow: 0 30px 100px #0008;
+}
+dialog::backdrop {
+  background: #0009;
+  backdrop-filter: blur(5px);
+}
+html[data-animations="false"] *,
+html[data-animations="false"] *::before,
+html[data-animations="false"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
