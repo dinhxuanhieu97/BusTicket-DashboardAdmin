@@ -41,6 +41,7 @@ let revoked = false,
 // Phiên refresh giả lập API thật: access token dạng JWT có `exp`, refresh token xoay vòng, ân hạn 30 giây.
 let accessTtlMs = 3600000,
   refreshDown = false,
+  legacyLogin = false, // API cũ: schema strict, từ chối key `rememberMe`
   sessions = new Map(), // sid -> { remember, expiresAt, revoked, current }
   refreshIndex = new Map(), // refresh token -> { sid, rotatedAt? }
   accessIndex = new Map(), // access token -> { sid, exp }
@@ -127,6 +128,7 @@ http
       requests = [];
       accessTtlMs = 3600000;
       refreshDown = false;
+      legacyLogin = false;
       sessions = new Map();
       refreshIndex = new Map();
       accessIndex = new Map();
@@ -140,6 +142,7 @@ http
         if ("permissions" in body) permissions = body.permissions;
         if (body.accessTtlMs) accessTtlMs = body.accessTtlMs;
         refreshDown = body.refreshDown ?? refreshDown;
+        legacyLogin = body.legacyLogin ?? legacyLogin;
         if (body.revokeSessions)
           for (const sess of sessions.values()) sess.revoked = true;
       }
@@ -161,6 +164,13 @@ http
     });
     if (down) return fail(res, 503, "SERVICE_UNAVAILABLE", "Test outage");
     if (path === "/api/v1/auth/login" && req.method === "POST") {
+      if (legacyLogin && "rememberMe" in body)
+        return fail(
+          res,
+          400,
+          "VALIDATION_FAILED",
+          "Dữ liệu gửi lên không hợp lệ.",
+        );
       if (body.phone === "0900000004")
         return fail(res, 429, "TOO_MANY_ATTEMPTS", "Thử lại sau.");
       if (body.password !== "Test-only-Password!")
