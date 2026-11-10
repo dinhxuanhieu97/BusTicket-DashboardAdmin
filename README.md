@@ -94,3 +94,9 @@ Dùng Webpack cho dev/build để tương thích môi trường local. Tài li�
 - DRAFT → OPEN, OPEN ↔ CLOSED; CANCELLED không có thao tác. Đóng bán không hủy vé. OPEN chỉ nhận đặt vé trong cửa sổ bán.
 - Chi tiết gồm mã/tên chuyến, tuyến, xe, liên hệ, lịch bán và chỗ khả dụng theo lần tải danh sách. API quản trị hiện không cung cấp giá/sơ đồ của chuyến nháp; chưa hiển thị giá cũ suy đoán từ xe.
 - Chưa mở sửa thông tin, đổi xe, xóa/hủy chuyến. Không sửa backend hoặc triển khai backend trong đợt này.
+
+## CI/CD
+
+- `.github/workflows/ci.yml`: Prettier, typecheck, unit test, build. Sau đó chạy song song E2E Playwright (API giả) và Claude review cho PR.
+- `.github/workflows/claude.yml`: gõ `@claude` trong issue hoặc PR để giao việc. Nhánh Claude tạo có dạng `hieufeature_...`.
+- Railway deploy `main` khi CI xanh ("Wait for CI"). Thiết lập secret `ANTHROPIC_API_KEY` và bảo vệ nhánh: xem mục CI/CD trong `DEPLOY.md` của repo `BusTicket-App`.
