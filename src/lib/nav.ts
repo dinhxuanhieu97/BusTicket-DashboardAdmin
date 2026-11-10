@@ -1,6 +1,5 @@
 /** Mục menu quản trị và quyền cần có (khớp `apps/api/src/auth/permissions.ts`). */
 export type NavKey =
-  | "general"
   | "schedules"
   | "overview"
   | "payments"
@@ -15,12 +14,6 @@ export const NAV: {
   label: string;
   perm?: string;
 }[] = [
-  {
-    key: "general",
-    href: "/admin/general",
-    label: "Thông tin chung",
-    perm: "policy.read",
-  },
   {
     key: "schedules",
     href: "/admin/schedules",
@@ -53,7 +46,7 @@ export const NAV: {
     label: "Nhật ký",
     perm: "audit.read",
   },
-  { key: "settings", href: "/admin/settings", label: "Tài khoản" },
+  { key: "settings", href: "/admin/settings", label: "Cài đặt" },
 ];
 
 /**

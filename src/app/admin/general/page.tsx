@@ -1,4 +1,5 @@
-import { GeneralInformation } from "@/components/live/general-information";
+import { redirect } from "next/navigation";
+
 export default function Page() {
-  return <GeneralInformation />;
+  redirect("/admin/settings?tab=general");
 }

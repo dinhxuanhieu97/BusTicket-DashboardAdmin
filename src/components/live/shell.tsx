@@ -19,7 +19,6 @@ import { visibleNav, type NavKey } from "@/lib/nav";
 import { subscribeSessionEvents } from "@/lib/session-sync";
 import { LogoutButton } from "./auth-forms";
 const icons: Record<NavKey, typeof LayoutDashboard> = {
-  general: Settings,
   schedules: Bus,
   overview: LayoutDashboard,
   payments: ReceiptText,

@@ -81,7 +81,9 @@ export function PairTripForm({
     });
   const validate = () => {
     if (!outward || !inward)
-      throw Error("Cần cấu hình đủ hai tuyến ngược chiều tại Thông tin chung.");
+      throw Error(
+        "Cần cấu hình đủ hai tuyến ngược chiều tại Cài đặt → Thông tin chung.",
+      );
     if (
       !selected[0]?.usable ||
       !selected[1]?.usable ||
@@ -259,7 +261,10 @@ export function PairTripForm({
               {!inward && (
                 <p className="text-sm text-amber-500">
                   Chưa có tuyến ngược.{" "}
-                  <Link className="underline" href="/admin/general">
+                  <Link
+                    className="underline"
+                    href="/admin/settings?tab=general"
+                  >
                     Cấu hình hai chiều
                   </Link>
                 </p>

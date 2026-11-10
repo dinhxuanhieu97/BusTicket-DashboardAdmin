@@ -71,3 +71,21 @@ test("owner saves a disabled schedule, previews it, activates it and skips a day
     page.getByRole("cell", { name: "Ngừng chạy", exact: true }),
   ).toBeVisible();
 });
+
+test("general information is inside Settings and its previous URL redirects", async ({
+  page,
+}) => {
+  await page.goto("/admin/general");
+  await expect(page).toHaveURL(/\/admin\/settings\?tab=general$/);
+  const settings = page.getByRole("navigation", { name: "Mục cài đặt" });
+  await expect(
+    settings.getByRole("link", { name: "Thông tin chung" }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(
+    page.getByRole("heading", { name: "Tuyến hai chiều" }),
+  ).toBeVisible();
+  await settings.getByRole("link", { name: "Tài khoản", exact: true }).click();
+  await expect(
+    page.getByText("OWNER · Chủ nhà xe", { exact: true }),
+  ).toBeVisible();
+});

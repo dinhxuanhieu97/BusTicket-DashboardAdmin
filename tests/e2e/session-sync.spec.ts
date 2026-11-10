@@ -140,15 +140,15 @@ test("the menu follows the permissions returned by the server", async ({
   await expect(nav.getByRole("link")).toHaveText([
     "Tổng quan",
     "Chuyến xe",
-    "Tài khoản",
+    "Cài đặt",
   ]);
   await request.post("http://127.0.0.1:3101/__test/state", {
     data: { permissions: null },
   });
   await page.reload();
-  await expect(
-    nav.getByRole("link", { name: "Thông tin chung" }),
-  ).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Thông tin chung" })).toHaveCount(
+    0,
+  );
   await expect(nav.getByRole("link", { name: "Lịch tự động" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Sổ thu" })).toBeVisible();
 });

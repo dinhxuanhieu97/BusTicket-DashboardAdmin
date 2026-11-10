@@ -1,9 +1,15 @@
+import Link from "next/link";
+import { GeneralInformation } from "@/components/live/general-information";
 import { canManageTrips } from "@/lib/trip-management";
 import { redirect } from "next/navigation";
 import { ownerSession } from "@/lib/server/session";
 import { ApiError } from "@/lib/access-policy";
 import { AccessFailure } from "@/components/live/auth-forms";
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string | string[] }>;
+}) {
   let access;
   try {
     access = await ownerSession();
@@ -13,8 +19,12 @@ export default async function Page() {
       redirect("/mfa");
     return <AccessFailure message="Không đọc được thông tin tài khoản." />;
   }
+  const { tab } = await searchParams;
+  const canReadGeneral =
+    access.session.permissions?.includes("policy.read") ?? true;
+  const showGeneral = canReadGeneral && tab === "general";
   const user = access.session.user;
-  return (
+  const account = (
     <section className="card max-w-2xl p-6">
       <h2 className="text-lg font-bold">Tài khoản PNTicket</h2>
       <dl className="mt-5 divide-y divide-line">
@@ -29,7 +39,7 @@ export default async function Page() {
               access.session,
               process.env.PNTICKET_TRIP_WRITE_OPERATOR_ID,
             )
-              ? "Quản lý chuyến · Các mục khác chỉ đọc"
+              ? "Được quản lý chuyến"
               : "Chỉ đọc",
           ],
         ].map(([label, value]) => (
@@ -40,10 +50,31 @@ export default async function Page() {
         ))}
       </dl>
       <p className="mt-5 text-sm leading-relaxed text-muted">
-        Chưa mở chỉnh sửa hồ sơ, mật khẩu, cấu hình nhà xe hoặc tài khoản nhận
-        tiền. Đăng xuất kết thúc phiên trên trình duyệt này; chưa có chức năng
-        thu hồi riêng từng token phía backend.
+        Đăng xuất kết thúc phiên trên trình duyệt này.
       </p>
     </section>
+  );
+  return (
+    <div className="space-y-6">
+      <nav aria-label="Mục cài đặt" className="flex flex-wrap gap-2">
+        <Link
+          className={`btn ${showGeneral ? "" : "btn-primary"}`}
+          href="/admin/settings"
+          aria-current={showGeneral ? undefined : "page"}
+        >
+          Tài khoản
+        </Link>
+        {canReadGeneral && (
+          <Link
+            className={`btn ${showGeneral ? "btn-primary" : ""}`}
+            href="/admin/settings?tab=general"
+            aria-current={showGeneral ? "page" : undefined}
+          >
+            Thông tin chung
+          </Link>
+        )}
+      </nav>
+      {showGeneral ? <GeneralInformation /> : account}
+    </div>
   );
 }
