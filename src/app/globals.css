@@ -99,3 +99,45 @@ html[data-animations="false"] *::after {
     transition: none !important;
   }
 }
+
+/* PN operations workspace, using the compact ViteDash visual hierarchy. */
+.pn-workspace {
+  --bg: #080a0f;
+  --panel: #15181f;
+  --surface: #222630;
+  --accent: #1677ff;
+  --card-shadow: none;
+  background: var(--bg);
+}
+html[data-theme="light"] .pn-workspace {
+  --bg: #f5f6fa;
+  --panel: #fff;
+  --surface: #edf1f7;
+  --accent: #1668dc;
+}
+.pn-workspace .pn-sidebar {
+  background: #111a2d;
+  color: #e7ecf5;
+}
+.pn-workspace .pn-sidebar {
+  --text: #e7ecf5;
+  --muted: #9ca9c0;
+  --surface: #1c2942;
+  --border: #263249;
+}
+.pn-workspace .card {
+  border-radius: 9px;
+  box-shadow: none;
+}
+.pn-workspace .pn-topbar {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+}
+.pn-workspace .pn-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  text-transform: uppercase;
+}

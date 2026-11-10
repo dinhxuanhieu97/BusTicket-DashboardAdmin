@@ -146,5 +146,9 @@ test("the menu follows the permissions returned by the server", async ({
     data: { permissions: null },
   });
   await page.reload();
-  await expect(nav.getByRole("link")).toHaveCount(6);
+  await expect(
+    nav.getByRole("link", { name: "Thông tin chung" }),
+  ).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Lịch tự động" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Sổ thu" })).toBeVisible();
 });

@@ -32,7 +32,7 @@ export function readPath(
   const allowed: Record<Resource, string[]> = {
     payments: ["review"],
     users: [],
-    trips: ["date"],
+    trips: ["date", "from", "to", "limit", "cursor"],
     "audit-logs": [],
   };
   if (!Object.hasOwn(allowed, resource))
@@ -51,7 +51,48 @@ export function readPath(
       );
     query.set("review", review);
   }
-  if (resource === "trips") {
+  if (resource === "trips" && !params.has("date")) {
+    const from = params.get("from") ?? "",
+      to = params.get("to") ?? "";
+    const valid = (v: string) =>
+      /^\d{4}-\d{2}-\d{2}$/.test(v) &&
+      !Number.isNaN(Date.parse(v)) &&
+      new Date(v).toISOString().slice(0, 10) === v;
+    const span = Date.parse(to) - Date.parse(from);
+    if (!valid(from) || !valid(to) || span <= 0 || span > 366 * 86400000)
+      throw new ApiError(
+        400,
+        "VALIDATION_FAILED",
+        "Khoảng xem phải từ 1 đến 366 ngày.",
+      );
+    const limit = params.get("limit") ?? "25";
+    if (!/^\d+$/.test(limit) || Number(limit) < 1 || Number(limit) > 100)
+      throw new ApiError(
+        400,
+        "VALIDATION_FAILED",
+        "Số hàng mỗi trang không hợp lệ.",
+      );
+    query.set("from", from);
+    query.set("to", to);
+    query.set("limit", limit);
+    if (params.has("cursor")) {
+      const cursor = params.get("cursor")!;
+      if (cursor.length > 150)
+        throw new ApiError(
+          400,
+          "VALIDATION_FAILED",
+          "Vị trí phân trang không hợp lệ.",
+        );
+      query.set("cursor", cursor);
+    }
+  }
+  if (resource === "trips" && params.has("date")) {
+    if ([...params.keys()].some((k) => k !== "date"))
+      throw new ApiError(
+        400,
+        "VALIDATION_FAILED",
+        "Không kết hợp ngày với khoảng thời gian.",
+      );
     const date = params.get("date");
     if (
       !date ||
