@@ -99,4 +99,4 @@ Dùng Webpack cho dev/build để tương thích môi trường local. Tài li�
 
 - `.github/workflows/ci.yml`: Prettier, typecheck, unit test, build. Sau đó chạy song song E2E Playwright (API giả) và Claude review cho PR.
 - `.github/workflows/claude.yml`: gõ `@claude` trong issue hoặc PR để giao việc. Nhánh Claude tạo có dạng `hieufeature_...`.
-- Railway deploy `main` khi CI xanh ("Wait for CI"). Thiết lập secret `ANTHROPIC_API_KEY` và bảo vệ nhánh: xem mục CI/CD trong `DEPLOY.md` của repo `BusTicket-App`.
+- Railway deploy `main` khi CI xanh ("Wait for CI"). Thiết lập secret `CLAUDE_CODE_OAUTH_TOKEN` (gói Claude Pro, khuyến nghị) hoặc `ANTHROPIC_API_KEY` và bảo vệ nhánh: xem mục CI/CD trong `DEPLOY.md` của repo `BusTicket-App`.
