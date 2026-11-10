@@ -14,6 +14,7 @@ const schema = z
       .string()
       .regex(/^\d{6}$/)
       .optional(),
+    rememberMe: z.boolean().optional(),
   })
   .strict();
 export async function POST(req: Request) {

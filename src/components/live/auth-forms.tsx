@@ -38,6 +38,7 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [needsOtp, setNeedsOtp] = useState(false);
+  const [remember, setRemember] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   return (
@@ -56,6 +57,7 @@ export function LoginForm() {
               phone,
               password,
               ...(otp ? { otp } : {}),
+              ...(remember ? { rememberMe: true } : {}),
             });
             setPassword("");
             setOtp("");
@@ -131,6 +133,23 @@ export function LoginForm() {
             </p>
           </div>
         )}
+        <label className="flex items-start gap-2.5 text-sm" htmlFor="remember">
+          <input
+            id="remember"
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 accent-[var(--color-accent,currentColor)]"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            disabled={busy}
+          />
+          <span>
+            Ghi nhớ đăng nhập 30 ngày
+            <span className="block text-xs text-muted">
+              Chỉ chọn trên máy riêng. Không chọn thì đóng trình duyệt là đăng
+              xuất.
+            </span>
+          </span>
+        </label>
         {error && (
           <p
             role="alert"

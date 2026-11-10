@@ -38,18 +38,70 @@ let revoked = false,
   setupStarted = false,
   confirmed = false,
   requests = [];
+// Phiên refresh giả lập API thật: access token dạng JWT có `exp`, refresh token xoay vòng, ân hạn 30 giây.
+let accessTtlMs = 3600000,
+  refreshDown = false,
+  sessions = new Map(), // sid -> { remember, expiresAt, revoked, current }
+  refreshIndex = new Map(), // refresh token -> { sid, rotatedAt? }
+  accessIndex = new Map(), // access token -> { sid, exp }
+  serial = 0;
+const mintAccess = (sid, sessionExpiresAt) => {
+  const exp = Math.min(Date.now() + accessTtlMs, sessionExpiresAt);
+  serial += 1;
+  const payload = Buffer.from(
+    JSON.stringify({ exp: Math.floor(exp / 1000), sid, n: serial }),
+  ).toString("base64url");
+  const token = `eyJhbGciOiJIUzI1NiJ9.${payload}.fixturesig${serial}`;
+  accessIndex.set(token, { sid, exp });
+  return { token, exp };
+};
+const mintRefresh = (sid) => {
+  serial += 1;
+  const token = `${sid}.fixture-refresh-${serial}-${Math.random().toString(36).slice(2)}`;
+  refreshIndex.set(token, { sid });
+  sessions.get(sid).current = token;
+  return token;
+};
+const kindOf = (token) => {
+  if (token === setup) return "setup";
+  if (token === full) return "full";
+  const a = accessIndex.get(token);
+  if (!a || a.exp <= Date.now()) return null;
+  const sess = sessions.get(a.sid);
+  return sess && !sess.revoked ? "full" : null;
+};
 const send = (res, status, data) => {
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(data));
 };
 const fail = (res, status, code, message) =>
   send(res, status, { error: { code, message } });
-const issued = (scope, u) => ({
-  accessToken: scope === "full" ? full : setup,
-  scope,
-  expiresAt: new Date(Date.now() + 3600000).toISOString(),
-  user: u,
-});
+const issued = (scope, u, remember = false) => {
+  if (scope !== "full")
+    return {
+      accessToken: setup,
+      scope,
+      expiresAt: new Date(Date.now() + 3600000).toISOString(),
+      refreshToken: null,
+      sessionExpiresAt: null,
+      remember,
+      user: u,
+    };
+  serial += 1;
+  const sid = `33333333-3333-4333-8333-${String(serial).padStart(12, "0")}`;
+  const expiresAt = Date.now() + (remember ? 30 * 86400000 : 12 * 3600000);
+  sessions.set(sid, { remember, expiresAt, revoked: false, current: null });
+  const access = mintAccess(sid, expiresAt);
+  return {
+    accessToken: access.token,
+    scope,
+    expiresAt: new Date(access.exp).toISOString(),
+    refreshToken: mintRefresh(sid),
+    sessionExpiresAt: new Date(expiresAt).toISOString(),
+    remember,
+    user: u,
+  };
+};
 http
   .createServer(async (req, res) => {
     let raw = "";
@@ -73,6 +125,11 @@ http
       setupStarted = false;
       confirmed = false;
       requests = [];
+      accessTtlMs = 3600000;
+      refreshDown = false;
+      sessions = new Map();
+      refreshIndex = new Map();
+      accessIndex = new Map();
       return send(res, 200, { ok: true });
     }
     if (path === "/__test/state") {
@@ -81,8 +138,20 @@ http
         down = body.down ?? down;
         malformed = body.malformed ?? malformed;
         if ("permissions" in body) permissions = body.permissions;
+        if (body.accessTtlMs) accessTtlMs = body.accessTtlMs;
+        refreshDown = body.refreshDown ?? refreshDown;
+        if (body.revokeSessions)
+          for (const sess of sessions.values()) sess.revoked = true;
       }
-      return send(res, 200, { requests, setupStarted, confirmed });
+      return send(res, 200, {
+        requests,
+        setupStarted,
+        confirmed,
+        sessions: [...sessions.values()].map(({ remember, revoked }) => ({
+          remember,
+          revoked,
+        })),
+      });
     }
     requests.push({
       method: req.method,
@@ -118,18 +187,53 @@ http
         );
       if (body.otp !== "123456")
         return fail(res, 401, "INVALID_CREDENTIALS", "Mã xác thực không đúng.");
-      return send(res, 200, issued("full", user));
+      return send(res, 200, issued("full", user, body.rememberMe === true));
+    }
+    if (path === "/api/v1/auth/refresh" && req.method === "POST") {
+      if (refreshDown)
+        return fail(res, 503, "SERVICE_UNAVAILABLE", "Test outage");
+      const entry = refreshIndex.get(body.refreshToken);
+      const sess = entry && sessions.get(entry.sid);
+      if (!sess || sess.revoked || sess.expiresAt <= Date.now())
+        return fail(res, 401, "UNAUTHENTICATED", "Phiên đã hết hạn.");
+      let refreshToken = null;
+      if (sess.current === body.refreshToken) {
+        entry.rotatedAt = Date.now();
+        refreshToken = mintRefresh(entry.sid);
+      } else if (!entry.rotatedAt || Date.now() - entry.rotatedAt > 30000) {
+        sess.revoked = true; // dùng lại token cũ sau ân hạn
+        return fail(res, 401, "UNAUTHENTICATED", "Phiên đã hết hạn.");
+      }
+      const access = mintAccess(entry.sid, sess.expiresAt);
+      return send(res, 200, {
+        accessToken: access.token,
+        scope: "full",
+        expiresAt: new Date(access.exp).toISOString(),
+        refreshToken,
+        sessionExpiresAt: new Date(sess.expiresAt).toISOString(),
+        remember: sess.remember,
+        user,
+      });
+    }
+    if (path === "/api/v1/auth/logout" && req.method === "POST") {
+      const entry = refreshIndex.get(body.refreshToken);
+      if (entry) sessions.get(entry.sid).revoked = true;
+      const bearer = (req.headers.authorization || "").replace("Bearer ", "");
+      const a = accessIndex.get(bearer);
+      if (a) sessions.get(a.sid).revoked = true;
+      return send(res, 200, { ok: true });
     }
     const token = (req.headers.authorization || "").replace("Bearer ", "");
-    if (revoked || ![full, setup].includes(token))
+    const kind = kindOf(token);
+    if (revoked || !kind)
       return fail(res, 401, "UNAUTHENTICATED", "Phiên đã hết hạn.");
     if (path === "/api/v1/auth/me")
       return send(res, 200, {
-        user: token === setup ? { ...user, mfaEnabled: false } : user,
-        scope: token === setup ? "mfa_setup" : "full",
+        user: kind === "setup" ? { ...user, mfaEnabled: false } : user,
+        scope: kind === "setup" ? "mfa_setup" : "full",
         ...(permissions === null
           ? {}
-          : { permissions: token === setup ? [] : permissions }),
+          : { permissions: kind === "setup" ? [] : permissions }),
       });
     if (path === "/api/v1/auth/mfa/setup" && req.method === "POST") {
       setupStarted = true;
@@ -145,7 +249,8 @@ http
       confirmed = true;
       return send(res, 200, issued("full", user));
     }
-    if (token !== full) return fail(res, 403, "MFA_SETUP_REQUIRED", "Cần 2FA.");
+    if (kind !== "full")
+      return fail(res, 403, "MFA_SETUP_REQUIRED", "Cần 2FA.");
     const tripBase = `/api/v1/admin/operators/${op}/`;
     const routeId = "66666666-6666-4666-8666-666666666666",
       vehicleId = "77777777-7777-4777-8777-777777777777",
