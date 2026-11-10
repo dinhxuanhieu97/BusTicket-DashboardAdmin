@@ -37,6 +37,7 @@ let profile = {
   name: "Nhà xe kiểm thử",
   defaultDepartureTime: "17:30",
 };
+let paymentAccount = null;
 
 let idempotent = {};
 let statusOverrides = {};
@@ -82,6 +83,7 @@ http
         defaultDepartureTime: "17:30",
       };
 
+      paymentAccount = null;
       idempotent = {};
       statusOverrides = {};
       down = false;
@@ -172,6 +174,18 @@ http
     if (path === tripBase + "profile") {
       if (req.method === "PUT") profile = { ...profile, ...body };
       return send(res, 200, profile);
+    }
+    if (path === tripBase + "payment-account") {
+      if (req.method === "PUT") {
+        paymentAccount = {
+          provider: "SEPAY",
+          bankCode: body.bankCode.toUpperCase(),
+          accountNumber: body.accountNumber,
+          accountName: body.accountName,
+          reconcileEnabled: Boolean(body.apiToken),
+        };
+      }
+      return send(res, 200, { account: paymentAccount });
     }
     if (path === tripBase + "trip-schedules") {
       if (req.method === "POST") {

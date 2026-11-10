@@ -74,7 +74,15 @@ export default async function Page({
           </Link>
         )}
       </nav>
-      {showGeneral ? <GeneralInformation /> : account}
+      {showGeneral ? (
+        <GeneralInformation
+          canConfigurePayments={
+            access.session.permissions?.includes("payment.configure") ?? true
+          }
+        />
+      ) : (
+        account
+      )}
     </div>
   );
 }

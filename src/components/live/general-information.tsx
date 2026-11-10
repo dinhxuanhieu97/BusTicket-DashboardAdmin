@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { RouteStopsEditor } from "./route-stops-editor";
+import { PaymentAccountSettings } from "./payment-account-settings";
 import { operation } from "./operations-client";
 import type { TripOptions } from "@/lib/trip-management";
 export type OperatorProfile = {
@@ -9,7 +10,11 @@ export type OperatorProfile = {
   name: string;
   defaultDepartureTime: string;
 };
-export function GeneralInformation() {
+export function GeneralInformation({
+  canConfigurePayments,
+}: {
+  canConfigurePayments: boolean;
+}) {
   const [profile, setProfile] = useState<OperatorProfile | null>(null),
     [options, setOptions] = useState<TripOptions | null>(null);
   const [error, setError] = useState(""),
@@ -111,6 +116,7 @@ export function GeneralInformation() {
           </button>
         </form>
       )}
+      {canConfigurePayments && <PaymentAccountSettings />}
       <section className="card space-y-4 p-6">
         <h2 className="font-bold">Xe</h2>
         {options?.vehicles.map((v) => (
