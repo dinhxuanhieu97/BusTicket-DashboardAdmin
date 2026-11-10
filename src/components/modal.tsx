@@ -3,10 +3,12 @@ import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 export function Modal({
   title,
+  wide = false,
   onClose,
   children,
 }: {
   title: string;
+  wide?: boolean;
   onClose: () => void;
   children: React.ReactNode;
 }) {
@@ -26,6 +28,10 @@ export function Modal({
   return (
     <dialog
       ref={ref}
+      className={
+        wide ? "max-sm:h-dvh max-sm:max-h-dvh max-sm:rounded-none" : undefined
+      }
+      style={wide ? { width: "min(100vw, 820px)" } : undefined}
       aria-labelledby="modal-heading"
       onCancel={(e) => {
         e.preventDefault();

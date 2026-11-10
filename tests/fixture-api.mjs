@@ -30,6 +30,34 @@ const OWNER_PERMISSIONS = [
 ];
 let permissions = OWNER_PERMISSIONS;
 let createdTrips = [];
+let schedules = [];
+const defaultPolicy = () => ({
+  operatorId: op,
+  version: 1,
+  holdMinutes: 10,
+  maxUnitsPerBooking: 5,
+  childPolicy: {
+    freeUnderAge: 2,
+    price: 0,
+    maxPerUnit: 1,
+    countsTowardCapacity: false,
+  },
+  maxActiveHoldsPerPhone: 2,
+  requirePhoneOtp: false,
+  depositPercent: 100,
+  fixedDeposit: null,
+  paymentGraceMinutes: 3,
+  autoReinstateLatePayment: true,
+});
+let policy = null;
+let profile = {
+  id: op,
+  code: "TEST",
+  name: "Nhà xe kiểm thử",
+  defaultDepartureTime: "17:30",
+};
+let paymentAccount = null;
+
 let idempotent = {};
 let statusOverrides = {};
 let revoked = false,
@@ -66,6 +94,16 @@ http
       revoked = false;
       permissions = OWNER_PERMISSIONS;
       createdTrips = [];
+      schedules = [];
+      policy = null;
+      profile = {
+        id: op,
+        code: "TEST",
+        name: "Nhà xe kiểm thử",
+        defaultDepartureTime: "17:30",
+      };
+
+      paymentAccount = null;
       idempotent = {};
       statusOverrides = {};
       down = false;
@@ -152,6 +190,95 @@ http
       layoutId = "88888888-8888-4888-8888-888888888888",
       oldVehicleId = "99999999-9999-4999-8999-999999999999",
       oldLayoutId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const reverseRouteId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    if (path === tripBase + "policy") {
+      policy ??= defaultPolicy();
+      if (req.method === "PUT")
+        policy = { ...policy, ...body, version: policy.version + 1 };
+      return send(res, 200, policy);
+    }
+    if (path === tripBase + "profile") {
+      if (req.method === "PUT") profile = { ...profile, ...body };
+      return send(res, 200, profile);
+    }
+    if (path === tripBase + "payment-account") {
+      if (req.method === "PUT") {
+        paymentAccount = {
+          provider: "SEPAY",
+          bankCode: body.bankCode.toUpperCase(),
+          accountNumber: body.accountNumber,
+          accountName: body.accountName,
+          reconcileEnabled: Boolean(body.apiToken),
+        };
+      }
+      return send(res, 200, { account: paymentAccount });
+    }
+    if (path === tripBase + "trip-schedules") {
+      if (req.method === "POST") {
+        const row = {
+          id: crypto.randomUUID(),
+          name: body.name,
+          config: body,
+          enabled: false,
+          last_error: null,
+          last_success_at: null,
+          exception: null,
+        };
+        schedules.push(row);
+        return send(res, 201, row);
+      }
+      return send(res, 200, { schedules });
+    }
+    if (path.startsWith(tripBase + "trip-schedules/")) {
+      const [id, action] = path
+        .slice((tripBase + "trip-schedules/").length)
+        .split("/");
+      const row = schedules.find((v) => v.id === id);
+      if (!row) return fail(res, 404, "NOT_FOUND", "Không tìm thấy lịch.");
+      if (action === "preview")
+        return send(res, 200, {
+          occurrences: row.config.legs.map((leg, i) => ({
+            date: row.config.startDate,
+            leg: i,
+            routeId: leg.routeId,
+            vehicleId: leg.vehicles[0].vehicleId,
+            departAt: new Date(
+              row.config.startDate + "T" + row.config.departTime + ":00+07:00",
+            ).toISOString(),
+            skipped:
+              row.exception?.leg === i && row.exception?.skipped === true,
+            existing: !!row.last_success_at,
+          })),
+        });
+      if (action === "generate") {
+        row.last_success_at = new Date().toISOString();
+        return send(res, 201, { created: 60 });
+      }
+      if (action === "exception") {
+        row.exception = body;
+        return send(res, 200, body);
+      }
+      row.enabled = body.enabled;
+      return send(res, 200, row);
+    }
+    if (path === tripBase + "trips/batch" && req.method === "POST") {
+      const rows = body.trips.map((v, i) => ({
+        id: crypto.randomUUID(),
+        name: v.name,
+        status: v.status,
+        depart_at: v.departAt,
+        sales_open_at: v.salesOpenAt,
+        sales_close_at: v.salesCloseAt,
+        contact_phone: null,
+        route_code: i ? "BACK" : "TEST",
+        vehicle_code: i ? "TEST02" : "TEST01",
+        vehicle_name: i ? "Xe sơ đồ cũ" : "Xe kiểm thử",
+        available: 2,
+        capacity: 2,
+      }));
+      createdTrips.push(...rows);
+      return send(res, 201, { trips: rows });
+    }
     if (path === tripBase + "routes")
       return send(res, 200, {
         routes: [
@@ -160,6 +287,12 @@ http
             code: "TEST",
             origin: "TP. Hồ Chí Minh",
             destination: "Đà Lạt",
+          },
+          {
+            id: reverseRouteId,
+            code: "BACK",
+            origin: "Đà Lạt",
+            destination: "TP. Hồ Chí Minh",
           },
         ],
       });

@@ -24,6 +24,7 @@ test("OWNER creates draft in Vietnam time, views detail and opens/closes sales",
   await signIn(context.request);
   await page.goto("/admin/trips");
   await page.getByRole("button", { name: "+ Thêm chuyến" }).click();
+  await page.getByRole("button", { name: "Chỉ tạo một chiều" }).click();
   await page
     .getByLabel("Tuyến", { exact: true })
     .selectOption("66666666-6666-4666-8666-666666666666");

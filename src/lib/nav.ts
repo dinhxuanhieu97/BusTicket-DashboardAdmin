@@ -1,6 +1,12 @@
 /** Mục menu quản trị và quyền cần có (khớp `apps/api/src/auth/permissions.ts`). */
 export type NavKey =
-  "overview" | "payments" | "users" | "trips" | "audit" | "settings";
+  | "schedules"
+  | "overview"
+  | "payments"
+  | "users"
+  | "trips"
+  | "audit"
+  | "settings";
 
 export const NAV: {
   key: NavKey;
@@ -8,6 +14,12 @@ export const NAV: {
   label: string;
   perm?: string;
 }[] = [
+  {
+    key: "schedules",
+    href: "/admin/schedules",
+    label: "Lịch tự động",
+    perm: "trip.write",
+  },
   // Trang tổng quan hiển thị danh sách chuyến.
   {
     key: "overview",
@@ -34,7 +46,7 @@ export const NAV: {
     label: "Nhật ký",
     perm: "audit.read",
   },
-  { key: "settings", href: "/admin/settings", label: "Tài khoản" },
+  { key: "settings", href: "/admin/settings", label: "Cài đặt" },
 ];
 
 /**

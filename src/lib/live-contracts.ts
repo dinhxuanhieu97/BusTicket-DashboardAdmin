@@ -79,7 +79,10 @@ export const auditSchema = z.object({
 export const resourceSchemas = {
   payments: z.object({ payments: z.array(paymentSchema) }),
   users: z.object({ users: z.array(userSchema) }),
-  trips: z.object({ trips: z.array(tripSchema) }),
+  trips: z.object({
+    trips: z.array(tripSchema),
+    nextCursor: z.string().nullable().optional(),
+  }),
   "audit-logs": z.object({ entries: z.array(auditSchema) }),
 };
 export type Resource = keyof typeof resourceSchemas;

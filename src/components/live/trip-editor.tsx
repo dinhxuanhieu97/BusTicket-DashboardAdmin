@@ -7,6 +7,8 @@ import {
   vnInputToISO,
 } from "@/lib/trip-management";
 import { vnDateTime, vnd, type Trip } from "@/lib/live-contracts";
+import { operation } from "./operations-client";
+import type { OperatorProfile } from "./general-information";
 import { PN_SCHEDULE } from "@/lib/trip-detail";
 export { TripDetails } from "./trip-details";
 export async function tripMutation(
@@ -72,6 +74,26 @@ export function TripEditor({
       });
     return () => c.abort();
   }, []);
+  const [defaultTime, setDefaultTime] = useState<string>(PN_SCHEDULE.depart);
+  useEffect(() => {
+    let active = true;
+    void operation<OperatorProfile>("profile")
+      .then((p) => {
+        if (!active) return;
+        const next = `${date}T${p.defaultDepartureTime}`;
+        setDefaultTime(p.defaultDepartureTime);
+        setDepart((v) => (v === `${date}T${PN_SCHEDULE.depart}` ? next : v));
+        setClose((v) => (v === `${date}T${PN_SCHEDULE.depart}` ? next : v));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [date]);
+  const routeInfo = options?.routes.find((r) => r.id === route);
+  const defaultName = routeInfo
+    ? `Chuyến ${routeInfo.origin} → ${routeInfo.destination}`
+    : "";
   const selected = options?.vehicles.find((v) => v.id === vehicle);
   const prepare = (status: "DRAFT" | "OPEN") => {
     setError("");
@@ -87,7 +109,7 @@ export function TripEditor({
       const data = createTripInput.safeParse({
         routeId: route,
         vehicleId: vehicle,
-        name,
+        name: name.trim() || defaultName,
         ...(phone.trim() ? { contactPhone: phone.trim() } : {}),
         departAt: vnInputToISO(depart),
         salesOpenAt: vnInputToISO(open),
@@ -176,9 +198,9 @@ export function TripEditor({
             Tên chuyến
             <input
               className="field mt-2"
-              required
               maxLength={120}
               value={name}
+              placeholder={defaultName || "Tự điền theo tuyến"}
               onChange={(e) => setName(e.target.value)}
             />
           </label>
@@ -192,8 +214,8 @@ export function TripEditor({
             />
           </label>
           <p className="text-xs text-muted">
-            Mặc định PN: xuất bến {PN_SCHEDULE.depart}, tới nơi{" "}
-            {PN_SCHEDULE.arrive} sáng hôm sau. Ngày lễ tết có thể khác.
+            Giờ mặc định: xuất bến {defaultTime}, tới nơi {PN_SCHEDULE.arrive}{" "}
+            sáng hôm sau. Ngày lễ tết có thể khác.
           </p>
           {[
             { label: "Khởi hành", value: depart, set: setDepart },

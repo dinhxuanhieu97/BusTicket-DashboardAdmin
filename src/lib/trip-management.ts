@@ -82,6 +82,12 @@ export const tripWriteResult = z.object({
   status: z.enum(["DRAFT", "OPEN", "CLOSED", "CANCELLED"]),
   depart_at: z.string(),
 });
+export const tripStopSchema = z.object({
+  name: z.string(),
+  time: z.string(),
+  day: z.number().int(),
+});
+export type TripStop = z.infer<typeof tripStopSchema>;
 export const routesSchema = z.object({
   routes: z.array(
     z.object({
@@ -89,6 +95,12 @@ export const routesSchema = z.object({
       code: z.string(),
       origin: z.string(),
       destination: z.string(),
+      stops: z
+        .object({
+          pickup: z.array(tripStopSchema),
+          dropoff: z.array(tripStopSchema),
+        })
+        .optional(),
     }),
   ),
 });

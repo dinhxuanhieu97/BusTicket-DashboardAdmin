@@ -27,7 +27,7 @@ export async function backendRequest(
   path: string,
   options: {
     token?: string;
-    method?: "GET" | "POST" | "PATCH";
+    method?: "GET" | "POST" | "PATCH" | "PUT";
     body?: unknown;
     idempotencyKey?: string;
   } = {},

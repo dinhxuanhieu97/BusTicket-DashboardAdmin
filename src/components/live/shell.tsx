@@ -19,6 +19,7 @@ import { visibleNav, type NavKey } from "@/lib/nav";
 import { subscribeSessionEvents } from "@/lib/session-sync";
 import { LogoutButton } from "./auth-forms";
 const icons: Record<NavKey, typeof LayoutDashboard> = {
+  schedules: Bus,
   overview: LayoutDashboard,
   payments: ReceiptText,
   users: Users,
@@ -40,6 +41,20 @@ export function LiveShell({
     ...i,
     icon: icons[i.key],
   }));
+  const [operatorName, setOperatorName] = useState("Nhà xe");
+  useEffect(() => {
+    const load = () => {
+      void fetch("/api/operations/profile", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((p) => {
+          if (p?.name) setOperatorName(p.name);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    window.addEventListener("operator-profile-updated", load);
+    return () => window.removeEventListener("operator-profile-updated", load);
+  }, []);
   const [menu, setMenu] = useState(false);
   const [dark, setDark] = useState(true);
   const [sessionError, setSessionError] = useState("");
@@ -123,7 +138,7 @@ export function LiveShell({
     };
   }, [user.id]);
   return (
-    <div className="min-h-screen lg:pl-60">
+    <div className="pn-workspace min-h-screen lg:pl-60">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:z-50 focus:bg-panel focus:p-3"
@@ -138,13 +153,13 @@ export function LiveShell({
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-line bg-panel ${menu ? "visible translate-x-0" : "invisible -translate-x-full lg:visible lg:translate-x-0"}`}
+        className={`pn-sidebar fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-line bg-panel ${menu ? "visible translate-x-0" : "invisible -translate-x-full lg:visible lg:translate-x-0"}`}
       >
         <Link href="/admin" className="flex h-24 items-center gap-3 px-6">
           <span className="grid size-10 place-content-center rounded-xl bg-gradient-to-br from-accent to-cyan-400 text-xl font-bold text-white">
             P
           </span>
-          <strong className="text-xl">PNTicket</strong>
+          <strong className="text-xl">{operatorName}</strong>
         </Link>
         <nav aria-label="Điều hướng quản trị" className="space-y-1 px-4">
           {items.map(({ href, label, icon: Icon }) => (
@@ -222,7 +237,7 @@ export function LiveShell({
           children
         )}
         <footer className="mt-8 border-t border-line pt-5 text-xs text-muted">
-          PNTicket · Quản lý chuyến theo quyền OWNER. Các mục khác chỉ đọc.
+          {operatorName} · Giờ Việt Nam (UTC+7).
         </footer>
       </main>
     </div>
