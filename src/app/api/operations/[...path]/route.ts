@@ -13,6 +13,7 @@ const uuid = "[0-9a-fA-F-]{36}";
 const allowed = {
   GET: [
     /^profile$/,
+    /^policy$/,
     /^trip-schedules$/,
     new RegExp(`^trip-schedules/${uuid}/preview$`),
   ],
@@ -24,6 +25,8 @@ const allowed = {
   ],
   PUT: [
     /^profile$/,
+    // Chính sách đặt vé (giữ chỗ, cọc cố định...): API kiểm quyền policy.write và validate đầy đủ.
+    /^policy$/,
     new RegExp(`^routes/${uuid}/stops$`),
     new RegExp(`^trip-schedules/${uuid}/exception$`),
   ],

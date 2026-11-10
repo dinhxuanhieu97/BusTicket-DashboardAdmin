@@ -31,6 +31,25 @@ const OWNER_PERMISSIONS = [
 let permissions = OWNER_PERMISSIONS;
 let createdTrips = [];
 let schedules = [];
+const defaultPolicy = () => ({
+  operatorId: op,
+  version: 1,
+  holdMinutes: 10,
+  maxUnitsPerBooking: 5,
+  childPolicy: {
+    freeUnderAge: 2,
+    price: 0,
+    maxPerUnit: 1,
+    countsTowardCapacity: false,
+  },
+  maxActiveHoldsPerPhone: 2,
+  requirePhoneOtp: false,
+  depositPercent: 100,
+  fixedDeposit: null,
+  paymentGraceMinutes: 3,
+  autoReinstateLatePayment: true,
+});
+let policy = null;
 let profile = {
   id: op,
   code: "TEST",
@@ -76,6 +95,7 @@ http
       permissions = OWNER_PERMISSIONS;
       createdTrips = [];
       schedules = [];
+      policy = null;
       profile = {
         id: op,
         code: "TEST",
@@ -171,6 +191,12 @@ http
       oldVehicleId = "99999999-9999-4999-8999-999999999999",
       oldLayoutId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const reverseRouteId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    if (path === tripBase + "policy") {
+      policy ??= defaultPolicy();
+      if (req.method === "PUT")
+        policy = { ...policy, ...body, version: policy.version + 1 };
+      return send(res, 200, policy);
+    }
     if (path === tripBase + "profile") {
       if (req.method === "PUT") profile = { ...profile, ...body };
       return send(res, 200, profile);
