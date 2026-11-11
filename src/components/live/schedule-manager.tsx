@@ -2,6 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { vnToday, vnDateTime } from "@/lib/live-contracts";
+import {
+  Notice,
+  EmptyState,
+  StatusBadge,
+  TableScroll,
+  LoadState,
+  thClass,
+  tdClass,
+  tableClass,
+} from "./shared";
 import { operation } from "./operations-client";
 import { PairTripForm } from "./pair-trip-form";
 import type { TripOptions } from "@/lib/trip-management";
@@ -79,7 +89,7 @@ export function ScheduleManager() {
   }
   const active = schedules.find((s) => s.id === preview?.id);
   return (
-    <div className="space-y-6">
+    <div className="pn-page-stack">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <p className="text-sm text-muted">
           Duy trì lịch chạy 30 ngày tới. Hai xe đổi chiều mỗi ngày kể từ ngày
@@ -93,19 +103,11 @@ export function ScheduleManager() {
           {creating ? "Đóng thiết lập" : "+ Thiết lập lịch"}
         </button>
       </div>
-      {error && (
-        <p role="alert" className="card p-4 text-sm text-amber-500">
-          {error}
-        </p>
-      )}
-      {notice && (
-        <p role="status" className="card p-4 text-sm text-emerald-500">
-          {notice}
-        </p>
-      )}
+      {error && <Notice tone="danger">{error}</Notice>}
+      {notice && <Notice tone="success">{notice}</Notice>}
       {creating && (
-        <section className="card space-y-4 p-6">
-          <h2 className="font-bold">Thiết lập lịch hai chiều</h2>
+        <section className="card space-y-4 pn-panel-inset">
+          <h2 className="text-base font-semibold">Thiết lập lịch hai chiều</h2>
           <PairTripForm
             mode="daily"
             onSaved={() => {
@@ -120,22 +122,31 @@ export function ScheduleManager() {
           />
         </section>
       )}
-      {!loaded && !error && (
-        <p className="text-sm text-muted">Đang tải lịch…</p>
-      )}
+      {!loaded && !error && <LoadState loading reload={load} />}
       {loaded && !schedules.length && !creating && (
-        <p className="card p-8 text-center text-muted">Chưa có lịch tự động.</p>
+        <section className="card">
+          <EmptyState>
+            <p>Chưa có lịch tự động.</p>
+          </EmptyState>
+        </section>
       )}
       {schedules.map((s) => (
         <section
           key={s.id}
-          className="card flex flex-wrap items-center justify-between gap-4 p-5"
+          className="card pn-panel-inset flex flex-wrap items-center justify-between gap-3"
         >
           <div>
-            <h2 className="font-bold">{s.name}</h2>
-            <p className="mt-1 text-sm text-muted">
-              {s.config.startDate} · {s.config.departTime} ·{" "}
-              {s.enabled ? "Đang bật" : "Đang tắt"}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <h2 className="text-base font-semibold wrap-anywhere">
+                {s.name}
+              </h2>
+              <StatusBadge
+                tone={s.enabled ? "success" : "neutral"}
+                label={s.enabled ? "Đang bật" : "Đang tắt"}
+              />
+            </div>
+            <p className="mt-2 text-sm text-muted tabular-nums">
+              {s.config.startDate} · {s.config.departTime}
             </p>
             {s.last_success_at && (
               <p className="mt-1 text-xs text-muted">
@@ -143,7 +154,7 @@ export function ScheduleManager() {
               </p>
             )}
             {s.last_error && (
-              <p className="mt-1 text-sm text-amber-500">{s.last_error}</p>
+              <p className="mt-1 text-sm text-warning">{s.last_error}</p>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -198,9 +209,11 @@ export function ScheduleManager() {
         </section>
       ))}
       {preview && active && (
-        <section className="card space-y-4 p-6">
+        <section className="card space-y-4 pn-panel-inset">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <h2 className="font-bold">Lịch dự kiến · {active.name}</h2>
+            <h2 className="text-base font-semibold">
+              Lịch dự kiến · {active.name}
+            </h2>
             {!active.enabled && (
               <button
                 className="btn btn-primary"
@@ -229,51 +242,55 @@ export function ScheduleManager() {
               </button>
             )}
           </div>
-          <div className="max-h-80 overflow-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th className="p-2">Xuất bến</th>
-                  <th className="p-2">Chiều</th>
-                  <th className="p-2">Xe</th>
-                  <th className="p-2">Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody>
-                {preview.items.map((i) => {
-                  const route = options?.routes.find((r) => r.id === i.routeId),
-                    vehicle = options?.vehicles.find(
-                      (v) => v.id === i.vehicleId,
+          <div className="max-h-80 overflow-y-auto rounded-xl border border-line">
+            <TableScroll label="Lịch chạy dự kiến">
+              <table className={tableClass}>
+                <thead>
+                  <tr>
+                    <th className={thClass}>Xuất bến</th>
+                    <th className={thClass}>Chiều</th>
+                    <th className={thClass}>Xe</th>
+                    <th className={thClass}>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.items.map((i) => {
+                    const route = options?.routes.find(
+                        (r) => r.id === i.routeId,
+                      ),
+                      vehicle = options?.vehicles.find(
+                        (v) => v.id === i.vehicleId,
+                      );
+                    return (
+                      <tr
+                        className="border-t border-line"
+                        key={i.date + ":" + i.leg}
+                      >
+                        <td className={tdClass}>{vnDateTime(i.departAt)}</td>
+                        <td className={tdClass}>
+                          {route
+                            ? `${route.origin} → ${route.destination}`
+                            : active.config.legs[i.leg]?.name ||
+                              `Chiều ${i.leg + 1}`}
+                        </td>
+                        <td className={tdClass}>
+                          {vehicle
+                            ? `${vehicle.code} · ${vehicle.name}`
+                            : "Xe không khả dụng"}
+                        </td>
+                        <td className={tdClass}>
+                          {i.skipped
+                            ? "Ngừng chạy"
+                            : i.existing
+                              ? "Đã tạo"
+                              : "Sẽ tạo"}
+                        </td>
+                      </tr>
                     );
-                  return (
-                    <tr
-                      className="border-t border-line"
-                      key={i.date + ":" + i.leg}
-                    >
-                      <td className="p-2">{vnDateTime(i.departAt)}</td>
-                      <td className="p-2">
-                        {route
-                          ? `${route.origin} → ${route.destination}`
-                          : active.config.legs[i.leg]?.name ||
-                            `Chiều ${i.leg + 1}`}
-                      </td>
-                      <td className="p-2">
-                        {vehicle
-                          ? `${vehicle.code} · ${vehicle.name}`
-                          : "Xe không khả dụng"}
-                      </td>
-                      <td className="p-2">
-                        {i.skipped
-                          ? "Ngừng chạy"
-                          : i.existing
-                            ? "Đã tạo"
-                            : "Sẽ tạo"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  })}
+                </tbody>
+              </table>
+            </TableScroll>
           </div>
           {!preview.items.length && (
             <p className="text-sm text-muted">
@@ -282,7 +299,7 @@ export function ScheduleManager() {
           )}
           <form
             key={active.id}
-            className="space-y-3 border-t border-line pt-4"
+            className="space-y-4 border-t border-line pt-4"
             onSubmit={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget);
@@ -305,11 +322,11 @@ export function ScheduleManager() {
             }}
           >
             <h3 className="font-semibold">Đổi giờ hoặc ngừng chạy một ngày</h3>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="pn-form-grid max-w-md sm:grid-cols-2">
               <label className="label">
                 Ngày
                 <input
-                  className="field mt-2"
+                  className="field"
                   type="date"
                   name="date"
                   min={vnToday()}
@@ -318,18 +335,18 @@ export function ScheduleManager() {
                 />
               </label>
               <label className="label">
+                Giờ mới (để trống dùng giờ thường)
+                <input className="field" type="time" name="time" />
+              </label>
+              <label className="label sm:col-span-2">
                 Chiều
-                <select className="field mt-2" name="leg">
+                <select className="field" name="leg">
                   {active.config.legs.map((l, i) => (
                     <option key={l.routeId} value={i}>
                       {l.name || `Chiều ${i + 1}`}
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="label">
-                Giờ mới (để trống dùng giờ thường)
-                <input className="field mt-2" type="time" name="time" />
               </label>
             </div>
             <label className="flex items-center gap-2 text-sm">

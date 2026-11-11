@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertOwner, readPath, checkOrigin, ApiError } from "./access-policy";
+import {
+  assertOperatorSession,
+  hasPermission,
+  readPath,
+  checkOrigin,
+  ApiError,
+} from "./access-policy";
 import { sessionSchema, paymentSchema, type Session } from "./live-contracts";
 const operator = "11111111-1111-4111-8111-111111111111";
 const session: Session = {
@@ -14,32 +20,54 @@ const session: Session = {
     mfaEnabled: true,
   },
 };
-test("only OWNER with a tenant and full MFA session can read live data", () => {
-  assert.equal(assertOwner(session), session);
+test("operator accounts can sign in and only OWNER can fall back to legacy permissions", () => {
+  assert.equal(assertOperatorSession(session), session);
   for (const role of [
-    "PLATFORM_ADMIN",
     "ACCOUNTANT",
     "DISPATCHER",
     "SELLER",
     "ASSISTANT",
-  ] as const)
-    assert.throws(
-      () => assertOwner({ ...session, user: { ...session.user, role } }),
-      (e: unknown) => e instanceof ApiError && e.code === "OWNER_REQUIRED",
+  ] as const) {
+    const staff: Session = { ...session, user: { ...session.user, role } };
+    assert.equal(assertOperatorSession(staff), staff);
+    assert.equal(hasPermission(staff, "trip.read"), false);
+    assert.equal(
+      hasPermission({ ...staff, permissions: ["trip.read"] }, "trip.read"),
+      true,
     );
+  }
+  assert.throws(
+    () =>
+      assertOperatorSession({
+        ...session,
+        user: { ...session.user, role: "PLATFORM_ADMIN" },
+      }),
+    (e: unknown) => e instanceof ApiError && e.code === "OPERATOR_REQUIRED",
+  );
+  assert.equal(hasPermission(session, "trip.read"), true);
+  assert.equal(
+    hasPermission({ ...session, permissions: [] }, "trip.read"),
+    false,
+  );
   assert.throws(() =>
-    assertOwner({ ...session, user: { ...session.user, operatorId: null } }),
+    assertOperatorSession({
+      ...session,
+      user: { ...session.user, operatorId: null },
+    }),
   );
   const setup: Session = {
     ...session,
     scope: "mfa_setup",
     user: { ...session.user, mfaEnabled: false },
   };
-  assert.equal(assertOwner(setup, true), setup);
-  assert.throws(() => assertOwner(setup));
-  assert.throws(() =>
-    assertOwner({ ...session, user: { ...session.user, mfaEnabled: false } }),
-  );
+  assert.equal(assertOperatorSession(setup, true), setup);
+  assert.throws(() => assertOperatorSession(setup));
+  // 2FA tùy chọn: phiên đầy đủ chưa bật 2FA vẫn dùng được; API quyết định có bắt buộc hay không qua `scope`.
+  const noMfa: Session = {
+    ...session,
+    user: { ...session.user, mfaEnabled: false },
+  };
+  assert.equal(assertOperatorSession(noMfa), noMfa);
 });
 test("read allowlist fixes tenant server-side and rejects extra filters and writes", () => {
   assert.equal(

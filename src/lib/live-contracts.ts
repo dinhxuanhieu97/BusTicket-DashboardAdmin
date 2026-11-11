@@ -14,11 +14,24 @@ export const userSchema = z.object({
   ]),
   mfaEnabled: z.boolean(),
 });
+export const staffStatusSchema = z.enum(["ACTIVE", "DISABLED"]);
+export const staffRoleSchema = z.enum([
+  "OWNER",
+  "DISPATCHER",
+  "ACCOUNTANT",
+  "SELLER",
+  "ASSISTANT",
+]);
+export const staffUserSchema = userSchema.extend({ status: staffStatusSchema });
+export const staffListSchema = z.object({ users: z.array(staffUserSchema) });
+export type StaffUser = z.infer<typeof staffUserSchema>;
 export const sessionSchema = z.object({
   user: userSchema,
   scope: z.enum(["full", "mfa_setup"]),
   /** Quyền máy chủ cấp (API mới); thiếu = API cũ, giữ menu mặc định. */
   permissions: z.array(z.string().max(64)).max(100).optional(),
+  /** OWNER vừa đặt mật khẩu tạm: phải đổi trước khi dùng dashboard (thiếu = API cũ). */
+  mustChangePassword: z.boolean().optional(),
 });
 export const issuedSchema = sessionSchema.extend({
   accessToken: z

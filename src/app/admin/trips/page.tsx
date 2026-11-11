@@ -1,5 +1,5 @@
 import { Trips } from "@/components/live/trips";
-import { ownerSession } from "@/lib/server/session";
+import { requirePagePermission } from "@/lib/server/page-access";
 import { canManageTrips } from "@/lib/trip-management";
 import { tripPeriodRange, type TripPeriod } from "@/lib/trip-period";
 export default async function Page({
@@ -19,7 +19,8 @@ export default async function Page({
       /* use today */
     }
   }
-  const { session } = await ownerSession();
+  const session = await requirePagePermission("trip.read");
+  if (!session) return null;
   return (
     <Trips
       initialDate={initialDate}

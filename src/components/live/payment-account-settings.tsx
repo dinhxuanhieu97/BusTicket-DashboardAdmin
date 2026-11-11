@@ -1,5 +1,6 @@
 "use client";
 
+import { Notice } from "./shared";
 import { useEffect, useState, type FormEvent } from "react";
 import { operation } from "./operations-client";
 
@@ -12,10 +13,15 @@ type PaymentAccount = {
 type AccountResponse = { account: PaymentAccount | null };
 const resource = "payment-account";
 
-export function PaymentAccountSettings() {
+export function PaymentAccountSettings({
+  mfaEnabled,
+  onSuccess,
+}: {
+  mfaEnabled: boolean;
+  onSuccess: (message: string) => void;
+}) {
   const [data, setData] = useState<AccountResponse | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function load() {
@@ -36,9 +42,9 @@ export function PaymentAccountSettings() {
     const form = event.currentTarget;
     const fields = new FormData(form);
     const apiToken = String(fields.get("apiToken")).trim();
+    const otp = fields.get("otp");
     setSaving(true);
     setError("");
-    setNotice("");
     try {
       const updated = await operation<AccountResponse>(resource, "PUT", {
         bankCode: String(fields.get("bankCode")),
@@ -46,13 +52,19 @@ export function PaymentAccountSettings() {
         accountName: String(fields.get("accountName")),
         webhookApiKey: String(fields.get("webhookApiKey")).trim(),
         ...(apiToken ? { apiToken } : {}),
+        password: String(fields.get("password")),
+        ...(otp ? { otp } : {}),
       });
       form.reset();
       setData(updated);
-      setNotice("Đã lưu tài khoản nhận tiền.");
+      onSuccess("Đã lưu tài khoản nhận tiền.");
     } catch (error) {
       setError((error as Error).message);
     } finally {
+      for (const field of ["password", "otp"]) {
+        const control = form.elements.namedItem(field);
+        if (control instanceof HTMLInputElement) control.value = "";
+      }
       setSaving(false);
     }
   }
@@ -60,26 +72,17 @@ export function PaymentAccountSettings() {
   const account = data?.account;
   return (
     <section
-      className="card space-y-4 p-6"
+      className="card space-y-4 pn-panel-inset"
       aria-labelledby="payment-account-title"
     >
-      <h2 id="payment-account-title" className="font-bold">
+      <h2 id="payment-account-title" className="text-base font-semibold">
         Tài khoản nhận tiền
       </h2>
       <p className="text-sm text-muted">
         Mini App dùng thông tin này để tạo mã QR và hướng dẫn khách chuyển khoản
         đặt cọc.
       </p>
-      {error && (
-        <p role="alert" className="text-amber-500">
-          {error}
-        </p>
-      )}
-      {notice && (
-        <p role="status" className="text-emerald-500">
-          {notice}
-        </p>
-      )}
+      {error && <Notice tone="danger">{error}</Notice>}
       {!data ? (
         error ? (
           <button type="button" className="btn" onClick={() => void load()}>
@@ -91,12 +94,12 @@ export function PaymentAccountSettings() {
       ) : (
         <form key={JSON.stringify(account)} onSubmit={save}>
           <fieldset disabled={saving} className="max-w-2xl space-y-4">
-            <div className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)]">
+            <div className="pn-form-grid sm:grid-cols-[10rem_minmax(0,1fr)]">
               <label className="label">
                 Mã ngân hàng
                 <input
                   name="bankCode"
-                  className="field mt-2"
+                  className="field"
                   placeholder="Ví dụ MB"
                   defaultValue={account?.bankCode}
                   required
@@ -108,7 +111,7 @@ export function PaymentAccountSettings() {
                 Số tài khoản
                 <input
                   name="accountNumber"
-                  className="field mt-2"
+                  className="field"
                   defaultValue={account?.accountNumber}
                   required
                   pattern="[A-Za-z0-9]{4,30}"
@@ -120,20 +123,20 @@ export function PaymentAccountSettings() {
               Tên chủ tài khoản
               <input
                 name="accountName"
-                className="field mt-2"
+                className="field"
                 defaultValue={account?.accountName}
                 required
                 maxLength={120}
               />
             </label>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="pn-form-grid sm:grid-cols-2">
               <label className="label">
                 API Key webhook SePay
                 <input
                   name="webhookApiKey"
                   type="password"
                   autoComplete="off"
-                  className="field mt-2"
+                  className="field"
                   required
                   minLength={24}
                   maxLength={200}
@@ -145,18 +148,45 @@ export function PaymentAccountSettings() {
                   name="apiToken"
                   type="password"
                   autoComplete="off"
-                  className="field mt-2"
+                  className="field"
                   required={account?.reconcileEnabled}
                   minLength={10}
                   maxLength={500}
                 />
               </label>
             </div>
+            <div className="pn-form-grid sm:grid-cols-2">
+              <label className="label">
+                Mật khẩu hiện tại
+                <input
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  className="field"
+                  required
+                  maxLength={128}
+                />
+              </label>
+              {mfaEnabled && (
+                <label className="label">
+                  Mã Authenticator
+                  <input
+                    name="otp"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    className="field"
+                    required
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                  />
+                </label>
+              )}
+            </div>
             <p className="text-xs text-muted">
               Dùng đúng API Key đã cấu hình trên SePay để nhận thông báo chuyển
               khoản. Token API dùng cho đối soát tự động.
               {account &&
-                " Nếu đổi số tài khoản, hãy kiểm tra các đơn đang chờ thanh toán vì khách có thể đã lưu mã QR cũ."}
+                " QR đã cấp giữ tài khoản cũ trong tối đa 72 giờ. Duy trì kết nối SePay cũ thêm 72 giờ để đối soát giao dịch báo muộn."}
             </p>
             <button className="btn btn-primary" type="submit">
               {saving ? "Đang lưu…" : "Lưu tài khoản nhận tiền"}

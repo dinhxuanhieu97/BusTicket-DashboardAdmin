@@ -1,10 +1,15 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { type TripOptions, vnInputToISO } from "@/lib/trip-management";
+import {
+  parseFareThousands,
+  type TripOptions,
+  vnInputToISO,
+} from "@/lib/trip-management";
 import { vnToday, vnDateTime, vnd } from "@/lib/live-contracts";
 import { operation } from "./operations-client";
 import { tripMutation } from "./trip-editor";
+import { FareFields } from "./fare-fields";
 import type { OperatorProfile } from "./general-information";
 
 export function PairTripForm({
@@ -75,9 +80,10 @@ export function PairTripForm({
   const faresFor = (i: number) =>
     (selected[i]?.fares ?? []).map((f) => {
       const raw = prices[`${vehicleIds[i]}:${f.floor}:${f.occupancy}`] ?? "";
-      if (!/^\d+$/.test(raw) || Number(raw) > 20000000)
-        throw Error("Nhập đủ giá vé nguyên VND (0–20.000.000) cho mỗi xe.");
-      return { floor: f.floor, occupancy: f.occupancy, price: Number(raw) };
+      const price = parseFareThousands(raw);
+      if (price === null)
+        throw Error("Nhập đủ giá vé từ 0 đến 20.000 nghìn đồng cho mỗi xe.");
+      return { floor: f.floor, occupancy: f.occupancy, price };
     });
   const validate = () => {
     if (!outward || !inward)
@@ -153,11 +159,11 @@ export function PairTripForm({
   // Freeze the reviewed payload including sales-open time across retries.
   const openAt = useRef("");
   return (
-    <div className="space-y-5">
+    <div className="pn-page-stack">
       {error && (
         <p
           role="alert"
-          className="rounded-lg bg-amber-500/10 p-3 text-sm text-amber-500"
+          className="rounded-lg bg-amber-500/10 p-3 text-sm text-warning"
         >
           {error}
         </p>
@@ -172,8 +178,10 @@ export function PairTripForm({
               : "Tạo hai chuyến nháp cùng lúc, sau đó kiểm tra và mở bán."}
           </p>
           {review ? (
-            <div className="card space-y-4 p-5">
-              <h3 className="font-bold">Kiểm tra trước khi lưu</h3>
+            <div className="card pn-panel-inset space-y-4">
+              <h3 className="text-base font-semibold">
+                Kiểm tra trước khi lưu
+              </h3>
               <p>
                 {start} · Xuất bến {time}
                 {mode === "daily" && ` · Đến ${arrival} hôm sau`}
@@ -227,7 +235,7 @@ export function PairTripForm({
             </div>
           ) : (
             <form
-              className="space-y-5"
+              className="pn-page-stack"
               onSubmit={(e) => {
                 e.preventDefault();
                 try {
@@ -241,10 +249,10 @@ export function PairTripForm({
                 }
               }}
             >
-              <label className="label">
+              <label className="label max-w-lg">
                 Chiều xuất phát đầu tiên
                 <select
-                  className="field mt-2"
+                  className="field"
                   value={routeId}
                   onChange={(e) => {
                     setRouteId(e.target.value);
@@ -259,7 +267,7 @@ export function PairTripForm({
                 </select>
               </label>
               {!inward && (
-                <p className="text-sm text-amber-500">
+                <p className="text-sm text-warning">
                   Chưa có tuyến ngược.{" "}
                   <Link
                     className="underline"
@@ -269,113 +277,109 @@ export function PairTripForm({
                   </Link>
                 </p>
               )}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="label">
-                  {mode === "daily" ? "Ngày bắt đầu phân xe" : "Ngày khởi hành"}
-                  <input
-                    required
-                    type="date"
-                    className="field mt-2"
-                    value={start}
-                    onChange={(e) => setStart(e.target.value)}
-                  />
-                </label>
-                <label className="label">
-                  Giờ xuất bến
-                  <input
-                    required
-                    type="time"
-                    className="field mt-2"
-                    value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                  />
-                </label>
-              </div>
-              {mode === "daily" && (
-                <label className="label">
-                  Giờ đến hôm sau
-                  <input
-                    required
-                    type="time"
-                    className="field mt-2"
-                    value={arrival}
-                    onChange={(e) => setArrival(e.target.value)}
-                  />
-                </label>
-              )}
+              <fieldset className="rounded-xl border border-line p-4">
+                <legend className="px-2 text-sm font-semibold">
+                  Thời gian chạy
+                </legend>
+                <div className="pn-form-grid max-w-md sm:grid-cols-2">
+                  <label className="label">
+                    {mode === "daily"
+                      ? "Ngày bắt đầu phân xe"
+                      : "Ngày khởi hành"}
+                    <input
+                      required
+                      type="date"
+                      className="field"
+                      value={start}
+                      onChange={(e) => setStart(e.target.value)}
+                    />
+                  </label>
+                  <label className="label">
+                    Giờ xuất bến
+                    <input
+                      required
+                      type="time"
+                      className="field"
+                      value={time}
+                      onChange={(e) => setTime(e.target.value)}
+                    />
+                  </label>
+                  {mode === "daily" && (
+                    <label className="label">
+                      Giờ đến hôm sau
+                      <input
+                        required
+                        type="time"
+                        className="field"
+                        value={arrival}
+                        onChange={(e) => setArrival(e.target.value)}
+                      />
+                    </label>
+                  )}
+                </div>
+              </fieldset>
               {routes.map((r, i) => (
                 <fieldset
                   key={i}
-                  className="space-y-3 rounded-xl border border-line p-4"
+                  className="space-y-4 rounded-xl border border-line p-4"
                 >
                   <legend className="px-2 text-sm font-semibold">
                     {r
                       ? `${r.origin} → ${r.destination}`
                       : "Chiều ngược chưa cấu hình"}
                   </legend>
-                  <label className="label">
-                    {mode === "daily"
-                      ? "Xe tại đầu tuyến vào ngày bắt đầu"
-                      : "Xe"}
-                    <select
-                      required
-                      className="field mt-2"
-                      value={vehicleIds[i] ?? ""}
-                      onChange={(e) =>
-                        setVehicleIds((ids) =>
-                          ids.map((v, j) => (j === i ? e.target.value : v)),
-                        )
-                      }
-                    >
-                      <option value="">Chọn xe</option>
-                      {options.vehicles
-                        .filter((v) => v.usable)
-                        .map((v) => (
-                          <option key={v.id} value={v.id}>
-                            {v.code} · {v.name}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <label className="label">
-                    Tên chuyến (tự điền nếu bỏ trống)
-                    <input
-                      className="field mt-2"
-                      maxLength={120}
-                      placeholder={nameFor(i)}
-                      value={names[i]}
-                      onChange={(e) =>
-                        setNames((values) =>
-                          values.map((v, j) => (j === i ? e.target.value : v)),
-                        )
-                      }
-                    />
-                  </label>
-                  {selected[i]?.fares.map((f) => (
-                    <label className="label" key={`${f.floor}:${f.occupancy}`}>
-                      Giá {f.label} (VND)
-                      <input
-                        className="field mt-2"
+                  <div className="pn-form-grid sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+                    <label className="label">
+                      {mode === "daily"
+                        ? "Xe tại đầu tuyến vào ngày bắt đầu"
+                        : "Xe"}
+                      <select
                         required
-                        type="number"
-                        min={0}
-                        max={20000000}
-                        step={1}
-                        value={
-                          prices[
-                            `${vehicleIds[i]}:${f.floor}:${f.occupancy}`
-                          ] ?? ""
-                        }
+                        className="field"
+                        value={vehicleIds[i] ?? ""}
                         onChange={(e) =>
-                          setPrices((p) => ({
-                            ...p,
-                            [`${vehicleIds[i]}:${f.floor}:${f.occupancy}`]:
-                              e.target.value,
-                          }))
+                          setVehicleIds((ids) =>
+                            ids.map((v, j) => (j === i ? e.target.value : v)),
+                          )
+                        }
+                      >
+                        <option value="">Chọn xe</option>
+                        {options.vehicles
+                          .filter((v) => v.usable)
+                          .map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.code} · {v.name}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label className="label">
+                      Tên chuyến (tự điền nếu bỏ trống)
+                      <input
+                        className="field"
+                        maxLength={120}
+                        placeholder={nameFor(i)}
+                        value={names[i]}
+                        onChange={(e) =>
+                          setNames((values) =>
+                            values.map((v, j) =>
+                              j === i ? e.target.value : v,
+                            ),
+                          )
                         }
                       />
                     </label>
-                  ))}
+                  </div>
+                  <FareFields
+                    fares={selected[i]?.fares ?? []}
+                    valueFor={(key) => prices[`${vehicleIds[i]}:${key}`] ?? ""}
+                    onChange={(key, value) =>
+                      setPrices((current) => ({
+                        ...current,
+                        [`${vehicleIds[i]}:${key}`]: value,
+                      }))
+                    }
+                  />
                 </fieldset>
               ))}
               <button className="btn btn-primary" disabled={!inward}>

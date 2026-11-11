@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { assertOwner } from "./lib/access-policy";
+import { assertSignedInSession } from "./lib/access-policy";
 import { backendRequest } from "./lib/backend-client";
 import { issuedSchema, sessionSchema } from "./lib/live-contracts";
 import { appOrigin, applyCookieWrites } from "./lib/server/cookies";
@@ -20,7 +20,7 @@ import {
  * 1. Access token sắp/đã hết hạn mà còn refresh token → đổi lấy token mới (im lặng), ghi cookie cho trình duyệt và
  *    chuyển luôn token mới vào request hiện tại để trang/API phía sau dùng được ngay.
  * 2. Trang quản trị/2FA không có phiên → về `/login`. `/login` có phiên hợp lệ (hỏi API) → vào `/admin`.
- * Đây chỉ là lớp tiện dụng; mọi route vẫn tự xác thực với API (`ownerSession`).
+ * Đây chỉ là lớp tiện dụng; mọi route vẫn tự xác thực với API (`operatorSession`).
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -135,7 +135,7 @@ async function tryRefresh(refreshToken: string): Promise<RefreshOutcome> {
         body: { refreshToken },
       }),
     );
-    assertOwner(issued, true);
+    assertSignedInSession(issued, true);
     return {
       kind: "ok",
       accessToken: issued.accessToken,
@@ -162,13 +162,11 @@ async function landingFor(
   token: string,
 ): Promise<"/admin" | "/mfa" | "invalid" | null> {
   try {
-    const session = assertOwner(
+    const session = assertSignedInSession(
       sessionSchema.parse(await backendRequest("/api/v1/auth/me", { token })),
       true,
     );
-    return session.scope === "full" && session.user.mfaEnabled
-      ? "/admin"
-      : "/mfa";
+    return session.scope === "full" ? "/admin" : "/mfa";
   } catch (e) {
     const status = (e as { status?: unknown }).status;
     return status === 401 || status === 403 ? "invalid" : null;

@@ -1,6 +1,7 @@
 /** Mục menu quản trị và quyền cần có (khớp `apps/api/src/auth/permissions.ts`). */
 export type NavKey =
   | "schedules"
+  | "assigned"
   | "overview"
   | "payments"
   | "users"
@@ -13,7 +14,16 @@ export const NAV: {
   href: string;
   label: string;
   perm?: string;
+  /** Ẩn mục khi người dùng đã có quyền này (vd. phụ xe thấy "Chuyến được giao", người xem mọi chuyến thì không). */
+  hideWith?: string;
 }[] = [
+  {
+    key: "assigned",
+    href: "/admin/assigned-trips",
+    label: "Chuyến được giao",
+    perm: "trip.assigned.read",
+    hideWith: "trip.read",
+  },
   {
     key: "schedules",
     href: "/admin/schedules",
@@ -54,7 +64,11 @@ export const NAV: {
  * `undefined` = API cũ chưa trả `permissions` → giữ menu đầy đủ như trước (chỉ OWNER vào được dashboard).
  */
 export function visibleNav(permissions: readonly string[] | undefined) {
-  if (!permissions) return NAV;
+  if (!permissions) return NAV.filter((item) => !item.hideWith);
   const granted = new Set(permissions);
-  return NAV.filter((item) => !item.perm || granted.has(item.perm));
+  return NAV.filter(
+    (item) =>
+      (!item.perm || granted.has(item.perm)) &&
+      !(item.hideWith && granted.has(item.hideWith)),
+  );
 }

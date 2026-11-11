@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { backendRequest } from "@/lib/backend-client";
 import { ApiError } from "@/lib/access-policy";
+import { loginProxyFor } from "@/lib/server/login-proxy";
 import {
   protectMutation,
   input,
@@ -22,8 +23,13 @@ export async function POST(req: Request) {
   try {
     protectMutation(req);
     const body = await input(req, schema);
+    const loginProxy = loginProxyFor(req);
     const login = (payload: unknown) =>
-      backendRequest("/api/v1/auth/login", { method: "POST", body: payload });
+      backendRequest("/api/v1/auth/login", {
+        method: "POST",
+        body: payload,
+        loginProxy,
+      });
     let issued: unknown;
     try {
       issued = await login(body);

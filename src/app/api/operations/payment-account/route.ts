@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { ApiError } from "@/lib/access-policy";
+import { ApiError, requirePermission } from "@/lib/access-policy";
 import { backendRequest } from "@/lib/backend-client";
 import {
   errorResponse,
   input,
   json,
-  ownerSession,
+  operatorSession,
   protectMutation,
 } from "@/lib/server/session";
 
@@ -21,6 +21,11 @@ const accountInput = z.strictObject({
   accountName: z.string().trim().min(1).max(120),
   webhookApiKey: z.string().min(24).max(200),
   apiToken: z.string().min(10).max(500).optional(),
+  password: z.string().min(1).max(128),
+  otp: z
+    .string()
+    .regex(/^\d{6}$/)
+    .optional(),
 });
 const accountResponse = z.object({
   account: z
@@ -34,13 +39,8 @@ const accountResponse = z.object({
 });
 
 async function accountAccess() {
-  const { token, session } = await ownerSession();
-  if (session.permissions && !session.permissions.includes("payment.configure"))
-    throw new ApiError(
-      403,
-      "FORBIDDEN",
-      "Bạn không có quyền cấu hình tài khoản nhận tiền.",
-    );
+  const { token, session } = await operatorSession();
+  requirePermission(session, "payment.configure");
   return {
     token,
     path: `/api/v1/admin/operators/${session.user.operatorId}/payment-account`,

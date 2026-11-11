@@ -1,13 +1,15 @@
 "use client";
 import { PasswordInput } from "../password-input";
-
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   publishSessionEvent,
   subscribeSessionEvents,
 } from "@/lib/session-sync";
-import { LockKeyhole, ShieldCheck, LogOut } from "lucide-react";
+import { LockKeyhole, ShieldCheck, LogOut, CheckCircle2 } from "lucide-react";
 import { authPost, ClientError } from "./auth-client";
+import { BrandMark, useBrand } from "./brand";
+
 /**
  * Hỏi máy chủ phiên hiện tại rồi chuyển trang nếu cần. Không tin dữ liệu nào khác ngoài `/api/auth/session`.
  */
@@ -20,7 +22,7 @@ async function followServerSession(where: "login" | "mfa") {
     }
     if (!res.ok) return;
     const data = await res.json();
-    if (data.scope === "full" && data.user?.mfaEnabled)
+    if (data.scope === "full" && (where === "login" || data.user?.mfaEnabled))
       window.location.replace("/admin");
     else if (where === "login") window.location.replace("/mfa");
   } catch {}
@@ -42,6 +44,7 @@ function useResumeExistingSession() {
     void followServerSession("login");
   }, []);
 }
+
 export function LoginForm() {
   useFollowSessionFromOtherTabs("login");
   useResumeExistingSession();
@@ -52,13 +55,14 @@ export function LoginForm() {
   const [remember, setRemember] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
   return (
     <AuthFrame
       title="Đăng nhập quản trị"
-      subtitle="Dành cho tài khoản OWNER · Kết nối dữ liệu thật"
+      subtitle="Dành cho chủ nhà xe và nhân viên"
     >
       <form
-        className="space-y-5"
+        className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);
@@ -74,7 +78,11 @@ export function LoginForm() {
             setOtp("");
             publishSessionEvent(result.scope === "mfa_setup" ? "mfa" : "login");
             window.location.assign(
-              result.scope === "mfa_setup" ? "/mfa" : "/admin",
+              result.scope === "mfa_setup"
+                ? "/mfa"
+                : result.mustChangePassword
+                  ? "/change-password"
+                  : "/admin",
             );
           } catch (err) {
             if (err instanceof ClientError && err.code === "MFA_REQUIRED") {
@@ -88,7 +96,7 @@ export function LoginForm() {
           }
         }}
       >
-        <div>
+        <div className="pn-field-group">
           <label className="label" htmlFor="phone">
             Số điện thoại
           </label>
@@ -96,7 +104,7 @@ export function LoginForm() {
             id="phone"
             type="tel"
             autoComplete="username"
-            className="field"
+            className="field font-medium"
             placeholder="Số điện thoại tài khoản"
             maxLength={30}
             required
@@ -105,14 +113,22 @@ export function LoginForm() {
             disabled={busy}
           />
         </div>
-        <div>
-          <label className="label" htmlFor="password">
-            Mật khẩu
-          </label>
+        <div className="pn-field-group">
+          <div className="flex items-center justify-between gap-2">
+            <label className="label" htmlFor="password">
+              Mật khẩu
+            </label>
+            <Link
+              href="/forgot-password"
+              className="text-xs font-medium text-accent underline-offset-2 hover:underline"
+            >
+              Quên mật khẩu?
+            </Link>
+          </div>
           <PasswordInput
             id="password"
             autoComplete="current-password"
-            className="field"
+            className="field font-medium"
             required
             maxLength={128}
             value={password}
@@ -121,7 +137,7 @@ export function LoginForm() {
           />
         </div>
         {needsOtp && (
-          <div>
+          <div className="pn-field-group rounded-xl border border-accent/30 bg-accent/10 p-4">
             <label className="label" htmlFor="otp">
               Mã Authenticator
             </label>
@@ -132,14 +148,15 @@ export function LoginForm() {
               pattern="[0-9]{6}"
               minLength={6}
               maxLength={6}
-              className="field font-mono tracking-widest"
+              className="field font-mono text-center text-lg tracking-widest font-bold"
               autoFocus
               required
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
               disabled={busy}
+              placeholder="••••••"
             />
-            <p className="mt-2 text-xs text-muted">
+            <p className="text-xs text-muted">
               Mã thay đổi định kỳ trong ứng dụng xác thực của bạn.
             </p>
           </div>
@@ -156,25 +173,21 @@ export function LoginForm() {
           <span>
             Ghi nhớ đăng nhập 30 ngày
             <span className="block text-xs text-muted">
-              Chỉ chọn trên máy riêng. Không chọn thì phiên chỉ giữ tối đa 12
-              giờ.
+              Chỉ bật trên thiết bị cá nhân.
             </span>
           </span>
         </label>
         {error && (
-          <p
-            role="alert"
-            className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm"
-          >
+          <p role="alert" className="pn-tone pn-notice" data-tone="danger">
             {error}
           </p>
         )}
         <button
           disabled={busy}
           type="submit"
-          className="btn w-full border-transparent bg-accent text-white"
+          className="btn btn-primary w-full py-2.5 text-sm"
         >
-          <LockKeyhole size={17} />
+          <LockKeyhole size={17} aria-hidden="true" />
           {busy
             ? "Đang xác thực…"
             : needsOtp
@@ -182,13 +195,10 @@ export function LoginForm() {
               : "Đăng nhập"}
         </button>
       </form>
-      <p className="mt-5 text-xs leading-relaxed text-muted">
-        OWNER được quản lý chuyến khi nhà xe đã mở quyền. Nhân viên, đơn đặt vé
-        và thanh toán vẫn chỉ đọc.
-      </p>
     </AuthFrame>
   );
 }
+
 export function AuthFrame({
   children,
   title,
@@ -198,32 +208,41 @@ export function AuthFrame({
   title: string;
   subtitle: string;
 }) {
+  // Chưa cấu hình nhà xe cho bản dashboard này → ẩn khối thương hiệu.
+  const brand = useBrand();
   return (
-    <main className="grid min-h-dvh place-items-center p-4 py-10">
-      <section className="card w-full max-w-md p-6 sm:p-8">
-        <div className="mb-8 flex items-center gap-3">
-          <span className="grid size-11 place-content-center rounded-xl bg-gradient-to-br from-accent to-cyan-400 text-xl font-bold text-white">
-            P
-          </span>
-          <div>
-            <strong className="text-xl">PNTicket</strong>
-            <p className="text-xs text-muted">Quản trị nhà xe</p>
+    <main className="pn-page-inline grid min-h-dvh place-items-center py-6 sm:py-10">
+      <section className="card pn-auth pn-panel-inset w-full max-w-md">
+        {brand && (
+          <div
+            className="mb-5 flex items-center gap-3 sm:mb-6"
+            data-testid="auth-brand"
+          >
+            <BrandMark name={brand.name} logoUrl={brand.logoUrl} />
+            <div className="min-w-0">
+              <strong className="block text-xl font-bold tracking-tight text-ink wrap-anywhere">
+                {brand.name}
+              </strong>
+              <p className="text-xs text-muted">Quản trị nhà xe</p>
+            </div>
           </div>
-        </div>
-        <h1 className="text-2xl font-bold">{title}</h1>
-        <p className="mt-2 mb-7 text-sm text-muted">{subtitle}</p>
+        )}
+        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+        <p className="mt-1 mb-4 text-sm text-muted sm:mb-6">{subtitle}</p>
         {children}
       </section>
     </main>
   );
 }
+
 export function LogoutButton() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
   return (
     <div>
       <button
-        className="btn"
+        className="btn btn-ghost w-full justify-start text-muted"
         disabled={busy}
         onClick={async () => {
           setBusy(true);
@@ -237,18 +256,19 @@ export function LogoutButton() {
           }
         }}
       >
-        <LogOut size={16} />
-        {busy ? "Đang đăng xuất…" : "Đăng xuất"}
+        <LogOut size={16} aria-hidden="true" />
+        <span>{busy ? "Đang đăng xuất…" : "Đăng xuất"}</span>
       </button>
       {error && (
-        <p role="alert" className="mt-2 text-xs text-rose-400">
+        <p role="alert" className="mt-2 text-xs text-danger">
           {error}
         </p>
       )}
     </div>
   );
 }
-export function MfaForm() {
+
+export function MfaForm({ optional = false }: { optional?: boolean }) {
   useFollowSessionFromOtherTabs("mfa");
   const [setup, setSetup] = useState<{ secret: string; qr: string } | null>(
     null,
@@ -256,10 +276,15 @@ export function MfaForm() {
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
   return (
     <AuthFrame
       title="Thiết lập xác thực hai yếu tố"
-      subtitle="Tài khoản OWNER cần bật 2FA trước khi xem dữ liệu."
+      subtitle={
+        optional
+          ? "Bật thêm xác thực cho tài khoản của bạn."
+          : "Tài khoản của bạn cần bật 2FA trước khi xem dữ liệu."
+      }
     >
       <p className="mb-5 text-sm leading-relaxed text-muted">
         Dùng ứng dụng Authenticator để quét mã QR, sau đó nhập mã 6 số để xác
@@ -267,7 +292,7 @@ export function MfaForm() {
       </p>
       {!setup ? (
         <button
-          className="btn w-full bg-accent text-white"
+          className="btn btn-primary w-full py-2.5 text-sm"
           disabled={busy}
           onClick={async () => {
             setBusy(true);
@@ -283,7 +308,7 @@ export function MfaForm() {
             }
           }}
         >
-          <ShieldCheck size={17} />
+          <ShieldCheck size={17} aria-hidden="true" />
           {busy ? "Đang tạo mã…" : "Bắt đầu thiết lập 2FA"}
         </button>
       ) : (
@@ -298,7 +323,7 @@ export function MfaForm() {
               publishSessionEvent("login");
               setSetup(null);
               setOtp("");
-              window.location.assign("/admin");
+              window.location.assign(optional ? "/admin/settings" : "/admin");
             } catch (err) {
               setError(
                 err instanceof Error ? err.message : "Không thể xác nhận.",
@@ -307,7 +332,7 @@ export function MfaForm() {
             }
           }}
         >
-          <div className="flex justify-center">
+          <div className="flex justify-center p-3 rounded-2xl bg-white border border-line">
             <img
               width={240}
               height={240}
@@ -317,20 +342,20 @@ export function MfaForm() {
             />
           </div>
           <details className="text-sm">
-            <summary className="cursor-pointer text-muted">
+            <summary className="cursor-pointer text-xs font-medium text-muted hover:text-ink">
               Nhập khóa thủ công nếu không quét được QR
             </summary>
-            <code className="mt-2 block break-all rounded-lg bg-surface p-3 select-all">
+            <code className="mt-2 block break-all rounded-xl border border-line/60 bg-surface p-3 font-mono text-xs select-all">
               {setup.secret}
             </code>
           </details>
-          <div>
+          <div className="pn-field-group">
             <label htmlFor="mfa-otp" className="label">
               Mã Authenticator
             </label>
             <input
               id="mfa-otp"
-              className="field font-mono tracking-widest"
+              className="field font-mono text-center text-lg tracking-widest font-bold"
               inputMode="numeric"
               autoComplete="one-time-code"
               pattern="[0-9]{6}"
@@ -340,38 +365,47 @@ export function MfaForm() {
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
               disabled={busy}
+              placeholder="••••••"
             />
           </div>
           <button
             type="submit"
             disabled={busy}
-            className="btn w-full bg-accent text-white"
+            className="btn btn-primary w-full py-2.5 text-sm"
           >
-            {busy ? "Đang xác nhận…" : "Xác nhận và vào quản trị"}
+            {busy
+              ? "Đang xác nhận…"
+              : optional
+                ? "Xác nhận và bật 2FA"
+                : "Xác nhận và vào quản trị"}
           </button>
         </form>
       )}
       {error && (
-        <p
-          role="alert"
-          className="mt-4 rounded-xl bg-rose-500/10 p-3 text-sm text-rose-400"
-        >
+        <p role="alert" className="pn-tone pn-notice mt-4" data-tone="danger">
           {error}
         </p>
       )}
-      <div className="mt-6 border-t border-line pt-4">
-        <LogoutButton />
+      <div className="mt-6 border-t border-line/60 pt-4">
+        {optional ? (
+          <Link className="btn w-full" href="/admin/settings">
+            Để sau, quay lại Cài đặt
+          </Link>
+        ) : (
+          <LogoutButton />
+        )}
       </div>
     </AuthFrame>
   );
 }
+
 export function AccessFailure({ message }: { message: string }) {
   return (
     <AuthFrame
       title="Chưa thể mở dữ liệu"
       subtitle="PNTicket giữ nguyên chế độ dữ liệu thật."
     >
-      <p role="alert" className="mb-5 text-sm text-amber-400">
+      <p role="alert" className="pn-tone pn-notice mb-5" data-tone="warning">
         {message}
       </p>
       <div className="flex flex-wrap gap-3">

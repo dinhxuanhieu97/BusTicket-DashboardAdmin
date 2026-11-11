@@ -102,5 +102,5 @@ export function clearWrites(): CookieWrite[] {
 
 /** Trang cần đăng nhập mà không có cookie phiên nào → về trang đăng nhập ngay, không render. */
 export function requiresLogin(pathname: string): boolean {
-  return /^\/(admin|mfa)(\/|$)/.test(pathname);
+  return /^\/(admin|platform|mfa|change-password)(\/|$)/.test(pathname);
 }

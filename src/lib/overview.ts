@@ -1,11 +1,14 @@
 import type { Trip } from "./live-contracts";
 
-export const tripStates = [
-  { status: "OPEN", label: "Đang mở bán", color: "#34d399" },
-  { status: "DRAFT", label: "Bản nháp", color: "#818cf8" },
-  { status: "CLOSED", label: "Đã đóng bán", color: "#fbbf24" },
-  { status: "CANCELLED", label: "Đã hủy", color: "#fb7185" },
-] as const;
+export const tripStates = {
+  OPEN: { label: "Đang mở bán", tone: "success", color: "var(--success)" },
+  DRAFT: { label: "Bản nháp", tone: "neutral", color: "var(--muted)" },
+  CLOSED: { label: "Đã đóng bán", tone: "warning", color: "var(--warning)" },
+  CANCELLED: { label: "Đã hủy", tone: "danger", color: "var(--danger)" },
+} as const satisfies Record<
+  Trip["status"],
+  { label: string; tone: string; color: string }
+>;
 
 export function overviewMetrics(trips: Trip[]) {
   const open = trips.filter((t) => t.status === "OPEN");
@@ -29,9 +32,10 @@ export function overviewMetrics(trips: Trip[]) {
     available: open.reduce((sum, t) => sum + t.available, 0),
     drafts: trips.filter((t) => t.status === "DRAFT").length,
     routes: [...routes.values()].sort((a, b) => a.route.localeCompare(b.route)),
-    states: tripStates.map((state) => ({
+    states: Object.entries(tripStates).map(([status, state]) => ({
+      status,
       ...state,
-      count: trips.filter((t) => t.status === state.status).length,
+      count: trips.filter((t) => t.status === status).length,
     })),
   };
 }

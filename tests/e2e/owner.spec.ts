@@ -67,11 +67,14 @@ test("login needs OTP, creates HttpOnly cookie, reads data and logs out", async 
     (await context.cookies()).some((c) => c.name === "pnticket_owner_session"),
   ).toBe(false);
 });
-test("new OWNER must setup MFA and setup token cannot read data", async ({
+test("when the API makes 2FA mandatory, a new OWNER must set it up and the setup token cannot read data", async ({
   page,
   request,
   context,
 }) => {
+  await request.post("http://127.0.0.1:3101/__test/state", {
+    data: { requireMfa: true }, // API bật AUTH_REQUIRE_MFA
+  });
   await login(page, "0900000002");
   await expect(page).toHaveURL(/\/mfa$/);
   expect((await context.request.get("/api/live/payments")).status()).toBe(403);
@@ -90,10 +93,14 @@ test("new OWNER must setup MFA and setup token cannot read data", async ({
   ).json();
   expect(state.confirmed).toBe(true);
 });
-test("rejects non-OWNER and invalid credentials", async ({ page }) => {
+test("sends platform accounts to /platform and rejects invalid credentials", async ({
+  page,
+}) => {
   await login(page, "0900000003");
-  await expect(page.locator('p[role="alert"]')).toContainText("OWNER");
+  await expect(page).toHaveURL(/\/platform$/);
+  await page.getByRole("button", { name: "Đăng xuất" }).click();
   await expect(page).toHaveURL(/\/login$/);
+  await page.getByLabel("Số điện thoại", { exact: true }).fill("0900000003");
   await page.getByLabel("Mật khẩu", { exact: true }).fill("wrong");
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
   await expect(page.locator('p[role="alert"]')).toContainText("không đúng");
@@ -135,7 +142,7 @@ test("CSRF, unsupported business writes and tenant overrides are blocked", async
     ).toBe(405);
   expect(
     (await request.post("/api/auth/password", { headers, data: {} })).status(),
-  ).toBe(404);
+  ).toBe(400);
   expect(
     (
       await request.post("/api/live/payments/manual", { headers, data: {} })
@@ -175,10 +182,13 @@ test("backend outage and malformed responses never become demo data; revoked ses
   await request.post("http://127.0.0.1:3101/__test/state", {
     data: { down: true },
   });
-  await page.getByRole("button", { name: "Làm mới", exact: true }).click();
-  await expect(page.locator('p[role="alert"]')).toBeVisible();
+  await page
+    .getByRole("button", { name: "Làm mới dữ liệu", exact: true })
+    .click();
+  const errorNotice = page.getByRole("main").getByRole("alert");
+  await expect(errorNotice).toBeVisible();
   await expect(
-    page.getByText("Vui lòng kiểm tra kết nối và thử lại."),
+    page.getByText("Vui lòng kiểm tra kết nối mạng hoặc thử lại sau giây lát."),
   ).toBeVisible();
   await expect(page.getByText("Chuyến kiểm thử", { exact: true })).toHaveCount(
     0,
@@ -187,9 +197,7 @@ test("backend outage and malformed responses never become demo data; revoked ses
     data: { down: false, malformed: true },
   });
   await page.getByRole("button", { name: "Thử lại", exact: true }).click();
-  await expect(page.locator('p[role="alert"]')).toContainText(
-    "chưa tương thích",
-  );
+  await expect(errorNotice).toContainText("chưa tương thích");
   await request.post("http://127.0.0.1:3101/__test/state", {
     data: { malformed: false, revoked: true },
   });

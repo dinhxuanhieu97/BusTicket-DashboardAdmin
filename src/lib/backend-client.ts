@@ -27,9 +27,12 @@ export async function backendRequest(
   path: string,
   options: {
     token?: string;
-    method?: "GET" | "POST" | "PATCH" | "PUT";
+    method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
     body?: unknown;
+    /** Gửi thân thô (vd. tệp ảnh logo) thay cho JSON. */
+    raw?: { data: Uint8Array; type: string };
     idempotencyKey?: string;
+    loginProxy?: { key: string; ip: string };
   } = {},
 ) {
   let res: Response;
@@ -39,15 +42,26 @@ export async function backendRequest(
       headers: {
         Accept: "application/json",
         ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-        ...(options.body !== undefined
-          ? { "Content-Type": "application/json" }
-          : {}),
+        ...(options.raw
+          ? { "Content-Type": options.raw.type }
+          : options.body !== undefined
+            ? { "Content-Type": "application/json" }
+            : {}),
         ...(options.idempotencyKey
           ? { "Idempotency-Key": options.idempotencyKey }
           : {}),
+        ...(options.loginProxy
+          ? {
+              "X-PNTicket-Login-Proxy-Key": options.loginProxy.key,
+              "X-PNTicket-Login-Client-Ip": options.loginProxy.ip,
+            }
+          : {}),
       },
-      body:
-        options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      body: options.raw
+        ? new Blob([options.raw.data as BlobPart], { type: options.raw.type })
+        : options.body !== undefined
+          ? JSON.stringify(options.body)
+          : undefined,
       cache: "no-store",
       redirect: "error",
       signal: AbortSignal.timeout(12000),

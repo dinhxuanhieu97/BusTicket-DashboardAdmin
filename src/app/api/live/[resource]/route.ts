@@ -1,6 +1,11 @@
-import { ownerSession, json, errorResponse } from "@/lib/server/session";
+import { operatorSession, json, errorResponse } from "@/lib/server/session";
 import { backendRequest } from "@/lib/backend-client";
-import { ApiError, readPath } from "@/lib/access-policy";
+import {
+  ApiError,
+  readPath,
+  requirePermission,
+  resourcePermissions,
+} from "@/lib/access-policy";
 import { resourceSchemas, type Resource } from "@/lib/live-contracts";
 export async function GET(
   req: Request,
@@ -10,7 +15,8 @@ export async function GET(
     const { resource } = await params;
     if (!Object.hasOwn(resourceSchemas, resource))
       throw new ApiError(404, "NOT_FOUND", "Không tìm thấy dữ liệu.");
-    const { token, session } = await ownerSession();
+    const { token, session } = await operatorSession();
+    requirePermission(session, resourcePermissions[resource as Resource]);
     const path = readPath(
       resource as Resource,
       session.user.operatorId!,
