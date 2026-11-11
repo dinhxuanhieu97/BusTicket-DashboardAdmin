@@ -27,6 +27,16 @@ export const issuedSchema = sessionSchema.extend({
     .max(4096)
     .regex(/^[\w.-]+$/),
   expiresAt: z.string().datetime(),
+  /** API có phiên refresh (đợt ghi nhớ đăng nhập); thiếu = API cũ. */
+  refreshToken: z
+    .string()
+    .min(20)
+    .max(200)
+    .regex(/^[\w.-]+$/)
+    .nullable()
+    .optional(),
+  sessionExpiresAt: z.string().datetime().nullable().optional(),
+  remember: z.boolean().optional(),
 });
 export type Session = z.infer<typeof sessionSchema>;
 export type AppUser = z.infer<typeof userSchema>;
