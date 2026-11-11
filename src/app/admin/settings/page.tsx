@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { GeneralInformation } from "@/components/live/general-information";
+import { TwoFactorSettings } from "@/components/live/two-factor-settings";
 import { canManageTrips } from "@/lib/trip-management";
 import { redirect } from "next/navigation";
 import { ownerSession } from "@/lib/server/session";
@@ -31,7 +32,7 @@ export default async function Page({
         {[
           ["Số điện thoại", user.phone],
           ["Vai trò", "OWNER · Chủ nhà xe"],
-          ["Xác thực hai yếu tố", "Đã bật"],
+          ["Xác thực hai yếu tố", user.mfaEnabled ? "Đã bật" : "Chưa bật"],
           ["Phạm vi", "Dữ liệu nhà xe thuộc tài khoản"],
           [
             "Chế độ",
@@ -81,7 +82,10 @@ export default async function Page({
           }
         />
       ) : (
-        account
+        <>
+          {account}
+          <TwoFactorSettings enabled={user.mfaEnabled} />
+        </>
       )}
     </div>
   );

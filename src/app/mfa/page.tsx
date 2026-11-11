@@ -10,5 +10,5 @@ export default async function Page() {
   }
   if (access.session.scope === "full" && access.session.user.mfaEnabled)
     redirect("/admin");
-  return <MfaForm />;
+  return <MfaForm optional={access.session.scope === "full"} />;
 }

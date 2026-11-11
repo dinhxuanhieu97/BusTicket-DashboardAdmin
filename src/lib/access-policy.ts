@@ -16,7 +16,7 @@ export function assertOwner(session: Session, allowSetup = false) {
       "OWNER_REQUIRED",
       "Khu quản trị này chỉ dành cho tài khoản OWNER của nhà xe.",
     );
-  if (!allowSetup && (session.scope !== "full" || !session.user.mfaEnabled))
+  if (!allowSetup && session.scope !== "full")
     throw new ApiError(
       403,
       "MFA_SETUP_REQUIRED",

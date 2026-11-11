@@ -9,8 +9,7 @@ export function canManageTrips(
     !!operatorId &&
     session.user.operatorId === operatorId &&
     session.user.role === "OWNER" &&
-    session.scope === "full" &&
-    session.user.mfaEnabled
+    session.scope === "full"
   );
 }
 export function assertTripManager(

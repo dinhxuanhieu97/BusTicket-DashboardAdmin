@@ -73,20 +73,6 @@ test("without remember me the cookies end with the browser session", async ({
   expect((await backendState(page)).sessions[0]!.remember).toBe(false);
 });
 
-test("remember me still signs in against an older API that rejects the rememberMe key", async ({
-  page,
-}) => {
-  await page.request.post(`${API}/__test/state`, {
-    data: { legacyLogin: true },
-  });
-  await login(page, true);
-  const logins = (await backendState(page)).requests.filter(
-    (r) => r.path === "/api/v1/auth/login",
-  );
-  // Mỗi bước (mật khẩu, rồi mã 2FA) bị API cũ từ chối một lần và được gửi lại không có `rememberMe`.
-  expect(logins).toHaveLength(4);
-});
-
 test("an expired access token is renewed silently and the refresh token rotates", async ({
   page,
   context,

@@ -166,9 +166,7 @@ async function landingFor(
       sessionSchema.parse(await backendRequest("/api/v1/auth/me", { token })),
       true,
     );
-    return session.scope === "full" && session.user.mfaEnabled
-      ? "/admin"
-      : "/mfa";
+    return session.scope === "full" ? "/admin" : "/mfa";
   } catch (e) {
     const status = (e as { status?: unknown }).status;
     return status === 401 || status === 403 ? "invalid" : null;

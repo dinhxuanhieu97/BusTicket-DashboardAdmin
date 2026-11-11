@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { PasswordInput } from "../password-input";
 
 import { useEffect, useState } from "react";
@@ -20,8 +21,7 @@ async function followServerSession(where: "login" | "mfa") {
     }
     if (!res.ok) return;
     const data = await res.json();
-    if (data.scope === "full" && data.user?.mfaEnabled)
-      window.location.replace("/admin");
+    if (data.scope === "full") window.location.replace("/admin");
     else if (where === "login") window.location.replace("/mfa");
   } catch {}
 }
@@ -248,7 +248,8 @@ export function LogoutButton() {
     </div>
   );
 }
-export function MfaForm() {
+/** `optional`: phiên đã đầy đủ, người dùng tự bật 2FA từ Cài đặt (không bắt buộc). */
+export function MfaForm({ optional = false }: { optional?: boolean }) {
   useFollowSessionFromOtherTabs("mfa");
   const [setup, setSetup] = useState<{ secret: string; qr: string } | null>(
     null,
@@ -259,7 +260,11 @@ export function MfaForm() {
   return (
     <AuthFrame
       title="Thiết lập xác thực hai yếu tố"
-      subtitle="Tài khoản OWNER cần bật 2FA trước khi xem dữ liệu."
+      subtitle={
+        optional
+          ? "Không bắt buộc — thêm một lớp bảo vệ cho tài khoản OWNER."
+          : "Tài khoản OWNER cần bật 2FA trước khi xem dữ liệu."
+      }
     >
       <p className="mb-5 text-sm leading-relaxed text-muted">
         Dùng ứng dụng Authenticator để quét mã QR, sau đó nhập mã 6 số để xác
@@ -298,7 +303,7 @@ export function MfaForm() {
               publishSessionEvent("login");
               setSetup(null);
               setOtp("");
-              window.location.assign("/admin");
+              window.location.assign(optional ? "/admin/settings" : "/admin");
             } catch (err) {
               setError(
                 err instanceof Error ? err.message : "Không thể xác nhận.",
@@ -347,7 +352,11 @@ export function MfaForm() {
             disabled={busy}
             className="btn w-full bg-accent text-white"
           >
-            {busy ? "Đang xác nhận…" : "Xác nhận và vào quản trị"}
+            {busy
+              ? "Đang xác nhận…"
+              : optional
+                ? "Xác nhận và bật 2FA"
+                : "Xác nhận và vào quản trị"}
           </button>
         </form>
       )}
@@ -360,7 +369,13 @@ export function MfaForm() {
         </p>
       )}
       <div className="mt-6 border-t border-line pt-4">
-        <LogoutButton />
+        {optional ? (
+          <Link className="btn w-full" href="/admin/settings">
+            Để sau, quay lại Cài đặt
+          </Link>
+        ) : (
+          <LogoutButton />
+        )}
       </div>
     </AuthFrame>
   );

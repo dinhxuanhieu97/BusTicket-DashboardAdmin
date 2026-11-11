@@ -14,7 +14,7 @@ const session: Session = {
     mfaEnabled: true,
   },
 };
-test("only OWNER with a tenant and full MFA session can read live data", () => {
+test("only OWNER with a tenant and a full session can read live data (2FA optional)", () => {
   assert.equal(assertOwner(session), session);
   for (const role of [
     "PLATFORM_ADMIN",
@@ -37,9 +37,12 @@ test("only OWNER with a tenant and full MFA session can read live data", () => {
   };
   assert.equal(assertOwner(setup, true), setup);
   assert.throws(() => assertOwner(setup));
-  assert.throws(() =>
-    assertOwner({ ...session, user: { ...session.user, mfaEnabled: false } }),
-  );
+  // 2FA tùy chọn: phiên đầy đủ chưa bật 2FA vẫn dùng được; API quyết định có bắt buộc hay không qua `scope`.
+  const noMfa: Session = {
+    ...session,
+    user: { ...session.user, mfaEnabled: false },
+  };
+  assert.equal(assertOwner(noMfa), noMfa);
 });
 test("read allowlist fixes tenant server-side and rejects extra filters and writes", () => {
   assert.equal(

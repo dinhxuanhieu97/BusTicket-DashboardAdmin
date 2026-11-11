@@ -12,8 +12,8 @@ export async function POST(req: Request) {
   try {
     protectMutation(req);
     const { token, session } = await ownerSession(true);
-    if (session.user.mfaEnabled || session.scope !== "mfa_setup")
-      throw new ApiError(409, "CONFLICT", "Tài khoản đã hoàn tất 2FA.");
+    if (session.user.mfaEnabled)
+      throw new ApiError(409, "CONFLICT", "Tài khoản đã bật 2FA.");
     const data = z
       .object({
         secret: z.string(),

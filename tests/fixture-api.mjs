@@ -65,12 +65,14 @@ let revoked = false,
   malformed = false,
   setupStarted = false,
   confirmed = false,
+  requireMfa = false, // API đặt AUTH_REQUIRE_MFA=true: OWNER chưa bật 2FA chỉ nhận token thiết lập
+  mfaOff = false, // tài khoản đang đăng nhập không bật 2FA (chưa từng bật, hoặc vừa tắt)
   requests = [];
+const currentUser = () => ({ ...user, mfaEnabled: !mfaOff });
 // Phiên refresh giả lập API thật: access token dạng JWT có `exp`, refresh token xoay vòng, ân hạn 30 giây.
 let accessTtlMs = 3600000,
   refreshDown = false,
   refreshMalformed = false, // refresh trả dữ liệu sai hợp đồng (lỗi cố định, không phải sự cố)
-  legacyLogin = false, // API cũ: schema strict, từ chối key `rememberMe`
   sessions = new Map(), // sid -> { remember, expiresAt, revoked, current }
   refreshIndex = new Map(), // refresh token -> { sid, rotatedAt? }
   accessIndex = new Map(), // access token -> { sid, exp }
@@ -164,11 +166,12 @@ http
       malformed = false;
       setupStarted = false;
       confirmed = false;
+      requireMfa = false;
+      mfaOff = false;
       requests = [];
       accessTtlMs = 3600000;
       refreshDown = false;
       refreshMalformed = false;
-      legacyLogin = false;
       sessions = new Map();
       refreshIndex = new Map();
       accessIndex = new Map();
@@ -183,7 +186,7 @@ http
         if (body.accessTtlMs) accessTtlMs = body.accessTtlMs;
         refreshDown = body.refreshDown ?? refreshDown;
         refreshMalformed = body.refreshMalformed ?? refreshMalformed;
-        legacyLogin = body.legacyLogin ?? legacyLogin;
+        requireMfa = body.requireMfa ?? requireMfa;
         if (body.revokeSessions)
           for (const sess of sessions.values()) sess.revoked = true;
       }
@@ -205,13 +208,6 @@ http
     });
     if (down) return fail(res, 503, "SERVICE_UNAVAILABLE", "Test outage");
     if (path === "/api/v1/auth/login" && req.method === "POST") {
-      if (legacyLogin && "rememberMe" in body)
-        return fail(
-          res,
-          400,
-          "VALIDATION_FAILED",
-          "Dữ liệu gửi lên không hợp lệ.",
-        );
       if (body.phone === "0900000004")
         return fail(res, 429, "TOO_MANY_ATTEMPTS", "Thử lại sau.");
       if (body.password !== "Test-only-Password!")
@@ -223,11 +219,20 @@ http
         );
       if (body.phone === "0900000003")
         return send(res, 200, issued("full", { ...user, role: "ACCOUNTANT" }));
-      if (body.phone === "0900000002" && !confirmed)
+      if (body.phone === "0900000002" && !confirmed) {
+        if (requireMfa)
+          return send(
+            res,
+            200,
+            issued("mfa_setup", { ...user, mfaEnabled: false }),
+          );
+        mfaOff = true; // 2FA tùy chọn: chưa bật vẫn được phiên đầy đủ
+      }
+      if (mfaOff)
         return send(
           res,
           200,
-          issued("mfa_setup", { ...user, mfaEnabled: false }),
+          issued("full", currentUser(), body.rememberMe === true),
         );
       if (!body.otp)
         return fail(
@@ -238,7 +243,11 @@ http
         );
       if (body.otp !== "123456")
         return fail(res, 401, "INVALID_CREDENTIALS", "Mã xác thực không đúng.");
-      return send(res, 200, issued("full", user, body.rememberMe === true));
+      return send(
+        res,
+        200,
+        issued("full", currentUser(), body.rememberMe === true),
+      );
     }
     if (path === "/api/v1/auth/refresh" && req.method === "POST") {
       if (refreshDown)
@@ -265,7 +274,7 @@ http
         refreshToken,
         sessionExpiresAt: new Date(sess.expiresAt).toISOString(),
         remember: sess.remember,
-        user,
+        user: currentUser(),
       });
     }
     if (path === "/api/v1/auth/logout" && req.method === "POST") {
@@ -282,7 +291,7 @@ http
       return fail(res, 401, "UNAUTHENTICATED", "Phiên đã hết hạn.");
     if (path === "/api/v1/auth/me")
       return send(res, 200, {
-        user: kind === "setup" ? { ...user, mfaEnabled: false } : user,
+        user: kind === "setup" ? { ...user, mfaEnabled: false } : currentUser(),
         scope: kind === "setup" ? "mfa_setup" : "full",
         ...(permissions === null
           ? {}
@@ -300,10 +309,21 @@ http
       if (!setupStarted || body.otp !== "123456")
         return fail(res, 400, "VALIDATION_FAILED", "Mã xác thực không đúng.");
       confirmed = true;
-      return send(res, 200, issued("full", user));
+      mfaOff = false;
+      return send(res, 200, issued("full", currentUser()));
     }
     if (kind !== "full")
       return fail(res, 403, "MFA_SETUP_REQUIRED", "Cần 2FA.");
+    if (path === "/api/v1/auth/mfa/disable" && req.method === "POST") {
+      if (mfaOff) return fail(res, 409, "CONFLICT", "Tài khoản chưa bật 2FA.");
+      if (requireMfa)
+        return fail(res, 403, "FORBIDDEN", "Vai trò này bắt buộc 2FA.");
+      if (body.password !== "Test-only-Password!" || body.otp !== "123456")
+        return fail(res, 401, "INVALID_CREDENTIALS", "Sai thông tin.");
+      mfaOff = true;
+      for (const sess of sessions.values()) sess.revoked = true;
+      return send(res, 200, issued("full", currentUser(), true));
+    }
     const tripBase = `/api/v1/admin/operators/${op}/`;
     const routeId = "66666666-6666-4666-8666-666666666666",
       vehicleId = "77777777-7777-4777-8777-777777777777",

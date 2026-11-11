@@ -116,7 +116,11 @@ test("a tab re-checks the server only for well-formed events", async ({
 
 test("a first login that still needs 2FA setup moves the waiting login tab to /mfa", async ({
   context,
+  request,
 }) => {
+  await request.post("http://127.0.0.1:3101/__test/state", {
+    data: { requireMfa: true }, // API bật AUTH_REQUIRE_MFA
+  });
   const waiting = await context.newPage();
   await waiting.goto("/login");
   const a = await context.newPage();

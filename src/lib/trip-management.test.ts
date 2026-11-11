@@ -33,12 +33,17 @@ test("Vietnam datetime independent of host timezone, rejects invalid dates", () 
   assert.equal(vnInputToISO("2027-01-01T00:30"), "2026-12-31T17:30:00.000Z");
   assert.throws(() => vnInputToISO("2027-02-30T12:00"));
 });
-test("trip writes require full MFA OWNER in explicitly enabled tenant", () => {
+test("trip writes require a full-session OWNER in the explicitly enabled tenant", () => {
   assert.doesNotThrow(() => assertTripManager(session, id));
+  assert.doesNotThrow(() =>
+    assertTripManager(
+      { ...session, user: { ...session.user, mfaEnabled: false } },
+      id,
+    ),
+  );
   for (const s of [
     { ...session, scope: "mfa_setup" },
     { ...session, user: { ...session.user, role: "DISPATCHER" } },
-    { ...session, user: { ...session.user, mfaEnabled: false } },
   ])
     assert.throws(() => assertTripManager(s as Session, id));
   assert.throws(() => assertTripManager(session, undefined));

@@ -67,11 +67,14 @@ test("login needs OTP, creates HttpOnly cookie, reads data and logs out", async 
     (await context.cookies()).some((c) => c.name === "pnticket_owner_session"),
   ).toBe(false);
 });
-test("new OWNER must setup MFA and setup token cannot read data", async ({
+test("when the API makes 2FA mandatory, a new OWNER must set it up and the setup token cannot read data", async ({
   page,
   request,
   context,
 }) => {
+  await request.post("http://127.0.0.1:3101/__test/state", {
+    data: { requireMfa: true }, // API bật AUTH_REQUIRE_MFA
+  });
   await login(page, "0900000002");
   await expect(page).toHaveURL(/\/mfa$/);
   expect((await context.request.get("/api/live/payments")).status()).toBe(403);

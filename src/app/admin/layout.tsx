@@ -13,8 +13,7 @@ export default async function Layout({
     if (access.status === 401) redirect("/login");
     return <AccessFailure message={access.message} />;
   }
-  if (access.session.scope !== "full" || !access.session.user.mfaEnabled)
-    redirect("/mfa");
+  if (access.session.scope !== "full") redirect("/mfa");
   return (
     <LiveShell
       user={access.session.user}

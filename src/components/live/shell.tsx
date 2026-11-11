@@ -96,7 +96,7 @@ export function LiveShell({
           window.location.replace("/login");
           return;
         }
-        if (res.ok && (data.scope !== "full" || !data.user.mfaEnabled)) {
+        if (res.ok && data.scope !== "full") {
           window.location.replace("/mfa");
           return;
         }

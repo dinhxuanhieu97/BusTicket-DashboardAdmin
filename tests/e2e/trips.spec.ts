@@ -134,6 +134,9 @@ test("trip mutation boundary rejects unauthenticated, CSRF, tenant injection and
     (await request.delete("/api/trip-management", { headers })).status(),
   ).toBe(405);
   await request.post("/api/auth/logout", { headers, data: {} });
+  await request.post("http://127.0.0.1:3101/__test/state", {
+    data: { requireMfa: true }, // API bật AUTH_REQUIRE_MFA
+  });
   await request.post("/api/auth/login", {
     headers,
     data: { phone: "0900000002", password: "Test-only-Password!" },
