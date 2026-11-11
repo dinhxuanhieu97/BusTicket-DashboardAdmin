@@ -38,8 +38,8 @@ test("OWNER creates draft in Vietnam time, views detail and opens/closes sales",
     .getByLabel("Đóng bán lúc", { exact: true })
     .fill("2027-12-01T00:00");
   await page
-    .getByLabel("Giá Tầng dưới · 1 người (VND)", { exact: true })
-    .fill("250000");
+    .getByLabel("Giá Tầng dưới · 1 người (nghìn đồng)", { exact: true })
+    .fill("250");
   await page.getByRole("button", { name: "Lưu nháp", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("250.000");
   await page.getByRole("button", { name: "Xác nhận lưu nháp" }).click();
@@ -70,7 +70,7 @@ test("OWNER creates draft in Vietnam time, views detail and opens/closes sales",
   );
   await expect(dialog).not.toContainText("+84");
   await page
-    .getByRole("button", { name: "Làm mới", exact: true })
+    .getByRole("button", { name: "Làm mới dữ liệu", exact: true })
     .last()
     .click();
   await expect(dialog.locator('[data-seat="A1"]')).toBeVisible();
@@ -134,6 +134,9 @@ test("trip mutation boundary rejects unauthenticated, CSRF, tenant injection and
     (await request.delete("/api/trip-management", { headers })).status(),
   ).toBe(405);
   await request.post("/api/auth/logout", { headers, data: {} });
+  await request.post("http://127.0.0.1:3101/__test/state", {
+    data: { requireMfa: true }, // API bật AUTH_REQUIRE_MFA
+  });
   await request.post("/api/auth/login", {
     headers,
     data: { phone: "0900000002", password: "Test-only-Password!" },

@@ -15,10 +15,11 @@ test("owner permissions show every menu item", () => {
     "payment.read",
     "payment.record",
     "payment.manage",
+    "trip.assigned.read",
   ];
   assert.deepEqual(
     keys(owner),
-    NAV.map((i) => i.key),
+    NAV.filter((i) => i.key !== "assigned").map((i) => i.key),
   );
 });
 
@@ -28,9 +29,13 @@ test("items without a permission are hidden; the account page always stays", () 
   assert.deepEqual(keys([]), ["settings"]);
 });
 
+test("assistants only see their assigned trips and the account page", () => {
+  assert.deepEqual(keys(["trip.assigned.read"]), ["assigned", "settings"]);
+});
+
 test("an older API without permissions keeps the full menu", () => {
   assert.deepEqual(
     keys(undefined),
-    NAV.map((i) => i.key),
+    NAV.filter((i) => i.key !== "assigned").map((i) => i.key),
   );
 });

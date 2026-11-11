@@ -27,7 +27,11 @@ export function useResource<T>(path: string) {
           window.location.replace("/mfa");
           return;
         }
-        if (body.error?.code === "OWNER_REQUIRED") {
+        if (body.error?.code === "PASSWORD_CHANGE_REQUIRED") {
+          window.location.replace("/change-password");
+          return;
+        }
+        if (body.error?.code === "OPERATOR_REQUIRED") {
           window.location.replace("/login");
           return;
         }

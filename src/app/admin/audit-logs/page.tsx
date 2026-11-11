@@ -1,4 +1,6 @@
+import { requirePagePermission } from "@/lib/server/page-access";
 import { Audit } from "@/components/live/audit";
-export default function Page() {
+export default async function Page() {
+  if (!(await requirePagePermission("audit.read"))) return null;
   return <Audit />;
 }

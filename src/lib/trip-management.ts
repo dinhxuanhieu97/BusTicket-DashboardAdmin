@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { ApiError, assertOwner } from "./access-policy";
+import {
+  ApiError,
+  assertOperatorSession,
+  hasPermission,
+  requirePermission,
+} from "./access-policy";
 import type { Session } from "./live-contracts";
 export function canManageTrips(
   session: Session,
@@ -8,16 +13,15 @@ export function canManageTrips(
   return (
     !!operatorId &&
     session.user.operatorId === operatorId &&
-    session.user.role === "OWNER" &&
-    session.scope === "full" &&
-    session.user.mfaEnabled
+    hasPermission(session, "trip.write")
   );
 }
 export function assertTripManager(
   session: Session,
   operatorId: string | undefined,
 ) {
-  assertOwner(session);
+  assertOperatorSession(session);
+  requirePermission(session, "trip.write");
   if (!canManageTrips(session, operatorId))
     throw new ApiError(
       403,
@@ -36,6 +40,17 @@ export function vnInputToISO(value: string) {
     throw new Error("Ngày giờ không hợp lệ.");
   return d.toISOString();
 }
+export const MAX_FARE_VND = 20_000_000;
+
+export function parseFareThousands(value: string): number | null {
+  const match = /^(\d+|\d{1,3}(?:\.\d{3})+)(?:,(\d{1,3}))?$/.exec(value.trim());
+  if (!match) return null;
+  const whole = Number(match[1].replaceAll(".", ""));
+  if (whole > MAX_FARE_VND / 1000) return null;
+  const vnd = whole * 1000 + Number((match[2] ?? "").padEnd(3, "0"));
+  return vnd <= MAX_FARE_VND ? vnd : null;
+}
+
 const instant = z.string().datetime();
 export const createTripInput = z
   .object({
@@ -55,7 +70,7 @@ export const createTripInput = z
           .object({
             floor: z.enum(["1", "2", "3"]),
             occupancy: z.union([z.literal(1), z.literal(2)]),
-            price: z.number().int().min(0).max(20000000),
+            price: z.number().int().min(0).max(MAX_FARE_VND),
           })
           .strict(),
       )

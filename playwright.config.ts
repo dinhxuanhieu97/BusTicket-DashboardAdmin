@@ -25,6 +25,7 @@ export default defineConfig({
         PNTICKET_API_URL: "http://127.0.0.1:3101",
         APP_ORIGIN: "http://127.0.0.1:3102",
         PNTICKET_TRIP_WRITE_OPERATOR_ID: "11111111-1111-4111-8111-111111111111",
+        PNTICKET_BRAND_OPERATOR_CODE: "TEST",
       },
       timeout: 60000,
     },

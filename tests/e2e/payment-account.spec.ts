@@ -29,10 +29,23 @@ test("owner saves the receiving account in General Information", async ({
   await form
     .getByLabel("API Key webhook SePay")
     .fill("fixture-only-webhook-key-0000");
+  await form.getByLabel("Mật khẩu hiện tại").fill("Test-only-Password!");
+  await form.getByLabel("Mã Authenticator").fill("000000");
   await form.getByRole("button", { name: "Lưu tài khoản nhận tiền" }).click();
-  await expect(form.getByRole("status")).toHaveText(
-    "Đã lưu tài khoản nhận tiền.",
-  );
+  await expect(
+    form.getByText("Mật khẩu hoặc mã xác thực không đúng."),
+  ).toBeVisible();
+  expect(await (await context.request.get(path)).json()).toEqual({
+    account: null,
+  });
+  await expect(form.getByLabel("Mật khẩu hiện tại")).toHaveValue("");
+  await expect(form.getByLabel("Mã Authenticator")).toHaveValue("");
+  await form.getByLabel("Mật khẩu hiện tại").fill("Test-only-Password!");
+  await form.getByLabel("Mã Authenticator").fill("123456");
+  await form.getByRole("button", { name: "Lưu tài khoản nhận tiền" }).click();
+  await expect(
+    page.getByRole("group", { name: "Thông báo lưu thành công" }),
+  ).toHaveText("Đã lưu tài khoản nhận tiền.");
   await page.reload();
   await expect(form.getByLabel("Mã ngân hàng")).toHaveValue("MB");
   await expect(form.getByLabel("Số tài khoản")).toHaveValue("0000000123");

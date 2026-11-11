@@ -30,7 +30,7 @@ export function RouteStopsEditor({
       {(["pickup", "dropoff"] as const).map((kind) => (
         <fieldset
           key={kind}
-          className="space-y-2 rounded-xl border border-line p-3"
+          className="space-y-4 rounded-xl border border-line p-4"
         >
           <legend className="px-2 text-sm font-semibold">
             {kind === "pickup" ? "Điểm đón" : "Điểm trả"}
@@ -46,12 +46,12 @@ export function RouteStopsEditor({
             return (
               <div
                 key={i}
-                className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_6rem_auto] sm:items-end"
+                className="pn-form-grid grid-cols-2 border-b border-line pb-4 sm:grid-cols-[minmax(0,1fr)_8rem_6rem_auto]"
               >
-                <label className="label">
+                <label className="label col-span-2 sm:col-span-1">
                   Tên điểm
                   <input
-                    className="field mt-1"
+                    className="field"
                     maxLength={160}
                     required
                     value={stop.name}
@@ -61,7 +61,7 @@ export function RouteStopsEditor({
                 <label className="label">
                   Giờ
                   <input
-                    className="field mt-1"
+                    className="field"
                     type="time"
                     required
                     value={stop.time}
@@ -71,7 +71,7 @@ export function RouteStopsEditor({
                 <label className="label">
                   Ngày
                   <input
-                    className="field mt-1"
+                    className="field"
                     type="number"
                     min={0}
                     max={7}
@@ -81,7 +81,7 @@ export function RouteStopsEditor({
                   />
                 </label>
                 <button
-                  className="btn mb-2"
+                  className="btn col-span-2 justify-self-end sm:col-span-1"
                   type="button"
                   onClick={() =>
                     setStops((s) => ({

@@ -1,20 +1,24 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
 export function Modal({
   title,
   wide = false,
+  drawer = false,
   onClose,
   children,
 }: {
   title: string;
   wide?: boolean;
+  drawer?: boolean;
   onClose: () => void;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const headingId = useId();
   useEffect(() => {
-    const el = ref.current!;
+    const el = ref.current;
+    if (!el) return;
     const previous = document.activeElement as HTMLElement | null;
     el.showModal();
     const overflow = document.body.style.overflow;
@@ -28,11 +32,10 @@ export function Modal({
   return (
     <dialog
       ref={ref}
-      className={
-        wide ? "max-sm:h-dvh max-sm:max-h-dvh max-sm:rounded-none" : undefined
-      }
-      style={wide ? { width: "min(100vw, 820px)" } : undefined}
-      aria-labelledby="modal-heading"
+      className="pn-dialog"
+      data-wide={wide || undefined}
+      data-drawer={drawer || undefined}
+      aria-labelledby={headingId}
       onCancel={(e) => {
         e.preventDefault();
         onClose();
@@ -50,15 +53,29 @@ export function Modal({
         }
       }}
     >
-      <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-line bg-panel p-5">
-        <h2 id="modal-heading" className="text-lg font-bold">
+      <header className="pn-panel-inline flex shrink-0 items-center justify-between gap-4 border-b border-line bg-panel py-3">
+        <h2 id={headingId} className="text-lg font-semibold tracking-tight">
           {title}
         </h2>
-        <button onClick={onClose} className="icon-btn" aria-label="Đóng">
-          <X size={18} />
+        <button
+          type="button"
+          onClick={onClose}
+          className="icon-btn btn-ghost"
+          aria-label={drawer ? "Đóng menu" : "Đóng"}
+          autoFocus
+        >
+          <X size={18} aria-hidden="true" />
         </button>
       </header>
-      <div className="p-5">{children}</div>
+      <div
+        className={
+          drawer
+            ? "flex min-h-0 flex-1 flex-col"
+            : "pn-panel-inset min-h-0 overflow-y-auto"
+        }
+      >
+        {children}
+      </div>
     </dialog>
   );
 }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { backendRequest } from "@/lib/backend-client";
 import {
-  ownerSession,
+  userSession,
   protectMutation,
   input,
   issueSession,
@@ -10,7 +10,7 @@ import {
 export async function POST(req: Request) {
   try {
     protectMutation(req);
-    const { token } = await ownerSession(true);
+    const { token } = await userSession(true);
     const body = await input(
       req,
       z.object({ otp: z.string().regex(/^\d{6}$/) }).strict(),

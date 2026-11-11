@@ -9,14 +9,18 @@ export class ApiError extends Error {
     super(message);
   }
 }
-export function assertOwner(session: Session, allowSetup = false) {
-  if (session.user.role !== "OWNER" || !session.user.operatorId)
+export const isPlatformAdmin = (session: Session) =>
+  session.user.role === "PLATFORM_ADMIN" && session.user.operatorId === null;
+
+/** Phiên hợp lệ của tài khoản nhà xe hoặc quản trị nền tảng (dùng cho đăng nhập, 2FA, đổi mật khẩu). */
+export function assertSignedInSession(session: Session, allowSetup = false) {
+  if (!isPlatformAdmin(session) && !session.user.operatorId)
     throw new ApiError(
       403,
-      "OWNER_REQUIRED",
-      "Khu quản trị này chỉ dành cho tài khoản OWNER của nhà xe.",
+      "OPERATOR_REQUIRED",
+      "Khu quản trị này dành cho tài khoản thuộc nhà xe.",
     );
-  if (!allowSetup && (session.scope !== "full" || !session.user.mfaEnabled))
+  if (!allowSetup && session.scope !== "full")
     throw new ApiError(
       403,
       "MFA_SETUP_REQUIRED",
@@ -24,6 +28,56 @@ export function assertOwner(session: Session, allowSetup = false) {
     );
   return session;
 }
+
+/** Khu quản trị nền tảng: chỉ PLATFORM_ADMIN. */
+export function assertPlatformSession(session: Session, allowSetup = false) {
+  if (!isPlatformAdmin(session))
+    throw new ApiError(
+      403,
+      "PLATFORM_REQUIRED",
+      "Khu này dành cho quản trị nền tảng.",
+    );
+  return assertSignedInSession(session, allowSetup);
+}
+
+export function assertOperatorSession(session: Session, allowSetup = false) {
+  if (session.user.role === "PLATFORM_ADMIN" || !session.user.operatorId)
+    throw new ApiError(
+      403,
+      "OPERATOR_REQUIRED",
+      "Khu quản trị này dành cho tài khoản thuộc nhà xe.",
+    );
+  if (!allowSetup && session.scope !== "full")
+    throw new ApiError(
+      403,
+      "MFA_SETUP_REQUIRED",
+      "Vui lòng hoàn tất xác thực hai yếu tố.",
+    );
+  return session;
+}
+
+export function hasPermission(session: Session, permission: string) {
+  return (
+    session.scope === "full" &&
+    (session.permissions?.includes(permission) ?? session.user.role === "OWNER")
+  );
+}
+
+export function requirePermission(session: Session, permission: string) {
+  if (!hasPermission(session, permission))
+    throw new ApiError(
+      403,
+      "FORBIDDEN",
+      "Bạn không có quyền thực hiện thao tác này.",
+    );
+}
+
+export const resourcePermissions: Record<Resource, string> = {
+  trips: "trip.read",
+  payments: "payment.read",
+  users: "user.manage",
+  "audit-logs": "audit.read",
+};
 export function readPath(
   resource: Resource,
   operatorId: string,
@@ -109,7 +163,15 @@ export function readPath(
   }
   return `/api/v1/admin/operators/${encodeURIComponent(operatorId)}/${resource}${query.size ? "?" + query.toString() : ""}`;
 }
-export function checkOrigin(request: Request, configuredOrigin: string) {
+/**
+ * Chống CSRF: Origin phải là dashboard và thân phải là kiểu form HTML không gửi được (JSON, hoặc ảnh khi tải logo) —
+ * trình duyệt buộc preflight CORS cho các kiểu này nên trang khác không tự gửi được.
+ */
+export function checkOrigin(
+  request: Request,
+  configuredOrigin: string,
+  contentTypes: readonly string[] = ["application/json"],
+) {
   const base = new URL(configuredOrigin);
   const allowed = new Set([base.origin]);
   if (
@@ -131,6 +193,13 @@ export function checkOrigin(request: Request, configuredOrigin: string) {
       "ORIGIN_REJECTED",
       "Yêu cầu không hợp lệ. Vui lòng mở lại trang đăng nhập.",
     );
-  if (!request.headers.get("content-type")?.startsWith("application/json"))
-    throw new ApiError(415, "INVALID_CONTENT_TYPE", "Yêu cầu phải dùng JSON.");
+  const type = request.headers.get("content-type")?.split(";")[0]?.trim();
+  if (!type || !contentTypes.includes(type.toLowerCase()))
+    throw new ApiError(
+      415,
+      "INVALID_CONTENT_TYPE",
+      contentTypes.includes("application/json")
+        ? "Yêu cầu phải dùng JSON."
+        : "Định dạng tệp không được hỗ trợ.",
+    );
 }

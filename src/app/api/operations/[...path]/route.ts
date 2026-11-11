@@ -1,38 +1,47 @@
 import { z } from "zod";
 import { backendRequest } from "@/lib/backend-client";
 import {
-  ownerSession,
+  operatorSession,
   protectMutation,
   json,
   errorResponse,
 } from "@/lib/server/session";
 import { assertTripManager } from "@/lib/trip-management";
-import { ApiError } from "@/lib/access-policy";
+import { ApiError, requirePermission } from "@/lib/access-policy";
 
 const uuid = "[0-9a-fA-F-]{36}";
 const allowed = {
   GET: [
-    /^profile$/,
-    /^policy$/,
-    /^trip-schedules$/,
-    new RegExp(`^trip-schedules/${uuid}/preview$`),
+    { path: /^profile$/, permission: "policy.read" },
+    // Chính sách đặt vé (giữ chỗ, cọc cố định...): API kiểm quyền và validate đầy đủ.
+    { path: /^policy$/, permission: "policy.read" },
+    { path: /^trip-schedules$/, permission: "trip.read" },
+    {
+      path: new RegExp(`^trip-schedules/${uuid}/preview$`),
+      permission: "trip.read",
+    },
   ],
   POST: [
-    /^trip-schedules$/,
-    /^routes$/,
-    /^route-pairs$/,
-    new RegExp(`^trip-schedules/${uuid}/generate$`),
+    { path: /^trip-schedules$/, permission: "trip.write" },
+    { path: /^routes$/, permission: "route.write" },
+    { path: /^route-pairs$/, permission: "route.write" },
+    {
+      path: new RegExp(`^trip-schedules/${uuid}/generate$`),
+      permission: "trip.write",
+    },
   ],
   PUT: [
-    /^profile$/,
-    // Chính sách đặt vé (giữ chỗ, cọc cố định...): API kiểm quyền policy.write và validate đầy đủ.
-    /^policy$/,
-    new RegExp(`^routes/${uuid}/stops$`),
-    new RegExp(`^trip-schedules/${uuid}/exception$`),
+    { path: /^profile$/, permission: "policy.write" },
+    { path: /^policy$/, permission: "policy.write" },
+    { path: new RegExp(`^routes/${uuid}/stops$`), permission: "route.write" },
+    {
+      path: new RegExp(`^trip-schedules/${uuid}/exception$`),
+      permission: "trip.write",
+    },
   ],
   PATCH: [
-    new RegExp(`^trip-schedules/${uuid}$`),
-    new RegExp(`^vehicles/${uuid}$`),
+    { path: new RegExp(`^trip-schedules/${uuid}$`), permission: "trip.write" },
+    { path: new RegExp(`^vehicles/${uuid}$`), permission: "fleet.write" },
   ],
 };
 async function handle(
@@ -43,12 +52,11 @@ async function handle(
     const { path: parts } = await context.params;
     const path = parts.join("/"),
       method = req.method as keyof typeof allowed;
-    if (
-      !allowed[method]?.some((pattern) => pattern.test(path)) ||
-      new URL(req.url).search
-    )
+    const operation = allowed[method]?.find((rule) => rule.path.test(path));
+    if (!operation || new URL(req.url).search)
       throw new ApiError(404, "NOT_FOUND", "Không tìm thấy thao tác.");
-    const { token, session } = await ownerSession();
+    const { token, session } = await operatorSession();
+    requirePermission(session, operation.permission);
     let body: unknown;
     if (method !== "GET") {
       protectMutation(req);

@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { backendRequest } from "@/lib/backend-client";
 import { ApiError } from "@/lib/access-policy";
 import {
-  ownerSession,
+  userSession,
   protectMutation,
   json,
   errorResponse,
@@ -11,9 +11,9 @@ import {
 export async function POST(req: Request) {
   try {
     protectMutation(req);
-    const { token, session } = await ownerSession(true);
-    if (session.user.mfaEnabled || session.scope !== "mfa_setup")
-      throw new ApiError(409, "CONFLICT", "Tài khoản đã hoàn tất 2FA.");
+    const { token, session } = await userSession(true);
+    if (session.user.mfaEnabled)
+      throw new ApiError(409, "CONFLICT", "Tài khoản đã bật 2FA.");
     const data = z
       .object({
         secret: z.string(),

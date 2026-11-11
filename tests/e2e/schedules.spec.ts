@@ -31,9 +31,13 @@ test("date range persists across reload and the default creation flow is both di
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("Cả hai chiều", { exact: true })).toBeVisible();
   await expect(dialog.getByLabel("Giờ xuất bến")).toHaveValue("17:30");
-  for (const input of await dialog.getByLabel(/Giá .*VND/).all())
-    await input.fill("300000");
+  for (const input of await dialog.getByLabel(/Giá .*nghìn đồng/).all())
+    await input.fill("300");
+  await expect(dialog.getByText(/300\.000/).first()).toBeVisible();
   await dialog.getByRole("button", { name: "Xem lại cấu hình" }).click();
+  await expect(
+    dialog.getByText(/Tầng 1 · 1 người: 300\.000/).first(),
+  ).toBeVisible();
   await expect(
     dialog.getByText("Chuyến TP. Hồ Chí Minh → Đà Lạt", { exact: true }),
   ).toBeVisible();
@@ -55,8 +59,8 @@ test("owner saves a disabled schedule, previews it, activates it and skips a day
     .click();
   const date = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   await page.getByLabel("Ngày bắt đầu phân xe").fill(date);
-  for (const input of await page.getByLabel(/Giá .*VND/).all())
-    await input.fill("300000");
+  for (const input of await page.getByLabel(/Giá .*nghìn đồng/).all())
+    await input.fill("300");
   await page.getByRole("button", { name: "Xem lại cấu hình" }).click();
   await page.getByRole("button", { name: "Lưu lịch chưa bật" }).click();
   await expect(page.getByText(/Đang tắt/)).toBeVisible();
@@ -86,6 +90,42 @@ test("general information is inside Settings and its previous URL redirects", as
   ).toBeVisible();
   await settings.getByRole("link", { name: "Tài khoản", exact: true }).click();
   await expect(
-    page.getByText("OWNER · Chủ nhà xe", { exact: true }),
+    page.getByRole("definition").filter({ hasText: /^Chủ nhà xe$/ }),
   ).toBeVisible();
+});
+
+test("settings save shows a dismissible toast that clears after five seconds", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.goto("/admin/settings?tab=general");
+  const name = page.getByRole("textbox", { name: "Tên nhà xe" });
+  const save = page.getByRole("button", { name: "Lưu thông tin nhà xe" });
+  const toast = page.getByRole("group", { name: "Thông báo lưu thành công" });
+  await name.fill("Nhà xe thử thông báo");
+  await save.click();
+  await expect(toast).toHaveText("Đã lưu thông tin.");
+  await expect(toast).toHaveCSS("position", "fixed");
+  await expect(toast.locator(".pn-success-toast-progress")).toHaveCSS(
+    "animation-duration",
+    "5s",
+  );
+  await expect(
+    page.getByRole("status").filter({ hasText: "Đã lưu thông tin." }),
+  ).toHaveCount(1);
+  await toast.getByRole("button", { name: "Đóng thông báo" }).click();
+  await expect(toast).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await name.fill("Nhà xe thử thông báo trên mobile");
+  await save.click();
+  await expect(toast).toBeVisible();
+  const box = await toast.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThan(0);
+  expect(box!.x + box!.width).toBeLessThan(390);
+  await page.clock.fastForward(5000);
+  await expect(toast).toHaveCount(0);
+  await page.reload();
+  await expect(name).toHaveValue("Nhà xe thử thông báo trên mobile");
 });

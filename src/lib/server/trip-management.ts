@@ -1,5 +1,5 @@
 import "server-only";
-import { ownerSession } from "./session";
+import { operatorSession } from "./session";
 import { assertTripManager } from "../trip-management";
 import { backendRequest } from "../backend-client";
 import {
@@ -10,7 +10,7 @@ import {
   fareRequirements,
 } from "../trip-management";
 export async function tripManager() {
-  const auth = await ownerSession();
+  const auth = await operatorSession();
   assertTripManager(auth.session, process.env.PNTICKET_TRIP_WRITE_OPERATOR_ID);
   return {
     ...auth,

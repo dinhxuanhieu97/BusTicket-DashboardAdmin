@@ -21,6 +21,17 @@ test("PN overview shows real route availability and opens trip detail on desktop
   await expect(
     page.getByRole("heading", { name: "Trạng thái chuyến" }),
   ).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .getByRole("heading", { name: "Trạng thái chuyến" })
+        .evaluate(
+          (el) =>
+            getComputedStyle(el).color ===
+            getComputedStyle(document.body).color,
+        ),
+    )
+    .toBe(true);
   await expect(
     page.getByText("Chuyến kiểm thử", { exact: true }),
   ).toBeVisible();
@@ -90,4 +101,60 @@ test("empty day and light theme do not invent business figures", async ({
     path: "test-results/pn-overview-empty-light.png",
     fullPage: true,
   });
+});
+
+test("mobile navigation and trip details return focus after Escape", async ({
+  page,
+  context,
+  request,
+}) => {
+  await request.post("http://127.0.0.1:3101/__test/reset");
+  await context.request.post("/api/auth/login", {
+    headers: { Origin: "http://127.0.0.1:3102" },
+    data: {
+      phone: "0900000001",
+      password: "Test-only-Password!",
+      otp: "123456",
+    },
+  });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/admin");
+  await expect(
+    page.getByRole("heading", { name: "Trạng thái chuyến" }),
+  ).toBeVisible();
+  const menuButton = page.getByRole("button", { name: "Mở menu" });
+  await menuButton.focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("dialog", { name: "Điều hướng" });
+  await expect(menu.getByRole("link", { name: "Tổng quan" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(menu.getByRole("button", { name: "Đóng menu" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(menuButton).toBeFocused();
+
+  const details = page.getByRole("button", { name: "Chi tiết", exact: true });
+  const table = page.getByRole("region", { name: "Danh sách chuyến" });
+  const initialX = (await details.boundingBox())!.x;
+  await table.evaluate((region) => {
+    region.scrollLeft = region.scrollWidth;
+  });
+  expect(await table.evaluate((region) => region.scrollLeft)).toBeGreaterThan(
+    0,
+  );
+  expect((await details.boundingBox())!.x).toBeCloseTo(initialX, 0);
+  await details.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog", { name: "Chi tiết chuyến xe" });
+  await expect(dialog).toBeVisible();
+  const { header, body } = await dialog.evaluate((element) => ({
+    header: getComputedStyle(element.children[0]).paddingInlineStart,
+    body: getComputedStyle(element.children[1]).paddingInlineStart,
+  }));
+  expect(header).toBe("16px");
+  expect(body).toBe(header);
+  await page.keyboard.press("Escape");
+  await expect(details).toBeFocused();
 });
