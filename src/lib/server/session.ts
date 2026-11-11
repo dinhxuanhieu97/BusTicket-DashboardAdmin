@@ -8,6 +8,7 @@ import { sessionSchema, issuedSchema } from "../live-contracts";
 import {
   ACCESS_COOKIE,
   REFRESH_COOKIE,
+  clearAccessWrites,
   clearWrites,
   cookieWrites,
 } from "../session-tokens";
@@ -80,8 +81,10 @@ export function errorResponse(e: unknown) {
   );
   if (error.retryAfter && /^\d+$/.test(error.retryAfter))
     res.headers.set("Retry-After", error.retryAfter);
-  if (error.status === 401 || error.code === "OWNER_REQUIRED")
-    clearSession(res);
+  // Không phải OWNER: bỏ hẳn phiên. 401: chỉ bỏ access token — có thể chỉ do access vừa hết hạn hoặc đồng hồ lệch;
+  // request sau proxy dùng refresh token để gia hạn, nếu refresh cũng bị từ chối thì proxy xóa cả hai cookie.
+  if (error.code === "OWNER_REQUIRED") clearSession(res);
+  else if (error.status === 401) applyCookieWrites(res, clearAccessWrites());
   return res;
 }
 export async function input<T>(req: Request, schema: z.ZodType<T>): Promise<T> {

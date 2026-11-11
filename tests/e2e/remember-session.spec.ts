@@ -239,3 +239,73 @@ test("logout with an expired access token still revokes the session through the 
     { remember: true, revoked: true },
   ]);
 });
+
+test("opening /login from another site (no SameSite=Strict cookies on that navigation) resumes a remembered session", async ({
+  page,
+}) => {
+  await login(page, true);
+  await page.goto("/icon.svg");
+  const logins = async () =>
+    (await backendState(page)).requests.filter(
+      (r) => r.path === "/api/v1/auth/login",
+    ).length;
+  const before = await logins();
+  // Điều hướng thật từ trang khác site: Chromium không gửi cookie SameSite=Strict cho request tài liệu này.
+  await page.route("https://other-site.example/**", (route) =>
+    route.fulfill({
+      contentType: "text/html; charset=utf-8",
+      body: '<a href="http://127.0.0.1:3102/login">Mở dashboard</a>',
+    }),
+  );
+  await page.goto("https://other-site.example/");
+  const docCookies: (string | undefined)[] = [];
+  page.on("request", (r) => {
+    if (r.resourceType() === "document" && r.url().endsWith("/login"))
+      docCookies.push(r.headers()["cookie"]);
+  });
+  await page.getByRole("link", { name: "Mở dashboard" }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+  expect(docCookies[0]).toBeUndefined(); // đúng là proxy không thấy phiên ở lần mở đầu
+  expect(await logins()).toBe(before); // không phải đăng nhập lại
+});
+
+test("an API 401 drops only the access token; the refresh token renews the session on the next request", async ({
+  page,
+  context,
+}) => {
+  await login(page, true);
+  await page.goto("/icon.svg");
+  // Access token còn hạn theo `exp` (proxy không refresh) nhưng API từ chối, ví dụ đồng hồ lệch.
+  const forged = `h.${Buffer.from(JSON.stringify({ exp: Date.now() / 1000 + 3600 })).toString("base64url")}.s`;
+  await context.addCookies([
+    {
+      name: ACCESS,
+      value: forged,
+      url: "http://127.0.0.1:3102",
+      httpOnly: true,
+      sameSite: "Strict",
+    },
+  ]);
+  const res = await page.request.get("/api/auth/session");
+  expect(res.status()).toBe(401);
+  expect(await cookie(context, ACCESS)).toBeUndefined();
+  expect(await cookie(context, REFRESH)).toBeTruthy();
+  await page.goto("/admin");
+  await expect(page).toHaveURL(/\/admin$/);
+  expect(await cookie(context, ACCESS)).toBeTruthy();
+});
+
+test("a refresh response that breaks the contract sends the user to login instead of a 503 loop", async ({
+  page,
+  context,
+}) => {
+  await login(page, true);
+  await page.goto("/icon.svg");
+  await page.request.post(`${API}/__test/state`, {
+    data: { refreshMalformed: true },
+  });
+  await context.clearCookies({ name: ACCESS });
+  await page.goto("/admin");
+  await expect(page).toHaveURL(/\/login$/);
+  expect(await cookie(context, REFRESH)).toBeUndefined();
+});

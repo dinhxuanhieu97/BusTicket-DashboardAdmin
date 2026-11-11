@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { assertOwner } from "./lib/access-policy";
 import { backendRequest } from "./lib/backend-client";
 import { issuedSchema, sessionSchema } from "./lib/live-contracts";
@@ -141,6 +142,14 @@ async function tryRefresh(refreshToken: string): Promise<RefreshOutcome> {
       writes: cookieWrites(issued),
     };
   } catch (e) {
+    // API trả dữ liệu không đúng hợp đồng: lỗi cố định chứ không phải sự cố thoáng qua — coi như bị từ chối để người
+    // dùng về trang đăng nhập (thay vì kẹt ở trang 503), và ghi log để phát hiện hợp đồng lệch.
+    if (e instanceof ZodError) {
+      console.error("auth refresh: response does not match issuedSchema", {
+        issues: e.issues.map((i) => ({ path: i.path.join("."), code: i.code })),
+      });
+      return { kind: "rejected" };
+    }
     const status = (e as { status?: unknown }).status;
     if (status === 401 || status === 403 || status === 400)
       return { kind: "rejected" };

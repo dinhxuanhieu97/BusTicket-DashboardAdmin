@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   ACCESS_COOKIE,
   accessExpiryMs,
+  clearAccessWrites,
   cookieWrites,
   needsRefresh,
   REFRESH_COOKIE,
@@ -105,4 +106,10 @@ test("only admin and 2FA pages require a session", () => {
     "/mfa-help",
   ])
     assert.equal(requiresLogin(p), false, p);
+});
+
+test("an API 401 clears only the access cookie so the refresh token can renew", () => {
+  assert.deepEqual(clearAccessWrites(), [
+    { name: ACCESS_COOKIE, value: "", maxAge: 0 },
+  ]);
 });

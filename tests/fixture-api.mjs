@@ -41,6 +41,7 @@ let revoked = false,
 // Phiên refresh giả lập API thật: access token dạng JWT có `exp`, refresh token xoay vòng, ân hạn 30 giây.
 let accessTtlMs = 3600000,
   refreshDown = false,
+  refreshMalformed = false, // refresh trả dữ liệu sai hợp đồng (lỗi cố định, không phải sự cố)
   legacyLogin = false, // API cũ: schema strict, từ chối key `rememberMe`
   sessions = new Map(), // sid -> { remember, expiresAt, revoked, current }
   refreshIndex = new Map(), // refresh token -> { sid, rotatedAt? }
@@ -128,6 +129,7 @@ http
       requests = [];
       accessTtlMs = 3600000;
       refreshDown = false;
+      refreshMalformed = false;
       legacyLogin = false;
       sessions = new Map();
       refreshIndex = new Map();
@@ -142,6 +144,7 @@ http
         if ("permissions" in body) permissions = body.permissions;
         if (body.accessTtlMs) accessTtlMs = body.accessTtlMs;
         refreshDown = body.refreshDown ?? refreshDown;
+        refreshMalformed = body.refreshMalformed ?? refreshMalformed;
         legacyLogin = body.legacyLogin ?? legacyLogin;
         if (body.revokeSessions)
           for (const sess of sessions.values()) sess.revoked = true;
@@ -202,6 +205,8 @@ http
     if (path === "/api/v1/auth/refresh" && req.method === "POST") {
       if (refreshDown)
         return fail(res, 503, "SERVICE_UNAVAILABLE", "Test outage");
+      if (refreshMalformed)
+        return send(res, 200, { accessToken: 42, scope: "full" });
       const entry = refreshIndex.get(body.refreshToken);
       const sess = entry && sessions.get(entry.sid);
       if (!sess || sess.revoked || sess.expiresAt <= Date.now())

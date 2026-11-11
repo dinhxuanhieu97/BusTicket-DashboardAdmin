@@ -9,31 +9,42 @@ import {
 import { LockKeyhole, ShieldCheck, LogOut } from "lucide-react";
 import { authPost, ClientError } from "./auth-client";
 /**
- * Trang đăng nhập/2FA: khi tab khác vừa đăng nhập hoặc đăng xuất, hỏi lại máy chủ rồi chuyển trang.
- * Không tin nội dung tin nhắn — chỉ tin `/api/auth/session`.
+ * Hỏi máy chủ phiên hiện tại rồi chuyển trang nếu cần. Không tin dữ liệu nào khác ngoài `/api/auth/session`.
  */
+async function followServerSession(where: "login" | "mfa") {
+  try {
+    const res = await fetch("/api/auth/session", { cache: "no-store" });
+    if (res.status === 401) {
+      if (where === "mfa") window.location.replace("/login");
+      return;
+    }
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.scope === "full" && data.user?.mfaEnabled)
+      window.location.replace("/admin");
+    else if (where === "login") window.location.replace("/mfa");
+  } catch {}
+}
+/** Trang đăng nhập/2FA: khi tab khác vừa đăng nhập hoặc đăng xuất, hỏi lại máy chủ rồi chuyển trang. */
 function useFollowSessionFromOtherTabs(where: "login" | "mfa") {
   useEffect(
-    () =>
-      subscribeSessionEvents(async () => {
-        try {
-          const res = await fetch("/api/auth/session", { cache: "no-store" });
-          if (res.status === 401) {
-            if (where === "mfa") window.location.replace("/login");
-            return;
-          }
-          if (!res.ok) return;
-          const data = await res.json();
-          if (data.scope === "full" && data.user?.mfaEnabled)
-            window.location.replace("/admin");
-          else if (where === "login") window.location.replace("/mfa");
-        } catch {}
-      }),
+    () => subscribeSessionEvents(() => followServerSession(where)),
     [where],
   );
 }
+/**
+ * Mở `/login` từ link ở trang khác (Zalo, email): cookie SameSite=Strict không đi kèm điều hướng đó nên proxy không
+ * thấy phiên. Request `fetch` cùng origin từ trang này thì có cookie — hỏi lại một lần để phiên "Ghi nhớ đăng nhập"
+ * còn hạn vào thẳng trang quản trị thay vì bắt đăng nhập lại (và tạo thêm phiên).
+ */
+function useResumeExistingSession() {
+  useEffect(() => {
+    void followServerSession("login");
+  }, []);
+}
 export function LoginForm() {
   useFollowSessionFromOtherTabs("login");
+  useResumeExistingSession();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
@@ -145,8 +156,8 @@ export function LoginForm() {
           <span>
             Ghi nhớ đăng nhập 30 ngày
             <span className="block text-xs text-muted">
-              Chỉ chọn trên máy riêng. Không chọn thì đóng trình duyệt là đăng
-              xuất.
+              Chỉ chọn trên máy riêng. Không chọn thì phiên chỉ giữ tối đa 12
+              giờ.
             </span>
           </span>
         </label>

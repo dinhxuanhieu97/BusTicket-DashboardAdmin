@@ -88,6 +88,11 @@ export function cookieWrites(issued: IssuedTokens): CookieWrite[] {
   return writes;
 }
 
+/** Chỉ bỏ access token (API trả 401): giữ refresh token để request sau proxy tự gia hạn; refresh bị từ chối thì proxy xóa nốt. */
+export function clearAccessWrites(): CookieWrite[] {
+  return [{ name: ACCESS_COOKIE, value: "", maxAge: 0 }];
+}
+
 export function clearWrites(): CookieWrite[] {
   return [
     { name: ACCESS_COOKIE, value: "", maxAge: 0 },
