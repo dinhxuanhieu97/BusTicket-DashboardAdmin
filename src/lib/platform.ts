@@ -27,6 +27,25 @@ export const temporaryPasswordInput = z
       .optional(),
   })
   .strict();
+/** Mã nhà xe: 2–4 chữ in hoa — là tiền tố mã vé, mã xe và nội dung chuyển khoản, không đổi được sau khi tạo. */
+export const OPERATOR_CODE = /^[A-Z]{2,4}$/;
+export const createOperatorInput = z
+  .object({
+    code: z.string().regex(OPERATOR_CODE),
+    name: z.string().trim().min(1).max(120),
+  })
+  .strict();
+export const createOwnerInput = z
+  .object({
+    fullName: z.string().trim().min(1).max(120),
+    phone: z.string().trim().min(1).max(30),
+    adminPassword: z.string().min(1).max(128),
+    otp: z
+      .string()
+      .regex(/^\d{6}$/)
+      .optional(),
+  })
+  .strict();
 export type PlatformOperator = z.infer<typeof platformOperatorSchema>;
 export type OwnerAccount = z.infer<typeof ownerAccountSchema>;
 
