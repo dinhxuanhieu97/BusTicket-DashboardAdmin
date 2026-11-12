@@ -38,6 +38,8 @@ const OWNER_PERMISSIONS = [
   "payment.record",
   "payment.manage",
   "trip.assigned.read",
+  "booking.read",
+  "booking.export",
 ];
 const STAFF_PERMISSIONS = {
   PLATFORM_ADMIN: [
@@ -55,6 +57,8 @@ const STAFF_PERMISSIONS = {
     "route.write",
     "trip.read",
     "trip.write",
+    "booking.read",
+    "booking.export",
   ],
   ACCOUNTANT: [
     "policy.read",
@@ -65,6 +69,8 @@ const STAFF_PERMISSIONS = {
     "payment.read",
     "payment.record",
     "payment.manage",
+    "booking.read",
+    "booking.export",
   ],
   SELLER: [
     "policy.read",
@@ -73,6 +79,8 @@ const STAFF_PERMISSIONS = {
     "trip.read",
     "payment.read",
     "payment.record",
+    "booking.read",
+    "booking.export",
   ],
   ASSISTANT: ["trip.assigned.read"],
 };
@@ -681,6 +689,97 @@ http
           dueAmount: bookings.reduce((n, b) => n + b.dueAmount, 0),
         },
         fetchedAt: new Date().toISOString(),
+      });
+    }
+    const adminPassengerMatch = new RegExp(
+      `^${tripBase}trips/([0-9a-f-]{36})/passengers(/export)?$`,
+    ).exec(path);
+    if (adminPassengerMatch && req.method === "GET") {
+      const exporting = !!adminPassengerMatch[2];
+      if (!can(exporting ? "booking.export" : "booking.read"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const tripId = adminPassengerMatch[1];
+      if (tripId !== ASSIGNABLE_TRIP)
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy chuyến.");
+      const status = url.searchParams.get("status") ?? "active";
+      if (!["active", "all"].includes(status))
+        return fail(res, 400, "VALIDATION_FAILED", "Bộ lọc không hợp lệ.");
+      const at = "2027-02-01T03:00:00.000Z";
+      const booking = (code, extra) => ({
+        code,
+        status: "CONFIRMED",
+        channel: "ONLINE",
+        contactErased: false,
+        holdUntil: null,
+        createdAt: at,
+        note: null,
+        ...extra,
+      });
+      const bookings = [
+        booking("TESTA1", {
+          contactName: "Khách Kiểm Thử Một",
+          contactPhone: "+84912000001",
+          note: "=Đón ở ngã tư",
+          totalAmount: 840000,
+          paidAmount: 400000,
+          dueAmount: 440000,
+          paymentStatus: "PARTIAL",
+          seats: [
+            { code: "A1", floor: "1", occupancy: 2, infantCount: 0 },
+            { code: "A2", floor: "1", occupancy: 1, infantCount: 1 },
+          ],
+        }),
+        booking("TESTH1", {
+          status: "HOLDING",
+          channel: "STAFF",
+          holdUntil: "2027-02-05T05:00:00.000Z",
+          contactName: "Khách Đang Giữ",
+          contactPhone: "+84912000003",
+          totalAmount: 420000,
+          paidAmount: 0,
+          dueAmount: 420000,
+          paymentStatus: "UNPAID",
+          seats: [{ code: "A3", floor: "1", occupancy: 1, infantCount: 0 }],
+        }),
+        booking("TESTE1", {
+          contactErased: true,
+          contactName: "Khách đã xóa thông tin",
+          contactPhone: "",
+          totalAmount: 420000,
+          paidAmount: 420000,
+          dueAmount: 0,
+          paymentStatus: "PAID",
+          seats: [{ code: "B1", floor: "2", occupancy: 1, infantCount: 0 }],
+        }),
+        ...(status === "all"
+          ? [
+              booking("TESTX1", {
+                status: "CANCELLED",
+                contactName: "Khách Đã Hủy",
+                contactPhone: "+84912000004",
+                totalAmount: 420000,
+                paidAmount: 0,
+                dueAmount: 420000,
+                paymentStatus: "UNPAID",
+                seats: [
+                  { code: "B2", floor: "2", occupancy: 1, infantCount: 0 },
+                ],
+              }),
+            ]
+          : []),
+      ];
+      return send(res, 200, {
+        trip: tripRef(tripId),
+        bookings,
+        summary: {
+          bookings: 2,
+          seats: 3,
+          people: 4,
+          infants: 1,
+          dueAmount: 440000,
+        },
+        holding: { bookings: 1, seats: 1 },
+        fetchedAt: "2027-02-05T03:00:00.000Z",
       });
     }
     if (path === tripBase + "users" || path.startsWith(tripBase + "users/")) {

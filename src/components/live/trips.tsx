@@ -26,11 +26,15 @@ import { tripStates } from "@/lib/overview";
 export function Trips({
   overview = false,
   canWrite = false,
+  canReadPassengers = false,
+  canExportPassengers = false,
   initialDate,
   initialPeriod = "day",
 }: {
   overview?: boolean;
   canWrite?: boolean;
+  canReadPassengers?: boolean;
+  canExportPassengers?: boolean;
   initialDate?: string;
   initialPeriod?: TripPeriod;
 }) {
@@ -403,7 +407,14 @@ export function Trips({
         />
       )}
 
-      {detail && <TripDetails trip={detail} onClose={() => setDetail(null)} />}
+      {detail && (
+        <TripDetails
+          trip={detail}
+          onClose={() => setDetail(null)}
+          canReadPassengers={canReadPassengers}
+          canExportPassengers={canExportPassengers}
+        />
+      )}
 
       {changing && (
         <TripStatusDialog
