@@ -18,7 +18,7 @@ import {
   thClass,
 } from "./shared";
 
-function useJson<T>(url: string | null) {
+export function useJson<T>(url: string | null) {
   const [state, setState] = useState<{
     url: string | null;
     data: T | null;

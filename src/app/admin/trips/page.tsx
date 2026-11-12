@@ -1,4 +1,5 @@
 import { Trips } from "@/components/live/trips";
+import { hasPermission } from "@/lib/access-policy";
 import { requirePagePermission } from "@/lib/server/page-access";
 import { canManageTrips } from "@/lib/trip-management";
 import { tripPeriodRange, type TripPeriod } from "@/lib/trip-period";
@@ -25,6 +26,8 @@ export default async function Page({
     <Trips
       initialDate={initialDate}
       initialPeriod={initialPeriod}
+      canReadPassengers={hasPermission(session, "booking.read")}
+      canExportPassengers={hasPermission(session, "booking.export")}
       canWrite={canManageTrips(
         session,
         process.env.PNTICKET_TRIP_WRITE_OPERATOR_ID,

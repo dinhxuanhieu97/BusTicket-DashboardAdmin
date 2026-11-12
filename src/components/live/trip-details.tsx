@@ -3,6 +3,7 @@ import { tripStates } from "@/lib/overview";
 import { useEffect, useState } from "react";
 import { Modal } from "../modal";
 import { TripAssistantsSection } from "./trip-assistants";
+import { TripPassengersSection } from "./trip-passengers";
 import {
   LoadState,
   Notice,
@@ -78,11 +79,16 @@ function useTripDetail(id: string) {
 export function TripDetails({
   trip,
   onClose,
+  canReadPassengers = false,
+  canExportPassengers = false,
 }: {
   trip: Trip;
   onClose: () => void;
+  canReadPassengers?: boolean;
+  canExportPassengers?: boolean;
 }) {
   const { data, error, loading, reload } = useTripDetail(trip.id);
+  const [tab, setTab] = useState<"info" | "passengers">("info");
 
   return (
     <Modal title="Chi tiết chuyến xe" onClose={onClose}>
@@ -97,27 +103,73 @@ export function TripDetails({
               : "Đang đọc dữ liệu mới nhất từ API…"}
           </p>
         </div>
-        <RefreshButton reload={reload} loading={loading} />
+        <div className="flex flex-wrap items-center gap-2">
+          {canReadPassengers && (
+            <div
+              className="pn-segmented"
+              role="group"
+              aria-label="Nội dung chi tiết chuyến"
+            >
+              {(
+                [
+                  ["info", "Thông tin chuyến"],
+                  ["passengers", "Hành khách"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={tab === value}
+                  onClick={() => setTab(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {tab === "info" && (
+            <RefreshButton reload={reload} loading={loading} />
+          )}
+        </div>
       </div>
 
-      {error && <LoadState error={error} reload={reload} />}
+      {tab === "passengers" ? (
+        <TripPassengersSection
+          tripId={trip.id}
+          canExport={canExportPassengers}
+        />
+      ) : (
+        <>
+          {error && <LoadState error={error} reload={reload} />}
 
-      {!data && loading && (
-        <div
-          className="flex flex-col items-center justify-center gap-3 p-4 text-center text-muted"
-          role="status"
-        >
-          <div className="size-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-          <p className="text-sm font-medium">Đang tải giá vé và sơ đồ chỗ…</p>
-        </div>
+          {!data && loading && (
+            <div
+              className="flex flex-col items-center justify-center gap-3 p-4 text-center text-muted"
+              role="status"
+            >
+              <div className="size-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+              <p className="text-sm font-medium">
+                Đang tải giá vé và sơ đồ chỗ…
+              </p>
+            </div>
+          )}
+
+          {data && (
+            <DetailBody d={data} canReadPassengers={canReadPassengers} />
+          )}
+        </>
       )}
-
-      {data && <DetailBody d={data} />}
     </Modal>
   );
 }
 
-function DetailBody({ d }: { d: Loaded }) {
+function DetailBody({
+  d,
+  canReadPassengers,
+}: {
+  d: Loaded;
+  canReadPassengers: boolean;
+}) {
   const arrive = arrival(d);
   const unit = d.layout.unit;
 
@@ -337,8 +389,11 @@ function DetailBody({ d }: { d: Loaded }) {
         )}
 
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          Chỗ giữ đã hết hạn được tính là còn trống. Không hiển thị tên hoặc số
-          điện thoại khách; mã đơn dùng để đối chiếu.
+          Chỗ giữ đã hết hạn được tính là còn trống. Sơ đồ chỉ hiện mã đơn để
+          đối chiếu
+          {canReadPassengers
+            ? "; tên và số điện thoại khách xem ở mục Hành khách."
+            : "; không hiển thị tên hoặc số điện thoại khách."}
         </p>
       </section>
     </div>
