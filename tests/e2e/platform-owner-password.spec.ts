@@ -82,7 +82,7 @@ test("platform admin sets a temporary password; the owner must change it at next
 
   expect((await signIn(context.request, "0900000003")).status()).toBe(200);
   await page.goto("/platform");
-  await expect(page.getByLabel("Nhà xe")).toHaveValue(PN);
+  await expect(page.getByLabel("Nhà xe", { exact: true })).toHaveValue(PN);
   const list = page.getByRole("list", { name: /Chủ xe của/ });
   await expect(list.getByRole("listitem")).toHaveCount(2);
   await expect(list).toContainText("Chủ hai");

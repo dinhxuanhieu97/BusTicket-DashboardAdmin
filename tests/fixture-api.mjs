@@ -115,6 +115,9 @@ let paymentAccount = null;
 let logo = null; // { data: Buffer, mime, version }
 let brandMissing = false;
 let staff = [];
+// Nhà xe do quản trị nền tảng tạo trong test, và chủ xe của chúng (opId -> danh sách).
+let createdOperators = [];
+let createdOwners = new Map();
 const staffPasswords = new Map();
 let idempotent = {};
 let statusOverrides = {};
@@ -239,6 +242,8 @@ http
       logo = null;
       brandMissing = false;
       staff = [];
+      createdOperators = [];
+      createdOwners = new Map();
       tripAssistants = new Map();
       mustChange = new Set();
       staffPasswords.clear();
@@ -493,8 +498,65 @@ http
             name: "Nhà xe thứ hai",
             created_at: "2026-01-02T00:00:00Z",
           },
+          ...createdOperators,
         ],
       });
+    }
+    if (path === "/api/v1/admin/operators" && req.method === "POST") {
+      if (!grants?.includes("operator.create"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      if (
+        !/^[A-Z]{2,4}$/.test(body.code ?? "") ||
+        !String(body.name ?? "").trim()
+      )
+        return fail(res, 400, "VALIDATION_FAILED", "Dữ liệu không hợp lệ.");
+      if (
+        ["PN", "QB", ...createdOperators.map((o) => o.code)].includes(body.code)
+      )
+        return fail(
+          res,
+          409,
+          "CONFLICT",
+          `Tiền tố mã ${body.code} đã được dùng hoặc mã xe bị trùng.`,
+        );
+      const created = {
+        id: crypto.randomUUID(),
+        code: body.code,
+        name: String(body.name).trim(),
+        created_at: new Date().toISOString(),
+      };
+      createdOperators.push(created);
+      createdOwners.set(created.id, []);
+      return send(res, 200, {
+        id: created.id,
+        code: created.code,
+        name: created.name,
+      });
+    }
+    const createdUsersRoute = path.match(
+      /^\/api\/v1\/admin\/operators\/([^/]+)\/users$/,
+    );
+    if (createdUsersRoute && createdOwners.has(createdUsersRoute[1])) {
+      if (req.method !== "POST")
+        return fail(res, 405, "METHOD_NOT_ALLOWED", "Thao tác không hỗ trợ.");
+      if (!grants?.includes("user.manage"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const list = createdOwners.get(createdUsersRoute[1]);
+      if (body.role !== "OWNER" || String(body.password ?? "").length < 10)
+        return fail(res, 400, "VALIDATION_FAILED", "Dữ liệu không hợp lệ.");
+      if (list.some((m) => m.phone === body.phone))
+        return fail(res, 409, "CONFLICT", "Số điện thoại đã được dùng.");
+      const owner = {
+        id: crypto.randomUUID(),
+        operatorId: createdUsersRoute[1],
+        role: "OWNER",
+        fullName: body.fullName,
+        phone: body.phone,
+        mfaEnabled: false,
+        status: "ACTIVE",
+      };
+      list.push(owner);
+      return send(res, 200, owner);
     }
     const ownerRoute = path.match(
       /^\/api\/v1\/admin\/operators\/([^/]+)\/owners(?:\/([^/]+)\/temporary-password)?$/,
@@ -503,7 +565,7 @@ http
       if (!grants?.includes("owner.password.reset"))
         return fail(res, 403, "FORBIDDEN", "Không có quyền.");
       const [, opId, ownerId] = ownerRoute;
-      if (opId !== op && opId !== otherOp)
+      if (opId !== op && opId !== otherOp && !createdOwners.has(opId))
         return fail(res, 404, "NOT_FOUND", "Không tìm thấy nhà xe.");
       const owners =
         opId === op
@@ -515,7 +577,11 @@ http
               mustChangePassword: mustChange.has(m.id),
               lockedUntil: null,
             }))
-          : [];
+          : (createdOwners.get(opId) ?? []).map((m) => ({
+              ...m,
+              mustChangePassword: mustChange.has(m.id),
+              lockedUntil: null,
+            }));
       if (!ownerId && req.method === "GET") return send(res, 200, { owners });
       if (ownerId && req.method === "POST") {
         if (String(body.password ?? "").length < 10)
