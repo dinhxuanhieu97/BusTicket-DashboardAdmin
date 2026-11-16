@@ -186,3 +186,18 @@ export const thClass =
   "pn-panel-inline border-b border-line bg-surface py-3 text-xs font-semibold text-muted whitespace-nowrap";
 export const tdClass =
   "pn-panel-inline border-b border-line py-3 align-middle text-sm";
+
+/** POST JSON tới route của dashboard; lỗi API → Error với thông điệp tiếng Việt; hết phiên → về trang đăng nhập. */
+export async function postJson<T>(url: string, body: unknown) {
+  const res = await fetch(url, {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) window.location.replace("/login");
+  if (!res.ok)
+    throw new Error(data.error?.message ?? "Không thực hiện được. Thử lại.");
+  return data as T;
+}

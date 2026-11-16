@@ -83,12 +83,16 @@ export function TripDetails({
   canReadPassengers = false,
   canExportPassengers = false,
   canCreateBookings = false,
+  canBoard = false,
+  canCancel = false,
 }: {
   trip: Trip;
   onClose: () => void;
   canReadPassengers?: boolean;
   canExportPassengers?: boolean;
   canCreateBookings?: boolean;
+  canBoard?: boolean;
+  canCancel?: boolean;
 }) {
   const { data, error, loading, reload } = useTripDetail(trip.id);
   const [tab, setTab] = useState<"info" | "passengers" | "sell">("info");
@@ -141,6 +145,8 @@ export function TripDetails({
           tripId={trip.id}
           canExport={canExportPassengers}
           canCreate={canCreateBookings}
+          canBoard={canBoard}
+          canCancel={canCancel}
         />
       ) : tab === "sell" ? (
         data ? (

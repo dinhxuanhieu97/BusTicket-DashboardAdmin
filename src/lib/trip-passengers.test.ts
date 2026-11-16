@@ -180,3 +180,45 @@ test("trip code and file names use Vietnam time and stay header-safe", () => {
     "attachment; filename=\"danh-sach-khach-.xlsx\"; filename*=UTF-8''danh-s%C3%A1ch%20kh%C3%A1ch%22.xlsx",
   );
 });
+
+test("manifestRows fills Đã lên xe per seat and the on-board total once per booking, and notes the cancel reason", () => {
+  const parsed = adminTripPassengersSchema.parse({
+    ...data,
+    bookings: [
+      booking("PNBOARD1", {
+        onboardCollected: 200000,
+        seats: [
+          {
+            code: "A2",
+            floor: "1",
+            occupancy: 1,
+            infantCount: 0,
+            boardedAt: "2027-02-01T10:50:00.000Z",
+          },
+          {
+            code: "A4",
+            floor: "1",
+            occupancy: 1,
+            infantCount: 0,
+            boardedAt: null,
+          },
+        ],
+      }),
+      booking("PNCANCL1", {
+        status: "CANCELLED",
+        cancelReason: "Khách đổi ngày",
+        onboardCollected: 0,
+      }),
+    ],
+  });
+  const rows = manifestRows(parsed, detail);
+  assert.deepEqual(
+    rows.map((r) => r.slice(15)),
+    [
+      ["x", 200000],
+      [null, null],
+      [null, null],
+    ],
+  );
+  assert.match(String(rows[2]![14]), /Lý do hủy: Khách đổi ngày/);
+});

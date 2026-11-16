@@ -257,7 +257,7 @@ test("imports new passengers: preview with errors, fix, write once, replay safel
   const dialog = await openTrip(page, "Hành khách");
   await dialog.getByRole("button", { name: "Nhập danh sách" }).click();
   const panel = dialog.getByRole("region", {
-    name: "Nhập danh sách khách mới",
+    name: "Nhập file danh sách khách",
   });
   const file = panel.getByLabel("Tệp Excel (.xlsx, tối đa 2 MB)");
 
@@ -289,7 +289,7 @@ test("imports new passengers: preview with errors, fix, write once, replay safel
   });
   await panel.getByRole("button", { name: "Kiểm tra file" }).click();
   await expect(panel).toContainText("2 dòng khách mới");
-  await expect(panel).toContainText("1 dòng có Mã vé là khách đã có đơn");
+  await expect(panel).toContainText("1 dòng có Mã vé → 0 đơn cập nhật");
   await expect(panel.locator("[data-import-issues]")).toHaveText(
     "Dòng 4: chỗ A2 đã có đơn TESTBK1.",
   );
@@ -315,7 +315,7 @@ test("imports new passengers: preview with errors, fix, write once, replay safel
   await expect(panel.getByRole("region", { name: "Đơn sẽ tạo" })).toContainText(
     "Khách Mới",
   );
-  await panel.getByRole("button", { name: "Ghi 1 đơn" }).click();
+  await panel.getByRole("button", { name: "Ghi 1 đơn mới" }).click();
   await expect(panel).toContainText("Đã nhập 1 đơn mới.");
   await expect(panel).toContainText("TESTI1");
 
@@ -409,10 +409,12 @@ test("guards the import, template and counter routes", async ({
       line("TESTA1", "A1", 1, "X", "0912000000", null, null),
     ]),
   });
-  expect(onlyExisting.status()).toBe(400);
-  expect((await onlyExisting.json()).error.message).toContain(
-    "File chưa có dòng khách mới",
-  );
+  // File chỉ có dòng có Mã vé: không gọi API tạo đơn, chỉ xem trước phần cập nhật lên xe.
+  expect(onlyExisting.status()).toBe(200);
+  expect((await onlyExisting.json()).boarding).toMatchObject({
+    unchanged: 1,
+    totals: { bookings: 0 },
+  });
 
   // ACCOUNTANT không có booking.create: không thấy tab Bán vé, nút Nhập danh sách; route bị chặn.
   const created = await request.post("/api/staff", {

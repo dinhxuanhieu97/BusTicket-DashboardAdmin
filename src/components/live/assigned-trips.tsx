@@ -1,6 +1,17 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Bus, Clock, MapPin, Phone, Users } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Bus,
+  BusFront,
+  Camera,
+  Clock,
+  MapPin,
+  Phone,
+  ScanLine,
+  Users,
+} from "lucide-react";
+import { Modal } from "../modal";
+import { boardingTarget, type BoardingResult } from "@/lib/passenger-ops";
 import { vnDateTime, vnd } from "@/lib/live-contracts";
 import {
   paymentStatusLabels,
@@ -10,7 +21,9 @@ import {
 import {
   EmptyState,
   LoadState,
+  Notice,
   RefreshButton,
+  postJson,
   StatusBadge,
   TableScroll,
   tableClass,
@@ -60,8 +73,11 @@ export function useJson<T>(url: string | null) {
   };
 }
 
-/** Trang của phụ xe: chỉ các chuyến được giao và danh sách khách của từng chuyến. */
-export function AssignedTrips() {
+/**
+ * Trang của phụ xe: chỉ các chuyến được giao và danh sách khách của từng chuyến. Có `trip.assigned.board` thì quét vé /
+ * gõ mã vé và bấm "Lên xe" cho khách của chuyến đó.
+ */
+export function AssignedTrips({ canBoard = false }: { canBoard?: boolean }) {
   const list = useJson<{ trips: AssignedTrip[]; fetchedAt: string }>(
     "/api/assigned-trips",
   );
@@ -130,15 +146,55 @@ export function AssignedTrips() {
         </ul>
       )}
 
-      {active && <Passengers trip={active} />}
+      {active && <Passengers trip={active} canBoard={canBoard} />}
     </div>
   );
 }
 
-function Passengers({ trip }: { trip: AssignedTrip }) {
+type Message = { tone: "success" | "danger" | "warning"; text: string };
+
+function boardedText(r: BoardingResult) {
+  const b = r.booking;
+  const seats = b.seats
+    .filter((s) => s.boardedAt)
+    .map((s) => s.code)
+    .join(", ");
+  const due = b.dueAmount > 0 ? ` Còn thu ${vnd(b.dueAmount)}.` : "";
+  return `${b.code} · ${b.contactName}: ${seats ? `chỗ ${seats} đã lên xe` : "chưa lên xe"}.${due}`;
+}
+
+function Passengers({
+  trip,
+  canBoard,
+}: {
+  trip: AssignedTrip;
+  canBoard: boolean;
+}) {
   const { data, error, loading, reload } = useJson<TripPassengers>(
     `/api/assigned-trips/${encodeURIComponent(trip.id)}/passengers`,
   );
+  const [message, setMessage] = useState<Message | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const url = `/api/assigned-trips/${encodeURIComponent(trip.id)}/boarding`;
+
+  async function board(body: object, key: string) {
+    setBusy(key);
+    setMessage(null);
+    try {
+      const r = await postJson<BoardingResult>(url, body);
+      setMessage({
+        tone: r.booking.dueAmount > 0 ? "warning" : "success",
+        text: boardedText(r),
+      });
+      reload();
+      return true;
+    } catch (e) {
+      setMessage({ tone: "danger", text: (e as Error).message });
+      return false;
+    } finally {
+      setBusy(null);
+    }
+  }
   return (
     <section
       aria-labelledby="passenger-heading"
@@ -157,6 +213,18 @@ function Passengers({ trip }: { trip: AssignedTrip }) {
         </div>
         <RefreshButton reload={reload} loading={loading} />
       </div>
+      {canBoard && (
+        <ScanForm
+          busy={busy === "scan"}
+          onSubmit={(target) => board(target, "scan")}
+          onInvalid={(text) => setMessage({ tone: "danger", text })}
+        />
+      )}
+      {message && (
+        <div className="mb-3" data-message>
+          <Notice tone={message.tone}>{message.text}</Notice>
+        </div>
+      )}
       {error && <LoadState error={error} reload={reload} />}
       {data && (
         <>
@@ -164,6 +232,19 @@ function Passengers({ trip }: { trip: AssignedTrip }) {
             className="mb-3 flex flex-wrap gap-2 text-xs"
             aria-label="Tóm tắt"
           >
+            {data.summary.boarded !== undefined && (
+              <li>
+                <StatusBadge
+                  tone={
+                    data.summary.boarded === data.summary.seats
+                      ? "success"
+                      : "neutral"
+                  }
+                  icon={BusFront}
+                  label={`Đã lên xe: ${data.summary.boarded}/${data.summary.seats} chỗ`}
+                />
+              </li>
+            )}
             <li>
               <StatusBadge
                 tone="info"
@@ -208,6 +289,7 @@ function Passengers({ trip }: { trip: AssignedTrip }) {
                     <th className={thClass}>Khách</th>
                     <th className={thClass}>Điện thoại</th>
                     <th className={thClass}>Mã đơn</th>
+                    <th className={thClass}>Lên xe</th>
                     <th className={thClass}>Thanh toán</th>
                     <th className={`${thClass} text-right`}>Còn thu</th>
                     <th className={thClass}>Ghi chú</th>
@@ -240,6 +322,18 @@ function Passengers({ trip }: { trip: AssignedTrip }) {
                       <td className={`${tdClass} font-mono text-xs`}>
                         {b.code}
                       </td>
+                      <td className={`${tdClass} whitespace-nowrap`}>
+                        <BoardButton
+                          code={b.code}
+                          done={b.seats.filter((x) => x.boardedAt).length}
+                          total={b.seats.length}
+                          canBoard={canBoard}
+                          busy={busy === b.code}
+                          onToggle={(boarded) =>
+                            void board({ bookingCode: b.code, boarded }, b.code)
+                          }
+                        />
+                      </td>
                       <td className={tdClass}>
                         {paymentStatusLabels[b.paymentStatus] ??
                           b.paymentStatus}
@@ -261,5 +355,192 @@ function Passengers({ trip }: { trip: AssignedTrip }) {
         </>
       )}
     </section>
+  );
+}
+
+function BoardButton({
+  code,
+  done,
+  total,
+  canBoard,
+  busy,
+  onToggle,
+}: {
+  code: string;
+  done: number;
+  total: number;
+  canBoard: boolean;
+  busy: boolean;
+  onToggle: (boarded: boolean) => void;
+}) {
+  const all = done === total;
+  const label = `${done}/${total} lên xe`;
+  if (!canBoard)
+    return <StatusBadge tone={all ? "success" : "neutral"} label={label} />;
+  return (
+    <button
+      type="button"
+      className={`btn px-3 text-xs ${all ? "btn-primary" : ""}`}
+      aria-pressed={all}
+      aria-label={
+        all
+          ? `Bỏ đánh dấu lên xe đơn ${code}`
+          : `Đánh dấu đơn ${code} đã lên xe`
+      }
+      disabled={busy}
+      onClick={() => onToggle(!all)}
+    >
+      <BusFront size={14} aria-hidden="true" />
+      {busy ? "Đang lưu…" : label}
+    </button>
+  );
+}
+
+type Detector = {
+  detect: (src: CanvasImageSource) => Promise<{ rawValue: string }[]>;
+};
+type DetectorCtor = new (opts: { formats: string[] }) => Detector;
+const detectorCtor = () =>
+  typeof window === "undefined"
+    ? undefined
+    : (window as unknown as { BarcodeDetector?: DetectorCtor }).BarcodeDetector;
+
+/**
+ * Ô quét vé: gõ mã vé, dán nội dung QR, hoặc dùng máy quét mã vạch (gõ phím + Enter). Nút camera chỉ hiện khi trình
+ * duyệt có `BarcodeDetector` (Chrome Android); Safari iOS dùng ô nhập.
+ */
+function ScanForm({
+  busy,
+  onSubmit,
+  onInvalid,
+}: {
+  busy: boolean;
+  onSubmit: (target: object) => Promise<boolean>;
+  onInvalid: (message: string) => void;
+}) {
+  const [value, setValue] = useState("");
+  const [camera, setCamera] = useState(false);
+  const [hasCamera, setHasCamera] = useState(false);
+  useEffect(() => setHasCamera(!!detectorCtor()), []);
+
+  async function send(raw: string) {
+    const target = boardingTarget(raw);
+    if (!target) {
+      onInvalid(
+        "Mã không hợp lệ. Nhập mã vé (ví dụ PNAB12CD) hoặc quét QR trên vé.",
+      );
+      return;
+    }
+    if (await onSubmit(target)) setValue("");
+  }
+
+  return (
+    <form
+      className="mb-3 flex flex-wrap items-end gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void send(value);
+      }}
+    >
+      <div className="min-w-48 flex-1">
+        <label htmlFor="scan-input" className="label mb-1.5">
+          Quét vé hoặc nhập mã vé
+        </label>
+        <input
+          id="scan-input"
+          className="field w-full font-mono"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          autoComplete="off"
+          autoCapitalize="characters"
+          spellCheck={false}
+        />
+      </div>
+      <button
+        type="submit"
+        className="btn btn-primary"
+        disabled={busy || !value.trim()}
+      >
+        <ScanLine size={15} aria-hidden="true" />
+        {busy ? "Đang lưu…" : "Lên xe"}
+      </button>
+      {hasCamera && (
+        <button type="button" className="btn" onClick={() => setCamera(true)}>
+          <Camera size={15} aria-hidden="true" />
+          Quét bằng camera
+        </button>
+      )}
+      {camera && (
+        <CameraScanner
+          onClose={() => setCamera(false)}
+          onDetected={(raw) => {
+            setCamera(false);
+            setValue(raw);
+            void send(raw);
+          }}
+        />
+      )}
+    </form>
+  );
+}
+
+function CameraScanner({
+  onClose,
+  onDetected,
+}: {
+  onClose: () => void;
+  onDetected: (raw: string) => void;
+}) {
+  const video = useRef<HTMLVideoElement>(null);
+  const detected = useRef(onDetected);
+  detected.current = onDetected;
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const Ctor = detectorCtor();
+    if (!Ctor) return;
+    const detector = new Ctor({ formats: ["qr_code"] });
+    let stream: MediaStream | null = null;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    let stopped = false;
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: "environment" }, audio: false })
+      .then(async (s) => {
+        stream = s;
+        if (stopped || !video.current)
+          return s.getTracks().forEach((t) => t.stop());
+        video.current.srcObject = s;
+        await video.current.play();
+        timer = setInterval(async () => {
+          if (!video.current) return;
+          const found = await detector.detect(video.current).catch(() => []);
+          if (found[0]?.rawValue) {
+            clearInterval(timer);
+            detected.current(found[0].rawValue);
+          }
+        }, 300);
+      })
+      .catch(() =>
+        setError("Không mở được camera. Cho phép camera hoặc nhập mã vé."),
+      );
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+  return (
+    <Modal title="Quét QR trên vé" onClose={onClose}>
+      {error ? (
+        <Notice tone="danger">{error}</Notice>
+      ) : (
+        <video
+          ref={video}
+          className="aspect-square w-full rounded-xl bg-black object-cover"
+          muted
+          playsInline
+          aria-label="Khung camera quét vé"
+        />
+      )}
+    </Modal>
   );
 }
