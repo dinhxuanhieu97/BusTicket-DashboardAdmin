@@ -244,6 +244,11 @@ test("trip detail reads fares and seat map; read-only and mobile friendly", asyn
   const dialog = page.getByRole("dialog");
   await expect(dialog.locator('[data-seat="B2"]')).toBeVisible();
   await expect(dialog).toContainText("420.000");
+  const summary = dialog.locator("dl");
+  await expect(summary.getByText("Mã chuyến", { exact: true })).toBeVisible();
+  await expect(summary).toContainText("PN050227-TEST");
+  await expect(dialog.getByText("Tài xế", { exact: true })).toHaveCount(0);
+  await expect(dialog.getByText("Cửa", { exact: true })).toHaveCount(0);
   expect(
     await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
   ).toBe(true);
