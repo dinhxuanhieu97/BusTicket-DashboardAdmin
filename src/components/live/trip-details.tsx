@@ -18,15 +18,7 @@ import {
   type SeatStatus,
   type TripDetail,
 } from "@/lib/trip-detail";
-import {
-  Bus,
-  Clock,
-  Calendar,
-  MapPin,
-  Phone,
-  Tag,
-  CheckCircle2,
-} from "lucide-react";
+import { Bus } from "lucide-react";
 
 const seatTone = {
   AVAILABLE: "success",
@@ -123,52 +115,48 @@ function DetailBody({ d }: { d: Loaded }) {
 
   return (
     <div className="pn-page-stack">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <dl className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] rounded-xl border border-line/60 text-sm">
         {[
           [
             "Trạng thái",
             tripStates[d.trip.status].label +
               (d.trip.onSale ? " · đang nhận đặt" : ""),
-            CheckCircle2,
           ],
           [
             "Tuyến",
             `${d.route.code} · ${d.route.origin} → ${d.route.destination}`,
-            MapPin,
           ],
-          ["Xuất bến (giờ Việt Nam)", vnDateTime(d.trip.departAt), Clock],
+          ["Xuất bến (giờ Việt Nam)", vnDateTime(d.trip.departAt)],
           [
             "Dự kiến tới nơi",
             vnDateTime(arrive.at) +
               (arrive.source === "default"
                 ? " (giờ mặc định PN; lễ tết có thể khác)"
                 : " (theo điểm trả cuối của tuyến)"),
-            Calendar,
           ],
-          ["Mở bán từ", vnDateTime(d.trip.salesOpenAt), Clock],
-          ["Đóng bán lúc", vnDateTime(d.trip.salesCloseAt), Clock],
+          ["Mở bán từ", vnDateTime(d.trip.salesOpenAt)],
+          ["Đóng bán lúc", vnDateTime(d.trip.salesCloseAt)],
           [
             "Xe",
             `${d.vehicle.code} · ${d.vehicle.name}${d.vehicle.plateNumber ? " · " + d.vehicle.plateNumber : ""}`,
-            Bus,
           ],
-          ["Liên hệ", d.trip.contactPhone || "Chưa có", Phone],
-          ["Mã chuyến", d.trip.code, Tag],
-        ].map(([k, v, Icon]) => (
-          <div
-            key={k as string}
-            className="rounded-xl border border-line/60 bg-surface/30 p-4 transition-colors hover:bg-surface/50"
-          >
-            <div className="flex items-center gap-1.5 text-xs text-muted">
-              <Icon size={13} className="text-muted/80" aria-hidden="true" />
-              <span>{k as string}</span>
-            </div>
-            <p className="mt-1 break-words text-sm font-medium text-ink">
+          ["Liên hệ", d.trip.contactPhone || "Chưa có"],
+          ["Mã chuyến", d.trip.code],
+        ].map(([k, v], i, rows) => (
+          <div key={k as string} className="contents">
+            <dt
+              className={`px-3 py-2 text-muted ${i < rows.length - 1 ? "border-b border-line/40" : ""}`}
+            >
+              {k as string}
+            </dt>
+            <dd
+              className={`min-w-0 break-words px-3 py-2 font-medium text-ink ${k === "Mã chuyến" ? "font-mono text-xs font-normal text-muted" : ""} ${i < rows.length - 1 ? "border-b border-line/40" : ""}`}
+            >
               {v as string}
-            </p>
+            </dd>
           </div>
         ))}
-      </div>
+      </dl>
 
       <TripAssistantsSection
         tripId={d.trip.id}
@@ -317,14 +305,8 @@ function DetailBody({ d }: { d: Loaded }) {
                                 : seatStatusLabels[cell.seat.status]}
                             </span>
                           </div>
-                        ) : cell.kind === "marker" ? (
-                          <div
-                            key={ci}
-                            className="flex min-h-12 items-center justify-center rounded-xl border border-dashed border-line/60 bg-surface/30 text-[10px] font-medium text-muted"
-                          >
-                            {cell.label}
-                          </div>
                         ) : (
+                          // Tài xế, cửa, WC chỉ giữ chỗ trống để hai tầng thẳng hàng.
                           <div key={ci} aria-hidden="true" />
                         ),
                       )}
