@@ -6,6 +6,9 @@ const initTheme = `try {
   if (localStorage.getItem("pnticket_live_theme") === "light") {
     document.documentElement.dataset.theme = "light";
   }
+  if (localStorage.getItem("pnticket_sidebar_collapsed") === "1") {
+    document.documentElement.dataset.sidebar = "collapsed";
+  }
 } catch {}`;
 /** Biểu tượng mặc định khi nhà xe chưa có logo (đặt trong `public/` để metadata thay được). */
 const DEFAULT_ICON = { url: "/icon.svg", type: "image/svg+xml" };

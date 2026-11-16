@@ -243,6 +243,8 @@ export function LogoutButton() {
     <div>
       <button
         className="btn btn-ghost w-full justify-start text-muted"
+        aria-label="Đăng xuất"
+        title="Đăng xuất"
         disabled={busy}
         onClick={async () => {
           setBusy(true);

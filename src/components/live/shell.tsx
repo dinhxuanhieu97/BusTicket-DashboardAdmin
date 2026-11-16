@@ -13,6 +13,8 @@ import {
   History,
   ShieldCheck,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   Sun,
   Moon,
   Settings,
@@ -81,16 +83,49 @@ export function LiveShell({
   }, [canReadProfile]);
   const [menu, setMenu] = useState(false);
   const [dark, setDark] = useState(true);
+  // Sidebar desktop thu gọn (chỉ icon). Trạng thái ban đầu do script trong layout đặt lên <html> để không nháy.
+  const [collapsed, setCollapsed] = useState(false);
   const [sessionError, setSessionError] = useState("");
 
   useEffect(() => {
     setDark(document.documentElement.dataset.theme !== "light");
+    setCollapsed(document.documentElement.dataset.sidebar === "collapsed");
     const desktop = window.matchMedia("(min-width: 64rem)");
     const closeOnDesktop = () => {
       if (desktop.matches) setMenu(false);
     };
     desktop.addEventListener("change", closeOnDesktop);
     return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
+
+  function setSidebarCollapsed(next: boolean) {
+    if (next) document.documentElement.dataset.sidebar = "collapsed";
+    else delete document.documentElement.dataset.sidebar;
+    setCollapsed(next);
+    try {
+      localStorage.setItem("pnticket_sidebar_collapsed", next ? "1" : "0");
+    } catch {}
+  }
+
+  // Phím "[" thu gọn/mở rộng sidebar trên desktop, trừ khi đang gõ trong ô nhập.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "[" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))
+      )
+        return;
+      if (!window.matchMedia("(min-width: 64rem)").matches) return;
+      e.preventDefault();
+      setSidebarCollapsed(
+        document.documentElement.dataset.sidebar !== "collapsed",
+      );
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   function toggleTheme() {
@@ -179,11 +214,12 @@ export function LiveShell({
     <>
       <Link
         href="/admin"
-        className="pn-panel-inline flex min-h-18 min-w-0 shrink-0 items-center gap-3 border-b border-line py-4"
+        className="pn-sidebar-brand pn-panel-inline flex min-h-18 min-w-0 shrink-0 items-center gap-3 border-b border-line py-4"
         onClick={() => setMenu(false)}
+        title={operatorName}
       >
         <BrandMark name={operatorName} logoUrl={operatorLogo} />
-        <span className="min-w-0">
+        <span className="pn-sidebar-text min-w-0">
           <strong className="block wrap-anywhere text-base font-semibold leading-tight text-ink">
             {operatorName}
           </strong>
@@ -201,7 +237,7 @@ export function LiveShell({
           if (!group.length) return null;
           return (
             <div key={title} className="space-y-1">
-              <p className="px-3 pb-1 text-xs font-semibold text-muted">
+              <p className="pn-sidebar-text px-3 pb-1 text-xs font-semibold text-muted">
                 {title}
               </p>
               {group.map(({ href, label, icon: Icon }) => (
@@ -210,22 +246,27 @@ export function LiveShell({
                   href={href}
                   onClick={() => setMenu(false)}
                   aria-current={path === href ? "page" : undefined}
+                  aria-label={label}
+                  title={label}
                   className="pn-nav-link"
                 >
                   <Icon size={17} className="shrink-0" aria-hidden="true" />
-                  {label}
+                  <span className="pn-sidebar-text">{label}</span>
                 </Link>
               ))}
             </div>
           );
         })}
       </nav>
-      <div className="pn-panel-inset shrink-0 space-y-3 border-t border-line">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="pn-avatar size-9 text-sm" aria-hidden="true">
+      <div className="pn-sidebar-account pn-panel-inset shrink-0 space-y-3 border-t border-line">
+        <div className="flex min-w-0 items-center gap-3" title={accountName}>
+          <span
+            className="pn-avatar size-9 shrink-0 text-sm"
+            aria-hidden="true"
+          >
             {accountName.charAt(0).toUpperCase()}
           </span>
-          <div className="min-w-0">
+          <div className="pn-sidebar-text min-w-0">
             <p className="truncate text-sm font-semibold" title={accountName}>
               {accountName}
             </p>
@@ -238,14 +279,14 @@ export function LiveShell({
   );
 
   return (
-    <div className="min-h-dvh lg:pl-60">
+    <div className="pn-shell">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-xl focus:bg-panel focus:p-3"
       >
         Đến nội dung chính
       </a>
-      <aside className="pn-sidebar fixed inset-y-0 left-0 hidden w-60 flex-col border-r border-line lg:flex">
+      <aside className="pn-sidebar fixed inset-y-0 left-0 hidden flex-col border-r border-line lg:flex">
         {navigation}
       </aside>
       {menu && (
@@ -265,6 +306,23 @@ export function LiveShell({
               onClick={() => setMenu(true)}
             >
               <Menu size={18} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="icon-btn hidden lg:inline-flex"
+              aria-label={collapsed ? "Mở rộng menu" : "Thu gọn menu"}
+              aria-expanded={!collapsed}
+              aria-keyshortcuts="["
+              title={
+                collapsed ? "Mở rộng menu (phím [)" : "Thu gọn menu (phím [)"
+              }
+              onClick={() => setSidebarCollapsed(!collapsed)}
+            >
+              {collapsed ? (
+                <PanelLeftOpen size={18} aria-hidden="true" />
+              ) : (
+                <PanelLeftClose size={18} aria-hidden="true" />
+              )}
             </button>
             <p className="min-w-0 truncate text-sm text-muted">
               {operatorName}
