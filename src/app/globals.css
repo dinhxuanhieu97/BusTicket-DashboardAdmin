@@ -324,22 +324,47 @@ fieldset:disabled button {
   border-radius: var(--radius-panel);
   padding: 0;
   overflow: hidden;
-  width: min(calc(100% - 2rem), 36rem);
+  /* Bề rộng theo % màn hình: điện thoại gần trọn màn, máy tính bảng 80%, máy tính 60%.
+     max-width chỉ chặn dòng chữ quá dài trên màn rất rộng. */
+  width: calc(100% - 2rem);
+  max-width: 56rem;
   max-height: calc(100dvh - 2rem);
   box-shadow: var(--overlay-shadow);
+}
+@media (min-width: 768px) {
+  .pn-dialog {
+    width: 80%;
+  }
+}
+@media (min-width: 1280px) {
+  .pn-dialog {
+    width: 60%;
+  }
 }
 .pn-dialog[open] {
   display: flex;
   flex-direction: column;
 }
+/* Hộp thoại có bảng/sơ đồ (thêm chuyến, chi tiết chuyến): 90% máy tính bảng, 75% máy tính. */
 .pn-dialog[data-wide] {
-  width: min(calc(100% - 2rem), 51rem);
+  max-width: 90rem;
+}
+@media (min-width: 768px) {
+  .pn-dialog[data-wide] {
+    width: 90%;
+  }
+}
+@media (min-width: 1280px) {
+  .pn-dialog[data-wide] {
+    width: 75%;
+  }
 }
 .pn-dialog::backdrop {
   background: rgb(5 10 20 / 0.62);
 }
 .pn-dialog[data-drawer] {
-  width: min(20rem, calc(100% - 2rem));
+  width: 85%;
+  max-width: 20rem;
   height: 100dvh;
   max-height: none;
   margin: 0 auto 0 0;

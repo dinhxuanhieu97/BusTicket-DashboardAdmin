@@ -35,9 +35,11 @@ const statusTone: Record<string, "success" | "warning" | "neutral" | "info"> = {
 export function TripPassengersSection({
   tripId,
   canExport,
+  className = "rounded-xl border border-line/60 bg-surface/20 p-4",
 }: {
   tripId: string;
   canExport: boolean;
+  className?: string;
 }) {
   const [scope, setScope] = useState<PassengerScope>("active");
   const [query, setQuery] = useState("");
@@ -48,10 +50,7 @@ export function TripPassengersSection({
   const rows = data ? filterPassengers(data.bookings, query) : [];
 
   return (
-    <section
-      aria-labelledby="trip-passenger-heading"
-      className="rounded-xl border border-line/60 bg-surface/20 p-4"
-    >
+    <section aria-labelledby="trip-passenger-heading" className={className}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 id="trip-passenger-heading" className="text-base font-semibold">

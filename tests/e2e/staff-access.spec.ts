@@ -36,7 +36,7 @@ const cases = [
   {
     role: "DISPATCHER",
     label: "Điều hành",
-    menu: ["Tổng quan", "Chuyến xe", "Lịch tự động", "Cài đặt"],
+    menu: ["Tổng quan", "Chuyến xe", "Hành khách", "Lịch tự động", "Cài đặt"],
     readable: [tripQuery, "/api/trip-management/options"],
     forbidden: ["/api/live/payments", "/api/live/audit-logs"],
     deniedPage: "/admin/payments",
@@ -44,7 +44,14 @@ const cases = [
   {
     role: "ACCOUNTANT",
     label: "Kế toán",
-    menu: ["Tổng quan", "Chuyến xe", "Sổ thu", "Nhật ký", "Cài đặt"],
+    menu: [
+      "Tổng quan",
+      "Chuyến xe",
+      "Hành khách",
+      "Sổ thu",
+      "Nhật ký",
+      "Cài đặt",
+    ],
     readable: [tripQuery, "/api/live/payments", "/api/live/audit-logs"],
     forbidden: ["/api/trip-management/options"],
     deniedPage: "/admin/schedules",
@@ -52,7 +59,7 @@ const cases = [
   {
     role: "SELLER",
     label: "Bán vé",
-    menu: ["Tổng quan", "Chuyến xe", "Sổ thu", "Cài đặt"],
+    menu: ["Tổng quan", "Chuyến xe", "Hành khách", "Sổ thu", "Cài đặt"],
     readable: [tripQuery, "/api/live/payments"],
     forbidden: [
       "/api/live/audit-logs",
