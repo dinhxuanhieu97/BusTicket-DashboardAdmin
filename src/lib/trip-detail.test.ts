@@ -20,6 +20,7 @@ const seat = (code: string, floor: string, status = "AVAILABLE") => ({
 const raw = {
   trip: {
     id,
+    code: "PN050227-HCMHA",
     name: "TP.HCM → Hoài Ân 17:30",
     status: "DRAFT",
     departAt: "2027-02-05T10:30:00.000Z",

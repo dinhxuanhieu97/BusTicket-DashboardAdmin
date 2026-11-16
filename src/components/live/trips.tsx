@@ -235,7 +235,7 @@ export function Trips({
                           {t.name}
                         </strong>
                         <span className="inline-block mt-0.5 rounded bg-surface/80 px-1.5 py-0.5 text-[11px] font-mono text-muted">
-                          {t.route_code}
+                          {t.code}
                         </span>
                         <button
                           type="button"

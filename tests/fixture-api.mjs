@@ -854,6 +854,7 @@ http
       const rows = body.trips.map((v, i) => ({
         id: crypto.randomUUID(),
         name: v.name,
+        code: i ? "PN050227-BACK" : "PN050227-TEST",
         status: v.status,
         depart_at: v.departAt,
         sales_open_at: v.salesOpenAt,
@@ -940,6 +941,7 @@ http
         sales_open_at: body.salesOpenAt,
         sales_close_at: body.salesCloseAt,
         contact_phone: body.contactPhone ?? null,
+        code: "PN050227-TEST",
         route_code: "TEST",
         vehicle_code: "TEST01",
         vehicle_name: "Xe kiểm thử",
@@ -1020,6 +1022,7 @@ http
       return send(res, 200, {
         trip: {
           id,
+          code: "PN050227-TEST",
           name: base.name,
           status: statusOverrides[id] ?? base.status,
           departAt: base.depart_at,
@@ -1084,6 +1087,7 @@ http
             sales_open_at: when,
             sales_close_at: when,
             contact_phone: null,
+            code: "PN050227-TEST",
             route_code: "TEST",
             vehicle_code: "TEST01",
             vehicle_name: "Xe kiểm thử",

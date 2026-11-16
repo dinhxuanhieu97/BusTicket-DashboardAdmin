@@ -153,7 +153,7 @@ function DetailBody({ d }: { d: Loaded }) {
             Bus,
           ],
           ["Liên hệ", d.trip.contactPhone || "Chưa có", Phone],
-          ["Mã chuyến", d.trip.id, Tag],
+          ["Mã chuyến", d.trip.code, Tag],
         ].map(([k, v, Icon]) => (
           <div
             key={k as string}
