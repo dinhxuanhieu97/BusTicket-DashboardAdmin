@@ -17,7 +17,7 @@ const GUIDE = [
   "2. Cột 'Trẻ <2 tuổi' là số bé nằm chung miễn phí theo chính sách nhà xe (không tính vào số người của phòng).",
   "3. Cột 'Đã lên xe' và 'Thực thu trên xe' do phụ xe điền nếu không dùng app quét QR.",
   "4. Cuối chuyến, nộp file/biên bản cho kế toán để lập phiếu bàn giao tiền mặt.",
-  "5. KHÔNG dùng file này để bán thêm vé: vé chỉ được bán qua hệ thống để tránh trùng chỗ.",
+  "5. Thêm khách mới: ghi vào dòng mới, để trống Mã vé, rồi dùng nút Nhập danh sách trên dashboard. Hệ thống kiểm tra chỗ trống trước khi ghi; nếu có chỗ đã bị đặt thì không dòng nào được ghi.",
   "6. File có số điện thoại khách: không chia sẻ ra ngoài, xóa khỏi máy sau khi hoàn thành chuyến.",
   "7. Tiền của đơn nhiều chỗ chỉ ghi ở dòng đầu tiên của đơn. Đơn đang giữ chỗ (chưa trả đủ cọc) được ghi ở cột Ghi chú.",
 ];

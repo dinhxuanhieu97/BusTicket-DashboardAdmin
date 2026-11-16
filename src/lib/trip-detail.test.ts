@@ -67,6 +67,15 @@ const raw = {
 };
 test("parses the API detail and rejects non-integer VND prices", () => {
   const d = tripDetailSchema.parse(raw);
+  // API cũ chưa trả điểm đón/trả.
+  assert.deepEqual(d.stops, { pickup: [], dropoff: [] });
+  assert.deepEqual(
+    tripDetailSchema.parse({
+      ...raw,
+      stops: { pickup: [{ name: "BX", time: "17:30", day: 0 }], dropoff: [] },
+    }).stops.pickup,
+    [{ name: "BX", time: "17:30", day: 0 }],
+  );
   assert.equal(d.fares[1]!.price, 700000);
   assert.equal(
     tripDetailSchema.safeParse({

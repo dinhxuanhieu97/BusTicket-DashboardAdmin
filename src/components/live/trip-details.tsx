@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Modal } from "../modal";
 import { TripAssistantsSection } from "./trip-assistants";
 import { TripPassengersSection } from "./trip-passengers";
+import { CounterSale } from "./counter-sale";
 import {
   LoadState,
   Notice,
@@ -81,14 +82,21 @@ export function TripDetails({
   onClose,
   canReadPassengers = false,
   canExportPassengers = false,
+  canCreateBookings = false,
 }: {
   trip: Trip;
   onClose: () => void;
   canReadPassengers?: boolean;
   canExportPassengers?: boolean;
+  canCreateBookings?: boolean;
 }) {
   const { data, error, loading, reload } = useTripDetail(trip.id);
-  const [tab, setTab] = useState<"info" | "passengers">("info");
+  const [tab, setTab] = useState<"info" | "passengers" | "sell">("info");
+  const tabs = [
+    ["info", "Thông tin chuyến"],
+    ...(canReadPassengers ? [["passengers", "Hành khách"] as const] : []),
+    ...(canCreateBookings ? [["sell", "Bán vé"] as const] : []),
+  ] as const;
 
   return (
     <Modal title="Chi tiết chuyến xe" onClose={onClose}>
@@ -104,18 +112,13 @@ export function TripDetails({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {canReadPassengers && (
+          {tabs.length > 1 && (
             <div
               className="pn-segmented"
               role="group"
               aria-label="Nội dung chi tiết chuyến"
             >
-              {(
-                [
-                  ["info", "Thông tin chuyến"],
-                  ["passengers", "Hành khách"],
-                ] as const
-              ).map(([value, label]) => (
+              {tabs.map(([value, label]) => (
                 <button
                   key={value}
                   type="button"
@@ -127,7 +130,7 @@ export function TripDetails({
               ))}
             </div>
           )}
-          {tab === "info" && (
+          {tab !== "passengers" && (
             <RefreshButton reload={reload} loading={loading} />
           )}
         </div>
@@ -137,7 +140,14 @@ export function TripDetails({
         <TripPassengersSection
           tripId={trip.id}
           canExport={canExportPassengers}
+          canCreate={canCreateBookings}
         />
+      ) : tab === "sell" ? (
+        data ? (
+          <CounterSale detail={data} onSold={reload} />
+        ) : (
+          <LoadState loading={loading} error={error} reload={reload} />
+        )
       ) : (
         <>
           {error && <LoadState error={error} reload={reload} />}

@@ -40,6 +40,7 @@ const OWNER_PERMISSIONS = [
   "trip.assigned.read",
   "booking.read",
   "booking.export",
+  "booking.create",
 ];
 const STAFF_PERMISSIONS = {
   PLATFORM_ADMIN: [
@@ -59,6 +60,7 @@ const STAFF_PERMISSIONS = {
     "trip.write",
     "booking.read",
     "booking.export",
+    "booking.create",
   ],
   ACCOUNTANT: [
     "policy.read",
@@ -81,6 +83,7 @@ const STAFF_PERMISSIONS = {
     "payment.record",
     "booking.read",
     "booking.export",
+    "booking.create",
   ],
   ASSISTANT: ["trip.assigned.read"],
 };
@@ -125,6 +128,15 @@ let brandMissing = false;
 let staff = [];
 const staffPasswords = new Map();
 let idempotent = {};
+// Idempotency-Key của các lần nhập file đã ghi (để trả replayed).
+let importKeys = new Set();
+const TRIP_STOPS = {
+  pickup: [
+    { name: "Bến xe Miền Đông", time: "17:30", day: 0 },
+    { name: "Ngã tư Thủ Đức", time: "18:15", day: 0 },
+  ],
+  dropoff: [{ name: "Hoài Ân", time: "05:30", day: 1 }],
+};
 let statusOverrides = {};
 let revoked = false,
   down = false,
@@ -251,6 +263,7 @@ http
       mustChange = new Set();
       staffPasswords.clear();
       idempotent = {};
+      importKeys = new Set();
       statusOverrides = {};
       down = false;
       malformed = false;
@@ -691,6 +704,134 @@ http
         fetchedAt: new Date().toISOString(),
       });
     }
+    const staffBookingMatch = new RegExp(
+      `^${tripBase}trips/([0-9a-f-]{36})/(bookings|passengers/import)$`,
+    ).exec(path);
+    if (staffBookingMatch && req.method === "POST") {
+      if (!can("booking.create"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      if (staffBookingMatch[1] !== ASSIGNABLE_TRIP)
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy chuyến.");
+      const dryRun = url.searchParams.get("dryRun") === "true";
+      const key = req.headers["idempotency-key"];
+      if (!dryRun && !key)
+        return fail(res, 400, "VALIDATION_FAILED", "Thiếu Idempotency-Key.");
+      const price = (occ) => (occ === 2 ? 700000 : 450000);
+      const preview = (rows, b, items) => {
+        const total = items.reduce((n, i) => n + price(i.occupancy ?? 1), 0);
+        const paid = Number(b.paidAmount ?? 0) || 0;
+        return {
+          rows,
+          contactName: b.contactName,
+          contactPhone: "+84" + String(b.contactPhone).replace(/^0/, ""),
+          note: b.note ?? null,
+          pickupStop:
+            TRIP_STOPS.pickup.find((x) => x.name === b.pickupStop) ?? null,
+          dropoffStop:
+            TRIP_STOPS.dropoff.find((x) => x.name === b.dropoffStop) ?? null,
+          seats: items.map((i) => ({
+            code: i.seatCode,
+            occupancy: i.occupancy ?? 1,
+            infantCount: i.infantCount ?? 0,
+            lineTotal: price(i.occupancy ?? 1),
+          })),
+          status:
+            b.confirm === false && paid < 200000 ? "HOLDING" : "CONFIRMED",
+          totalAmount: total,
+          depositAmount: 200000,
+          paidAmount: paid,
+          dueAmount: total - paid,
+          paymentStatus:
+            paid >= total ? "PAID" : paid > 0 ? "PARTIAL" : "UNPAID",
+        };
+      };
+      const summary = (code, p) => ({
+        code,
+        rows: p.rows,
+        status: p.status,
+        seats: p.seats.map((x) => x.code),
+        totalAmount: p.totalAmount,
+        depositAmount: p.depositAmount,
+        paidAmount: p.paidAmount,
+        dueAmount: p.dueAmount,
+        paymentStatus: p.paymentStatus,
+        holdUntil: p.status === "HOLDING" ? "2027-02-05T05:00:00.000Z" : null,
+      });
+      if (staffBookingMatch[2] === "bookings") {
+        const taken = body.items.filter((i) => i.seatCode !== "A1");
+        const issues = taken.map((i) => ({
+          rows: [],
+          message: `Chỗ ${i.seatCode} đã có đơn TESTBK1.`,
+        }));
+        const p = preview([], body, body.items);
+        if (dryRun)
+          return send(res, 200, {
+            ok: !issues.length,
+            issues,
+            quote: issues.length ? null : p,
+          });
+        // SĐT này giả lập trường hợp chỗ vừa bị đặt giữa lúc xem giá và lúc bán.
+        if (issues.length || body.contactPhone === "0912999999")
+          return send(res, 409, {
+            error: {
+              code: "SEAT_UNAVAILABLE",
+              message: "Chỗ vừa được đặt. Vui lòng chọn chỗ khác.",
+              details: {
+                issues: issues.length
+                  ? issues
+                  : [{ rows: [], message: "Chỗ A1 đã có đơn TESTZZ." }],
+                internal: "không được chuyển ra trình duyệt",
+              },
+            },
+          });
+        return send(res, 200, {
+          booking: summary("TESTC1", p),
+          replayed: false,
+        });
+      }
+      const issues = [];
+      const bookings = [];
+      for (const r of body.rows) {
+        if (r.seatCode === "A2")
+          issues.push({
+            rows: [r.row],
+            message: `Dòng ${r.row}: chỗ A2 đã có đơn TESTBK1.`,
+          });
+        else
+          bookings.push(
+            preview([r.row], { ...r, confirm: body.confirm }, [
+              { seatCode: r.seatCode, occupancy: Number(r.occupancy ?? 1) },
+            ]),
+          );
+      }
+      if (dryRun)
+        return send(res, 200, {
+          ok: !issues.length,
+          issues,
+          warnings: [],
+          bookings,
+          totals: {
+            bookings: bookings.length,
+            seats: bookings.length,
+            totalAmount: bookings.reduce((n, b) => n + b.totalAmount, 0),
+            paidAmount: bookings.reduce((n, b) => n + b.paidAmount, 0),
+          },
+        });
+      if (issues.length)
+        return send(res, 409, {
+          error: {
+            code: "SEAT_UNAVAILABLE",
+            message: "File còn dòng lỗi. Chưa nhập dòng nào.",
+            details: { issues },
+          },
+        });
+      const replayed = importKeys.has(key);
+      importKeys.add(key);
+      return send(res, 200, {
+        bookings: bookings.map((b, i) => summary(`TESTI${i + 1}`, b)),
+        replayed,
+      });
+    }
     const adminPassengerMatch = new RegExp(
       `^${tripBase}trips/([0-9a-f-]{36})/passengers(/export)?$`,
     ).exec(path);
@@ -720,6 +861,8 @@ http
           contactName: "Khách Kiểm Thử Một",
           contactPhone: "+84912000001",
           note: "=Đón ở ngã tư",
+          pickupStop: TRIP_STOPS.pickup[0],
+          dropoffStop: TRIP_STOPS.dropoff[0],
           totalAmount: 840000,
           paidAmount: 400000,
           dueAmount: 440000,
@@ -733,6 +876,7 @@ http
           status: "HOLDING",
           channel: "STAFF",
           holdUntil: "2027-02-05T05:00:00.000Z",
+          createdBy: "Test SELLER",
           contactName: "Khách Đang Giữ",
           contactPhone: "+84912000003",
           totalAmount: 420000,
@@ -1163,6 +1307,7 @@ http
           { floor: "2", floorLabel: "Tầng trên", occupancy: 2, price: 650000 },
         ],
         seats,
+        stops: TRIP_STOPS,
         summary: { capacity: 4, available: 1, held: 1, booked: 1, blocked: 1 },
         fetchedAt: when,
       });

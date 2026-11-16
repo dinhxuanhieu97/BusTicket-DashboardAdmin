@@ -3,7 +3,7 @@ import {
   passengerBookingSchema,
   tripPassengersSchema,
 } from "./trip-assistants";
-import type { TripDetail } from "./trip-detail";
+import { stopTime, type TripDetail } from "./trip-detail";
 
 /**
  * Danh sách khách theo chuyến cho nhân viên nhà xe (khớp `apps/api/src/trips/trip-passengers.ts`).
@@ -19,6 +19,8 @@ export const adminPassengerBookingSchema = passengerBookingSchema.extend({
   contactErased: z.boolean(),
   holdUntil: z.string().nullable(),
   createdAt: z.string(),
+  /** Họ tên nhân viên tạo đơn tại quầy/nhập file (API cũ không có). */
+  createdBy: z.string().nullable().optional(),
 });
 export const adminTripPassengersSchema = tripPassengersSchema.extend({
   bookings: z.array(adminPassengerBookingSchema).max(500),
@@ -150,9 +152,9 @@ export function manifestRows(
         s.infantCount || null,
         b.contactErased ? ERASED_LABEL : b.contactName + extra,
         b.contactErased ? null : localPhone(b.contactPhone),
-        null,
-        null,
-        null,
+        b.pickupStop?.name ?? null,
+        b.pickupStop ? stopTime(b.pickupStop) : null,
+        b.dropoffStop?.name ?? null,
         i === 0 ? b.totalAmount : null,
         i === 0 ? b.paidAmount : null,
         i === 0 ? b.dueAmount : null,

@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
-import { Download, Users } from "lucide-react";
+import { Download, FileUp, Users } from "lucide-react";
 import { vnDateTime, vnd } from "@/lib/live-contracts";
 import { paymentStatusLabels } from "@/lib/trip-assistants";
+import { stopTime } from "@/lib/trip-detail";
 import {
   ERASED_LABEL,
   bookingStatusLabels,
@@ -13,6 +14,7 @@ import {
   type PassengerScope,
 } from "@/lib/trip-passengers";
 import { useJson } from "./assigned-trips";
+import { PassengerImport } from "./passenger-import";
 import {
   LoadState,
   RefreshButton,
@@ -35,11 +37,14 @@ const statusTone: Record<string, "success" | "warning" | "neutral" | "info"> = {
 export function TripPassengersSection({
   tripId,
   canExport,
+  canCreate = false,
 }: {
   tripId: string;
   canExport: boolean;
+  canCreate?: boolean;
 }) {
   const [scope, setScope] = useState<PassengerScope>("active");
+  const [importing, setImporting] = useState(false);
   const [query, setQuery] = useState("");
   const base = `/api/trip-management/${encodeURIComponent(tripId)}/passengers`;
   const { data, error, loading, reload } = useJson<AdminTripPassengers>(
@@ -64,6 +69,17 @@ export function TripPassengersSection({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {canCreate && (
+            <button
+              type="button"
+              className="btn px-3 text-xs"
+              aria-expanded={importing}
+              onClick={() => setImporting((v) => !v)}
+            >
+              <FileUp size={14} aria-hidden="true" />
+              Nhập danh sách
+            </button>
+          )}
           {canExport && (
             <>
               <a
@@ -87,6 +103,16 @@ export function TripPassengersSection({
           <RefreshButton reload={reload} loading={loading} />
         </div>
       </div>
+
+      {importing && (
+        <div className="mb-4">
+          <PassengerImport
+            tripId={tripId}
+            onImported={reload}
+            onClose={() => setImporting(false)}
+          />
+        </div>
+      )}
 
       <div className="mb-3 flex flex-wrap items-end gap-3">
         <div className="pn-segmented" role="group" aria-label="Phạm vi đơn">
@@ -169,13 +195,17 @@ export function TripPassengersSection({
           ) : (
             <TableScroll label="Danh sách hành khách">
               <table
-                className={tableClass.replace("min-w-[650px]", "min-w-[980px]")}
+                className={tableClass.replace(
+                  "min-w-[650px]",
+                  "min-w-[1100px]",
+                )}
               >
                 <thead>
                   <tr>
                     <th className={thClass}>Chỗ</th>
                     <th className={thClass}>Khách</th>
                     <th className={thClass}>Điện thoại</th>
+                    <th className={thClass}>Điểm đón</th>
                     <th className={thClass}>Mã vé</th>
                     <th className={thClass}>Trạng thái</th>
                     <th className={thClass}>Thanh toán</th>
@@ -208,6 +238,7 @@ export function TripPassengersSection({
                         )}
                         <span className="block text-xs font-normal text-muted">
                           {channelLabels[b.channel] ?? b.channel}
+                          {b.createdBy ? ` · ${b.createdBy}` : ""}
                         </span>
                       </td>
                       <td className={`${tdClass} whitespace-nowrap`}>
@@ -220,6 +251,25 @@ export function TripPassengersSection({
                           >
                             {localPhone(b.contactPhone)}
                           </a>
+                        )}
+                      </td>
+                      <td className={`${tdClass} min-w-32`}>
+                        {b.pickupStop ? (
+                          <>
+                            {b.pickupStop.name}
+                            <span className="block text-xs text-muted">
+                              {stopTime(b.pickupStop)}
+                              {b.dropoffStop
+                                ? ` · trả ${b.dropoffStop.name}`
+                                : ""}
+                            </span>
+                          </>
+                        ) : b.dropoffStop ? (
+                          <span className="text-xs text-muted">
+                            Trả {b.dropoffStop.name}
+                          </span>
+                        ) : (
+                          "—"
                         )}
                       </td>
                       <td className={`${tdClass} font-mono text-xs`}>

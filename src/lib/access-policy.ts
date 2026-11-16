@@ -5,9 +5,31 @@ export class ApiError extends Error {
     public code: string,
     message: string,
     public retryAfter?: string,
+    /** Lỗi theo dòng/chỗ (vd. nhập file khách) — chỉ số dòng và thông báo, không chứa họ tên/SĐT. */
+    public issues?: { rows: number[]; message: string }[],
   ) {
     super(message);
   }
+}
+
+/** Đọc `error.details.issues` của API (chỉ nhận đúng dạng {rows, message}, tối đa 300 mục). */
+export function issuesFrom(details: unknown) {
+  const raw = (details as { issues?: unknown } | null | undefined)?.issues;
+  if (!Array.isArray(raw)) return undefined;
+  const out: { rows: number[]; message: string }[] = [];
+  for (const i of raw.slice(0, 300)) {
+    const rows = (i as { rows?: unknown })?.rows;
+    const message = (i as { message?: unknown })?.message;
+    if (
+      typeof message === "string" &&
+      message.length <= 500 &&
+      Array.isArray(rows) &&
+      rows.length <= 50 &&
+      rows.every((r) => Number.isInteger(r))
+    )
+      out.push({ rows: rows as number[], message });
+  }
+  return out.length ? out : undefined;
 }
 export const isPlatformAdmin = (session: Session) =>
   session.user.role === "PLATFORM_ADMIN" && session.user.operatorId === null;

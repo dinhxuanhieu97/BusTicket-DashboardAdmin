@@ -1,4 +1,4 @@
-import { ApiError } from "./access-policy";
+import { ApiError, issuesFrom } from "./access-policy";
 export function backendBase() {
   const raw = process.env.PNTICKET_API_URL;
   if (!raw)
@@ -85,8 +85,11 @@ export async function backendRequest(
     );
   }
   if (!res.ok) {
-    const error = (body as { error?: { code?: unknown; message?: unknown } })
-      ?.error;
+    const error = (
+      body as {
+        error?: { code?: unknown; message?: unknown; details?: unknown };
+      }
+    )?.error;
     throw new ApiError(
       res.status,
       typeof error?.code === "string" ? error.code : "API_ERROR",
@@ -96,6 +99,7 @@ export async function backendRequest(
           ? error.message
           : "Không thể thực hiện yêu cầu.",
       res.headers.get("retry-after") || undefined,
+      res.status < 500 ? issuesFrom(error?.details) : undefined,
     );
   }
   return body;
