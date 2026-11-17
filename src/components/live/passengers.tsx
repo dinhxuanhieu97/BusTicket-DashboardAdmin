@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Bus, Clock } from "lucide-react";
+import { Bus, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { type Trip, vnDateTime, vnTime, vnToday } from "@/lib/live-contracts";
 import { tripStates } from "@/lib/overview";
 import { useResource } from "./use-resource";
@@ -8,6 +8,13 @@ import { LoadState, RefreshButton, StatusBadge } from "./shared";
 import { TripPassengersSection } from "./trip-passengers";
 
 const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+/** Cộng/trừ ngày trên chuỗi YYYY-MM-DD (lịch thuần, không phụ thuộc múi giờ máy). */
+export const shiftDate = (value: string, days: number) => {
+  const d = new Date(value + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
 
 /**
  * Trang "Hành khách": thanh chọn ngày/chuyến ở trên, danh sách khách rộng hết trang bên dưới (kiểu CardFlow) của chuyến (tên, SĐT, chỗ, tiền còn thu).
@@ -52,44 +59,70 @@ export function Passengers({
     window.history.replaceState(null, "", url);
   }, [date, selected]);
 
+  const changeDate = (next: string) => {
+    if (!isDate(next)) return;
+    setDate(next);
+    setTripId("");
+  };
+  const sold = trips.reduce((n, t) => n + (t.capacity - t.available), 0);
+  const seats = trips.reduce((n, t) => n + t.capacity, 0);
+
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <section
         aria-labelledby="passenger-trips-heading"
-        className="card pn-panel-inset flex flex-col gap-3"
+        className="card pn-panel-inset flex flex-col gap-4"
       >
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <h2
-              id="passenger-trips-heading"
-              className="w-full text-base font-bold text-ink sm:w-auto sm:self-center"
-            >
-              Chọn chuyến
-            </h2>
+          <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+            <div>
+              <h2
+                id="passenger-trips-heading"
+                className="text-base font-bold text-ink"
+              >
+                Chọn chuyến
+              </h2>
+              <p className="mt-0.5 text-xs text-muted" aria-live="polite">
+                {data
+                  ? trips.length
+                    ? `${trips.length} chuyến · đã bán ${sold}/${seats} chỗ`
+                    : "Không có chuyến"
+                  : "Đang tải…"}
+              </p>
+            </div>
             <div>
               <label htmlFor="passenger-date" className="label mb-1.5">
                 Ngày khởi hành · Giờ Việt Nam
               </label>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  className="btn px-2"
+                  aria-label="Ngày trước"
+                  onClick={() => changeDate(shiftDate(date, -1))}
+                >
+                  <ChevronLeft size={16} aria-hidden="true" />
+                </button>
                 <input
                   id="passenger-date"
                   type="date"
                   className="field w-auto max-w-full tabular-nums"
                   value={date}
-                  onChange={(e) => {
-                    if (!isDate(e.target.value)) return;
-                    setDate(e.target.value);
-                    setTripId("");
-                  }}
+                  onChange={(e) => changeDate(e.target.value)}
                 />
+                <button
+                  type="button"
+                  className="btn px-2"
+                  aria-label="Ngày sau"
+                  onClick={() => changeDate(shiftDate(date, 1))}
+                >
+                  <ChevronRight size={16} aria-hidden="true" />
+                </button>
                 {date !== vnToday() && (
                   <button
                     type="button"
                     className="btn px-3 text-xs"
-                    onClick={() => {
-                      setDate(vnToday());
-                      setTripId("");
-                    }}
+                    onClick={() => changeDate(vnToday())}
                   >
                     Hôm nay
                   </button>
@@ -110,18 +143,21 @@ export function Passengers({
         {trips.length > 0 && (
           <ul
             aria-label="Chuyến trong ngày"
-            className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 md:flex-wrap md:overflow-visible"
+            className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1 md:flex-wrap md:overflow-visible"
           >
             {trips.map((t) => {
               const active = t.id === selected?.id;
               return (
-                <li key={t.id} className="shrink-0 md:shrink">
+                <li
+                  key={t.id}
+                  className="w-[15.5rem] shrink-0 snap-start md:w-auto md:min-w-60 md:max-w-sm md:flex-1"
+                >
                   <button
                     type="button"
                     aria-pressed={active}
                     data-trip={t.id}
                     onClick={() => setTripId(t.id)}
-                    className={`flex w-64 flex-col gap-1 rounded-xl border px-3 py-2 text-left transition-colors ${
+                    className={`flex h-full w-full flex-col gap-1.5 rounded-xl border px-3 py-2.5 text-left transition-colors ${
                       active
                         ? "border-accent bg-accent/10"
                         : "border-line/60 hover:bg-surface"
@@ -141,31 +177,34 @@ export function Passengers({
                         label={tripStates[t.status].label}
                       />
                     </span>
-                    <span className="truncate text-sm font-semibold text-ink">
+                    <span className="text-sm font-semibold leading-snug text-ink">
                       {t.name}
                     </span>
-                    <span className="flex flex-wrap items-center justify-between gap-x-3 text-xs text-muted">
+                    <span className="mt-auto flex items-center justify-between gap-x-3 text-xs text-muted">
                       <span className="font-mono">{t.code}</span>
                       <span>
                         Còn {t.available}/{t.capacity} chỗ
                       </span>
                     </span>
+                    <SeatMeter trip={t} />
                   </button>
                 </li>
               );
             })}
           </ul>
         )}
-      </section>
 
-      {selected ? (
-        <>
-          <section
+        {selected && (
+          <div
+            role="region"
             aria-label="Chuyến đang xem"
-            className="card pn-panel-inset flex flex-wrap items-center justify-between gap-3"
+            className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-line/60 pt-4"
           >
             <div className="min-w-0">
-              <p className="truncate text-lg font-bold text-ink">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Đang xem
+              </p>
+              <p className="text-lg font-bold leading-snug text-ink">
                 {selected.name}
               </p>
               <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
@@ -177,20 +216,33 @@ export function Passengers({
                 </span>
               </p>
             </div>
-            <span className="font-mono text-sm font-semibold text-ink">
-              Còn {selected.available}/{selected.capacity} chỗ
-            </span>
-          </section>
-          <TripPassengersSection
-            key={selected.id}
-            tripId={selected.id}
-            canExport={canExport}
-            canCreate={canCreate}
-            canBoard={canBoard}
-            canCancel={canCancel}
-            className="card pn-panel-inset"
-          />
-        </>
+            <div className="w-full sm:w-56">
+              <p className="flex items-baseline justify-between gap-2 text-xs text-muted">
+                <span>Đã bán</span>
+                <span className="font-mono text-sm font-semibold text-ink">
+                  {selected.capacity - selected.available}/{selected.capacity}{" "}
+                  chỗ
+                </span>
+              </p>
+              <SeatMeter trip={selected} className="mt-1.5 h-2" />
+              <p className="mt-1 text-right text-xs text-muted">
+                Còn {selected.available} chỗ trống
+              </p>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {selected ? (
+        <TripPassengersSection
+          key={selected.id}
+          tripId={selected.id}
+          canExport={canExport}
+          canCreate={canCreate}
+          canBoard={canBoard}
+          canCancel={canCancel}
+          className="card pn-panel-inset"
+        />
       ) : (
         !loading &&
         !error && (
@@ -200,5 +252,30 @@ export function Passengers({
         )
       )}
     </div>
+  );
+}
+
+/** Thanh tỉ lệ chỗ đã bán; chỉ để nhìn, số liệu đã có ở chữ bên cạnh. */
+function SeatMeter({
+  trip,
+  className = "h-1.5",
+}: {
+  trip: Pick<Trip, "available" | "capacity">;
+  className?: string;
+}) {
+  const pct =
+    trip.capacity > 0
+      ? Math.round(((trip.capacity - trip.available) / trip.capacity) * 100)
+      : 0;
+  return (
+    <span
+      aria-hidden="true"
+      className={`block w-full overflow-hidden rounded-full bg-surface ${className}`}
+    >
+      <span
+        className={`block h-full rounded-full ${pct >= 100 ? "bg-success" : "bg-accent"}`}
+        style={{ width: `${pct}%` }}
+      />
+    </span>
   );
 }
