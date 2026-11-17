@@ -195,7 +195,7 @@ export function TripPassengersSection({
 
       {data && (
         <dl
-          className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5"
+          className={`mb-4 grid grid-cols-2 gap-2 ${data.summary.boarded !== undefined ? "md:grid-cols-5 [&>*:first-child]:max-md:col-span-2" : "md:grid-cols-4"}`}
           aria-label="Tóm tắt hành khách"
         >
           <Stat
@@ -231,8 +231,8 @@ export function TripPassengersSection({
       )}
 
       <div className="mb-3 flex flex-wrap items-end gap-2">
-        <div className="min-w-56 flex-[2_1_16rem]">
-          <label htmlFor="passenger-search" className="label mb-1.5">
+        <div className="min-w-0 flex-[1_1_12rem]">
+          <label htmlFor="passenger-search" className="label mb-1.5 truncate">
             Tìm theo mã vé, tên, SĐT hoặc chỗ
           </label>
           <div className="relative">
@@ -255,13 +255,13 @@ export function TripPassengersSection({
             />
           </div>
         </div>
-        <div className="flex-[1_1_10rem]">
+        <div className="min-w-0 max-w-full flex-[0_1_auto] max-sm:flex-[1_1_9rem]">
           <label htmlFor="passenger-payment" className="label mb-1.5">
             Thanh toán
           </label>
           <select
             id="passenger-payment"
-            className="field w-full"
+            className="field w-full sm:w-auto"
             value={payment}
             onChange={(e) => {
               setPayment(e.target.value as PaymentFilter);
@@ -275,13 +275,13 @@ export function TripPassengersSection({
             ))}
           </select>
         </div>
-        <div className="flex-[1_1_10rem]">
+        <div className="min-w-0 max-w-full flex-[0_1_auto] max-sm:flex-[1_1_9rem]">
           <label htmlFor="passenger-pickup" className="label mb-1.5">
             Điểm đón
           </label>
           <select
             id="passenger-pickup"
-            className="field w-full"
+            className="field w-full sm:w-auto"
             value={pickup}
             onChange={(e) => {
               setPickup(e.target.value);
@@ -297,7 +297,11 @@ export function TripPassengersSection({
             <option value={NO_PICKUP}>Chưa chọn điểm đón</option>
           </select>
         </div>
-        <div className="pn-segmented" role="group" aria-label="Phạm vi đơn">
+        <div
+          className="pn-segmented shrink-0"
+          role="group"
+          aria-label="Phạm vi đơn"
+        >
           {(
             [
               ["active", "Đang hiệu lực"],
@@ -483,7 +487,7 @@ function Stat({
     <div className="rounded-xl border border-line/60 bg-surface/30 px-3 py-2.5">
       <dt className="text-xs text-muted">{label}</dt>
       <dd
-        className={`mt-0.5 font-mono text-base font-bold tabular-nums ${tone ? statTone[tone] : "text-ink"}`}
+        className={`mt-0.5 font-mono text-lg font-bold tabular-nums ${tone ? statTone[tone] : "text-ink"}`}
       >
         {value}
       </dd>
