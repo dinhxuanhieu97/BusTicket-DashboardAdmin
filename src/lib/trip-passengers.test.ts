@@ -222,3 +222,69 @@ test("manifestRows fills Đã lên xe per seat and the on-board total once per b
   );
   assert.match(String(rows[2]![14]), /Lý do hủy: Khách đổi ngày/);
 });
+
+test("filterBookings: by money still due and by pickup stop", async () => {
+  const { filterBookings, NO_PICKUP } = await import("./trip-passengers");
+  const stop = (name: string, time: string) => ({ name, time, day: 0 });
+  const rows = [
+    booking("D1", {
+      dueAmount: 440000,
+      pickupStop: stop("Ngã tư Ga", "17:50"),
+    }),
+    booking("P1", { dueAmount: 0, pickupStop: stop("Suối Tiên", "18:15") }),
+    booking("N1", { dueAmount: 0, pickupStop: null }),
+  ].map((b) => adminTripPassengersSchema.shape.bookings.element.parse(b));
+  const codes = (r: { code: string }[]) => r.map((b) => b.code);
+  assert.deepEqual(codes(filterBookings(rows, "due", "")), ["D1"]);
+  assert.deepEqual(codes(filterBookings(rows, "paid", "")), ["P1", "N1"]);
+  assert.deepEqual(codes(filterBookings(rows, "all", "Suối Tiên")), ["P1"]);
+  assert.deepEqual(codes(filterBookings(rows, "paid", NO_PICKUP)), ["N1"]);
+});
+
+test("pickupOptions are unique and ordered by pickup time", async () => {
+  const { pickupOptions } = await import("./trip-passengers");
+  const stop = (name: string, time: string, day = 0) => ({ name, time, day });
+  const rows = [
+    booking("A", { pickupStop: stop("Suối Tiên", "18:15") }),
+    booking("B", { pickupStop: stop("Bến xe An Sương", "17:30") }),
+    booking("C", { pickupStop: stop("Suối Tiên", "18:15") }),
+    booking("D", { pickupStop: null }),
+  ].map((b) => adminTripPassengersSchema.shape.bookings.element.parse(b));
+  assert.deepEqual(pickupOptions(rows), ["Bến xe An Sương", "Suối Tiên"]);
+});
+
+test("paginate clamps the page and reports the visible range", async () => {
+  const { paginate } = await import("./trip-passengers");
+  const rows = Array.from({ length: 23 }, (_, i) => i + 1);
+  assert.deepEqual(paginate(rows, 2, 10), {
+    rows: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+    page: 2,
+    pages: 3,
+    from: 11,
+    to: 20,
+  });
+  assert.equal(paginate(rows, 9, 10).page, 3);
+  assert.deepEqual(paginate([], 1, 20), {
+    rows: [],
+    page: 1,
+    pages: 1,
+    from: 0,
+    to: 0,
+  });
+});
+
+test("seatSummary shows the first seat and how many more", async () => {
+  const { seatSummary } = await import("./trip-passengers");
+  const seat = (code: string) => ({
+    code,
+    floor: "1",
+    occupancy: 1,
+    infantCount: 0,
+  });
+  assert.equal(seatSummary({ seats: [seat("A1")] }), "A1");
+  assert.equal(
+    seatSummary({ seats: [seat("A12"), seat("B1"), seat("B2")] }),
+    "A12 +2",
+  );
+  assert.equal(seatSummary({ seats: [] }), "—");
+});

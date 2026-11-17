@@ -39,6 +39,40 @@ async function openPassengers(page: Page) {
   return page.getByRole("region", { name: "Hành khách", exact: true });
 }
 
+test("filters by money due and pickup stop, then clears every filter", async ({
+  page,
+}) => {
+  const section = await openPassengers(page);
+  const rows = section
+    .getByRole("region", { name: "Danh sách hành khách" })
+    .locator("tbody tr");
+  await expect(rows).toHaveCount(3);
+  await section.getByLabel("Thanh toán").selectOption("due");
+  await expect(rows).toHaveCount(2);
+  await section.getByLabel("Điểm đón").selectOption("Bến xe Miền Đông");
+  await expect(rows).toHaveCount(1);
+  await expect(rows).toHaveAttribute("data-booking", "TESTA1");
+  await expect(section.getByText("1–1 trên 1 đơn (lọc từ 3)")).toBeVisible();
+  await section.getByRole("button", { name: "Xoá lọc" }).click();
+  await expect(rows).toHaveCount(3);
+  await expect(section.getByRole("button", { name: "Xoá lọc" })).toHaveCount(0);
+});
+
+test("on a phone the list fits the screen without horizontal scrolling", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  const section = await openPassengers(page);
+  await expect(section.locator('tr[data-booking="TESTA1"]')).toBeVisible();
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+  const table = section.getByRole("region", { name: "Danh sách hành khách" });
+  const scroll = await table.evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(scroll).toBeLessThanOrEqual(1);
+});
+
 test("OWNER sees passengers with contacts, filters them, and switches to every booking", async ({
   page,
 }) => {
@@ -63,8 +97,12 @@ test("OWNER sees passengers with contacts, filters them, and switches to every b
   await expect(
     table.locator('tr[data-booking="TESTE1"]').getByRole("link"),
   ).toHaveCount(0);
-  await expect(section).toContainText("2 đơn đã xác nhận · 4 khách · 3 chỗ");
-  await expect(section).toContainText("1 đơn đang giữ · 1 chỗ");
+  const summary = section.getByLabel("Tóm tắt hành khách");
+  await expect(summary).toContainText(
+    /Đơn đã xác nhận\s*2 đơn\s*4 khách · 3 chỗ/,
+  );
+  await expect(summary).toContainText(/Đang giữ chỗ\s*1 đơn\s*1 chỗ/);
+  await expect(summary).toContainText(/Còn phải thu\s*440\.000/);
 
   await section
     .getByLabel("Tìm theo mã vé, tên, SĐT hoặc chỗ")
