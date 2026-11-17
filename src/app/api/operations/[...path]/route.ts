@@ -20,6 +20,11 @@ const allowed = {
       path: new RegExp(`^trip-schedules/${uuid}/preview$`),
       permission: "trip.read",
     },
+    // Tiền về muộn: dữ liệu cho hộp thoại cấp lại chỗ.
+    {
+      path: new RegExp(`^payments/${uuid}/reinstate$`),
+      permission: "payment.manage",
+    },
   ],
   POST: [
     { path: /^trip-schedules$/, permission: "trip.write" },
@@ -28,6 +33,10 @@ const allowed = {
     {
       path: new RegExp(`^trip-schedules/${uuid}/generate$`),
       permission: "trip.write",
+    },
+    {
+      path: new RegExp(`^payments/${uuid}/reinstate$`),
+      permission: "payment.manage",
     },
   ],
   PUT: [
