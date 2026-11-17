@@ -28,6 +28,8 @@ export function Trips({
   canWrite = false,
   canReadPassengers = false,
   canCreateBookings = false,
+  canBoard = false,
+  canCancel = false,
   initialDate,
   initialPeriod = "day",
 }: {
@@ -35,6 +37,8 @@ export function Trips({
   canWrite?: boolean;
   canReadPassengers?: boolean;
   canCreateBookings?: boolean;
+  canBoard?: boolean;
+  canCancel?: boolean;
   initialDate?: string;
   initialPeriod?: TripPeriod;
 }) {
@@ -422,6 +426,8 @@ export function Trips({
           onClose={() => setDetail(null)}
           canReadPassengers={canReadPassengers}
           canCreateBookings={canCreateBookings}
+          canBoard={canBoard}
+          canCancel={canCancel}
         />
       )}
 

@@ -41,6 +41,9 @@ const OWNER_PERMISSIONS = [
   "booking.read",
   "booking.export",
   "booking.create",
+  "booking.board",
+  "booking.cancel",
+  "trip.assigned.board",
 ];
 const STAFF_PERMISSIONS = {
   PLATFORM_ADMIN: [
@@ -61,6 +64,8 @@ const STAFF_PERMISSIONS = {
     "booking.read",
     "booking.export",
     "booking.create",
+    "booking.board",
+    "booking.cancel",
   ],
   ACCOUNTANT: [
     "policy.read",
@@ -84,8 +89,9 @@ const STAFF_PERMISSIONS = {
     "booking.read",
     "booking.export",
     "booking.create",
+    "booking.board",
   ],
-  ASSISTANT: ["trip.assigned.read"],
+  ASSISTANT: ["trip.assigned.read", "trip.assigned.board"],
 };
 const ASSIGNABLE_TRIP = "44444444-4444-4444-8444-444444444444";
 const OTHER_TRIP = "55555555-5555-4555-8555-555555555555";
@@ -130,6 +136,11 @@ const staffPasswords = new Map();
 let idempotent = {};
 // Idempotency-Key của các lần nhập file đã ghi (để trả replayed).
 let importKeys = new Set();
+// Vận hành hành khách (D3): "MÃ:CHỖ" -> giờ lên xe; mã -> lý do hủy; mã -> tổng thu trên xe; khoản cần hoàn.
+let boardedSeats = new Map();
+let cancelledCodes = new Map();
+let onboardTotals = new Map();
+let refunds = [];
 const TRIP_STOPS = {
   pickup: [
     { name: "Bến xe Miền Đông", time: "17:30", day: 0 },
@@ -264,6 +275,10 @@ http
       staffPasswords.clear();
       idempotent = {};
       importKeys = new Set();
+      boardedSeats = new Map();
+      cancelledCodes = new Map();
+      onboardTotals = new Map();
+      refunds = [];
       statusOverrides = {};
       down = false;
       malformed = false;
@@ -700,6 +715,321 @@ http
     const assignedTo = (tripId) =>
       activeAssistant(actor) &&
       (tripAssistants.get(tripId) ?? []).some((a) => a.userId === actor.id);
+    // ---- Vận hành hành khách (khớp apps/api/src/bookings/passenger-ops.service.ts) ----
+    const OPS_BOOKINGS = {
+      TESTA1: {
+        status: "CONFIRMED",
+        name: "Khách Kiểm Thử Một",
+        phone: "+84912000001",
+        seats: ["A1", "A2"],
+        total: 840000,
+        paid: 400000,
+      },
+      TESTB1: {
+        status: "CONFIRMED",
+        name: "Khách Kiểm Thử Hai",
+        phone: "+84912000002",
+        seats: ["B1"],
+        total: 420000,
+        paid: 420000,
+      },
+      TESTE1: {
+        status: "CONFIRMED",
+        name: "Khách đã xóa thông tin",
+        phone: "",
+        seats: ["B1"],
+        total: 420000,
+        paid: 420000,
+      },
+      TESTH1: {
+        status: "HOLDING",
+        name: "Khách Đang Giữ",
+        phone: "+84912000003",
+        seats: ["A3"],
+        total: 420000,
+        paid: 0,
+      },
+    };
+    const opsStatus = (code) =>
+      cancelledCodes.has(code) ? "CANCELLED" : OPS_BOOKINGS[code]?.status;
+    const opsPaid = (code) =>
+      (OPS_BOOKINGS[code]?.paid ?? 0) + (onboardTotals.get(code) ?? 0);
+    const boardedAt = (code, seat) =>
+      boardedSeats.get(`${code}:${seat}`) ?? null;
+    const boardingView = (code) => {
+      const b = OPS_BOOKINGS[code];
+      return {
+        code,
+        status: opsStatus(code),
+        contactName: b.name,
+        dueAmount: Math.max(b.total - opsPaid(code), 0),
+        seats: b.seats.map((seat) => ({
+          code: seat,
+          occupancy: 1,
+          boardedAt: boardedAt(code, seat),
+        })),
+      };
+    };
+    const boardingMatch = new RegExp(
+      `^${tripBase}(trips|my-trips)/([0-9a-f-]{36})/boarding$`,
+    ).exec(path);
+    if (boardingMatch && req.method === "POST") {
+      const mine = boardingMatch[1] === "my-trips";
+      if (!can(mine ? "trip.assigned.board" : "booking.board"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const tripId = boardingMatch[2];
+      if (mine ? !assignedTo(tripId) : tripId !== ASSIGNABLE_TRIP)
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy chuyến.");
+      let code = body.bookingCode;
+      if (body.qr) {
+        const m =
+          /\/tickets\/([A-Z0-9]{4,12})\/verify\?proof=([A-Za-z0-9_-]{43})$/.exec(
+            body.qr,
+          );
+        if (!m)
+          return fail(
+            res,
+            400,
+            "VALIDATION_FAILED",
+            "Mã QR không phải vé của hệ thống.",
+          );
+        if (m[2].startsWith("bad"))
+          return fail(
+            res,
+            404,
+            "NOT_FOUND",
+            "Vé không hợp lệ hoặc đã được cấp lại.",
+          );
+        code = m[1];
+      }
+      if (!OPS_BOOKINGS[code])
+        return fail(
+          res,
+          404,
+          "NOT_FOUND",
+          `Vé ${code} không thuộc chuyến này.`,
+        );
+      const st = opsStatus(code);
+      if (st !== "CONFIRMED")
+        return fail(
+          res,
+          409,
+          "CONFLICT",
+          st === "CANCELLED"
+            ? `Đơn ${code} đã hủy.`
+            : `Đơn ${code} chưa được xác nhận.`,
+        );
+      let changed = 0;
+      for (const seat of body.seatCodes ?? OPS_BOOKINGS[code].seats) {
+        const k = `${code}:${seat}`;
+        if (
+          body.boarded === false ? boardedSeats.delete(k) : !boardedSeats.has(k)
+        ) {
+          if (body.boarded !== false)
+            boardedSeats.set(k, "2027-02-05T10:30:00.000Z");
+          changed += 1;
+        }
+      }
+      return send(res, 200, { booking: boardingView(code), changed });
+    }
+    const cancelMatch = new RegExp(
+      `^${tripBase}bookings/([A-Z0-9]{4,12})/cancel$`,
+    ).exec(path);
+    if (cancelMatch && req.method === "POST") {
+      if (!can("booking.cancel"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const code = cancelMatch[1];
+      if (!OPS_BOOKINGS[code])
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy đơn.");
+      if (!body.reason || body.reason.trim().length < 3)
+        return fail(
+          res,
+          400,
+          "VALIDATION_FAILED",
+          "Vui lòng ghi lý do hủy (ít nhất 3 ký tự).",
+        );
+      const refundOf = () =>
+        refunds.find((x) => x.bookingCode === code) ?? null;
+      if (cancelledCodes.has(code))
+        return send(res, 200, {
+          booking: { code, status: "CANCELLED", paidAmount: opsPaid(code) },
+          refund: refundOf(),
+          alreadyCancelled: true,
+        });
+      if (OPS_BOOKINGS[code].seats.some((seat) => boardedAt(code, seat)))
+        return fail(
+          res,
+          409,
+          "CONFLICT",
+          "Khách đã lên xe: bỏ đánh dấu lên xe trước khi hủy.",
+        );
+      cancelledCodes.set(code, body.reason.trim());
+      if (opsPaid(code) > 0)
+        refunds.push({
+          id: crypto.randomUUID(),
+          bookingCode: code,
+          amount: opsPaid(code),
+          reason: body.reason.trim(),
+          status: "OPEN",
+          createdAt: "2027-02-05T10:00:00.000Z",
+          createdBy: actor?.fullName ?? "Chủ xe kiểm thử",
+          resolvedAt: null,
+          resolvedBy: null,
+          resolveNote: null,
+          contactName: OPS_BOOKINGS[code].name,
+          contactPhone: OPS_BOOKINGS[code].phone,
+          contactErased: !OPS_BOOKINGS[code].phone,
+        });
+      return send(res, 200, {
+        booking: { code, status: "CANCELLED", paidAmount: opsPaid(code) },
+        refund: refundOf(),
+        alreadyCancelled: false,
+      });
+    }
+    if (path === tripBase + "refunds" && req.method === "GET") {
+      if (!can("payment.read"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const all = url.searchParams.get("status") === "ALL";
+      return send(res, 200, {
+        refunds: refunds.filter((x) => all || x.status === "OPEN"),
+      });
+    }
+    const refundMatch = new RegExp(
+      `^${tripBase}refunds/([0-9a-f-]{36})/resolve$`,
+    ).exec(path);
+    if (refundMatch && req.method === "POST") {
+      if (!can("payment.manage"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const item = refunds.find((x) => x.id === refundMatch[1]);
+      if (!item)
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy khoản cần hoàn.");
+      if (item.status !== "OPEN")
+        return item.status === body.status
+          ? send(res, 200, { refund: item, replayed: true })
+          : fail(res, 409, "CONFLICT", "Khoản này đã được xử lý.");
+      Object.assign(item, {
+        status: body.status,
+        resolvedAt: "2027-02-05T11:00:00.000Z",
+        resolvedBy: actor?.fullName ?? "Chủ xe kiểm thử",
+        resolveNote: body.note ?? null,
+      });
+      return send(res, 200, { refund: item, replayed: false });
+    }
+    const boardImportMatch = new RegExp(
+      `^${tripBase}trips/([0-9a-f-]{36})/passengers/boarding-import$`,
+    ).exec(path);
+    if (boardImportMatch && req.method === "POST") {
+      if (!can("booking.board"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      if (boardImportMatch[1] !== ASSIGNABLE_TRIP)
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy chuyến.");
+      const dryRun = url.searchParams.get("dryRun") === "true";
+      const key = req.headers["idempotency-key"];
+      if (!dryRun && !key)
+        return fail(res, 400, "VALIDATION_FAILED", "Thiếu Idempotency-Key.");
+      if (!dryRun && importKeys.has(key))
+        return send(res, 200, { ...idempotent[key], replayed: true });
+      const issues = [];
+      const acc = new Map();
+      let unchanged = 0;
+      for (const row of body.rows) {
+        const code = String(row.code).trim().toUpperCase();
+        if (!OPS_BOOKINGS[code]) {
+          issues.push({
+            rows: [row.row],
+            message: `Dòng ${row.row}: mã vé không thuộc chuyến này.`,
+          });
+          continue;
+        }
+        if (opsStatus(code) !== "CONFIRMED") {
+          if (row.boarded || row.collected)
+            issues.push({
+              rows: [row.row],
+              message: `Dòng ${row.row}: đơn ${code} chưa được xác nhận, không ghi lên xe/thực thu được.`,
+            });
+          else unchanged += 1;
+          continue;
+        }
+        const a = acc.get(code) ?? {
+          rows: [],
+          board: new Set(),
+          collected: null,
+        };
+        acc.set(code, a);
+        a.rows.push(row.row);
+        const yes = /^(x|có|1|true)$/i.test(String(row.boarded ?? "").trim());
+        if (yes)
+          for (const seat of row.seatCode
+            ? [row.seatCode]
+            : OPS_BOOKINGS[code].seats)
+            a.board.add(seat);
+        const money = Number(String(row.collected ?? "").replace(/\D/g, ""));
+        if (
+          row.collected !== null &&
+          row.collected !== "" &&
+          Number.isFinite(money)
+        )
+          a.collected = (a.collected ?? 0) + money;
+      }
+      const updates = [];
+      for (const [code, a] of acc) {
+        const boardSeats = [...a.board].filter(
+          (seat) => !boardedAt(code, seat),
+        );
+        const prior = onboardTotals.get(code) ?? 0;
+        const collect = a.collected === null ? 0 : a.collected - prior;
+        const due = OPS_BOOKINGS[code].total - opsPaid(code);
+        if (collect > due) {
+          issues.push({
+            rows: a.rows,
+            message: `Dòng ${a.rows.join(", ")}: thực thu thêm lớn hơn số còn phải thu của đơn ${code}.`,
+          });
+          continue;
+        }
+        if (!boardSeats.length && collect <= 0) {
+          unchanged += a.rows.length;
+          continue;
+        }
+        updates.push({
+          code,
+          rows: a.rows,
+          boardSeats,
+          collectAmount: Math.max(collect, 0),
+          dueAfter: due - Math.max(collect, 0),
+        });
+      }
+      const plan = {
+        issues,
+        updates,
+        unchanged,
+        totals: {
+          bookings: updates.length,
+          boardSeats: updates.reduce((n, u) => n + u.boardSeats.length, 0),
+          collectAmount: updates.reduce((n, u) => n + u.collectAmount, 0),
+        },
+      };
+      if (dryRun) return send(res, 200, { ok: !issues.length, ...plan });
+      if (issues.length)
+        return send(res, 400, {
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "File còn dòng lỗi. Chưa cập nhật dòng nào.",
+            details: { issues },
+          },
+        });
+      for (const u of updates) {
+        for (const seat of u.boardSeats)
+          boardedSeats.set(`${u.code}:${seat}`, "2027-02-05T10:30:00.000Z");
+        if (u.collectAmount)
+          onboardTotals.set(
+            u.code,
+            (onboardTotals.get(u.code) ?? 0) + u.collectAmount,
+          );
+      }
+      importKeys.add(key);
+      idempotent[key] = plan;
+      return send(res, 200, { ...plan, replayed: false });
+    }
     if (path === tripBase + "my-trips" && req.method === "GET") {
       if (!can("trip.assigned.read"))
         return fail(res, 403, "FORBIDDEN", "Không có quyền.");
@@ -754,6 +1084,9 @@ http
               },
             ]
           : [];
+      for (const b of bookings)
+        for (const seat of b.seats)
+          seat.boardedAt = boardedAt(b.code, seat.code);
       return send(res, 200, {
         trip: tripRef(tripId),
         bookings,
@@ -763,6 +1096,10 @@ http
           people: tripId === ASSIGNABLE_TRIP ? 4 : 0,
           infants: tripId === ASSIGNABLE_TRIP ? 1 : 0,
           dueAmount: bookings.reduce((n, b) => n + b.dueAmount, 0),
+          boarded: bookings.reduce(
+            (n, b) => n + b.seats.filter((x) => x.boardedAt).length,
+            0,
+          ),
         },
         fetchedAt: new Date().toISOString(),
       });
@@ -975,15 +1312,38 @@ http
             ]
           : []),
       ];
+      const visible = bookings
+        .map((b) => {
+          const st = cancelledCodes.has(b.code) ? "CANCELLED" : b.status;
+          return {
+            ...b,
+            status: st,
+            cancelReason: cancelledCodes.get(b.code) ?? null,
+            onboardCollected: onboardTotals.get(b.code) ?? 0,
+            paidAmount: b.paidAmount + (onboardTotals.get(b.code) ?? 0),
+            dueAmount: Math.max(
+              b.dueAmount - (onboardTotals.get(b.code) ?? 0),
+              0,
+            ),
+            seats: b.seats.map((x) => ({
+              ...x,
+              boardedAt: boardedAt(b.code, x.code),
+            })),
+          };
+        })
+        .filter((b) => status === "all" || b.status !== "CANCELLED");
       return send(res, 200, {
         trip: tripRef(tripId),
-        bookings,
+        bookings: visible,
         summary: {
           bookings: 2,
           seats: 3,
           people: 4,
           infants: 1,
           dueAmount: 440000,
+          boarded: visible
+            .filter((b) => b.status === "CONFIRMED")
+            .reduce((n, b) => n + b.seats.filter((x) => x.boardedAt).length, 0),
         },
         holding: { bookings: 1, seats: 1 },
         fetchedAt: "2027-02-05T03:00:00.000Z",

@@ -21,6 +21,10 @@ export const adminPassengerBookingSchema = passengerBookingSchema.extend({
   createdAt: z.string(),
   /** Họ tên nhân viên tạo đơn tại quầy/nhập file (API cũ không có). */
   createdBy: z.string().nullable().optional(),
+  /** Tổng tiền phụ xe đã thu trên xe (ghi qua file nhập lại). */
+  onboardCollected: z.number().int().nonnegative().optional(),
+  /** Lý do nhân viên hủy đơn. */
+  cancelReason: z.string().nullable().optional(),
 });
 export const adminTripPassengersSchema = tripPassengersSchema.extend({
   bookings: z.array(adminPassengerBookingSchema).max(500),
@@ -139,6 +143,9 @@ export function manifestRows(
         : b.status !== "CONFIRMED" && b.status !== "COMPLETED"
           ? (bookingStatusLabels[b.status] ?? b.status)
           : "",
+      b.status === "CANCELLED" && b.cancelReason
+        ? `Lý do hủy: ${b.cancelReason}`
+        : "",
       b.note ?? "",
     ].filter(Boolean);
     b.seats.forEach((s, i) => {
@@ -159,8 +166,9 @@ export function manifestRows(
         i === 0 ? b.paidAmount : null,
         i === 0 ? b.dueAmount : null,
         i === 0 ? notes.join(" · ") || null : null,
-        null,
-        null,
+        s.boardedAt ? "x" : null,
+        // Tổng đã thu trên xe của cả đơn, ở dòng đầu: nhập lại file không đổi gì.
+        i === 0 && b.onboardCollected ? b.onboardCollected : null,
       ]);
     });
   }
@@ -196,4 +204,9 @@ export function attachmentHeader(fileName: string) {
     .replace(/Đ/g, "D")
     .replace(/[^A-Za-z0-9._-]+/g, "-");
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+}
+
+/** Số chỗ đã lên xe / tổng chỗ của một đơn. */
+export function boardedCount(b: Pick<AdminPassengerBooking, "seats">) {
+  return b.seats.filter((s) => s.boardedAt).length;
 }

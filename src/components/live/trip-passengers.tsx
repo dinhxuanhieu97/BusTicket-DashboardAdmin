@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
-import { Download, FileUp, Users } from "lucide-react";
+import { BusFront, Download, FileUp, Users } from "lucide-react";
+import { Modal } from "../modal";
+import type { BoardingResult, CancelResult } from "@/lib/passenger-ops";
 import { vnDateTime, vnd } from "@/lib/live-contracts";
 import { paymentStatusLabels } from "@/lib/trip-assistants";
 import { stopTime } from "@/lib/trip-detail";
@@ -8,8 +10,10 @@ import {
   ERASED_LABEL,
   bookingStatusLabels,
   channelLabels,
+  boardedCount,
   filterPassengers,
   localPhone,
+  type AdminPassengerBooking,
   type AdminTripPassengers,
   type PassengerScope,
 } from "@/lib/trip-passengers";
@@ -17,7 +21,9 @@ import { useJson } from "./assigned-trips";
 import { PassengerImport } from "./passenger-import";
 import {
   LoadState,
+  Notice,
   RefreshButton,
+  postJson,
   StatusBadge,
   TableScroll,
   tableClass,
@@ -33,26 +39,62 @@ const statusTone: Record<string, "success" | "warning" | "neutral" | "info"> = {
   CANCELLED: "neutral",
 };
 
-/** Danh sách khách của chuyến cho nhân viên nhà xe (`booking.read`); nút xuất file khi có `booking.export`. */
+const canBoardStatus = (b: AdminPassengerBooking) =>
+  b.status === "CONFIRMED" || b.status === "COMPLETED";
+
+/**
+ * Danh sách khách của chuyến cho nhân viên nhà xe (`booking.read`); xuất file khi có `booking.export`; nhập file khi có
+ * `booking.create` (khách mới) hoặc `booking.board` (cập nhật lên xe); đánh dấu lên xe (`booking.board`); hủy đơn
+ * (`booking.cancel`).
+ */
 export function TripPassengersSection({
   tripId,
   canExport,
   canCreate = false,
+  canBoard = false,
+  canCancel = false,
   className = "rounded-xl border border-line/60 bg-surface/20 p-4",
 }: {
   tripId: string;
   canExport: boolean;
   canCreate?: boolean;
+  canBoard?: boolean;
+  canCancel?: boolean;
   className?: string;
 }) {
   const [scope, setScope] = useState<PassengerScope>("active");
   const [importing, setImporting] = useState(false);
   const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState<{
+    tone: "success" | "danger";
+    text: string;
+  } | null>(null);
+  const [cancelling, setCancelling] = useState<AdminPassengerBooking | null>(
+    null,
+  );
   const base = `/api/trip-management/${encodeURIComponent(tripId)}/passengers`;
   const { data, error, loading, reload } = useJson<AdminTripPassengers>(
     `${base}?status=${scope}`,
   );
   const rows = data ? filterPassengers(data.bookings, query) : [];
+
+  async function toggleBoarding(b: AdminPassengerBooking) {
+    const boarded = boardedCount(b) < b.seats.length;
+    setBusy(b.code);
+    setMessage(null);
+    try {
+      await postJson<BoardingResult>(
+        `/api/trip-management/${encodeURIComponent(tripId)}/boarding`,
+        { bookingCode: b.code, boarded },
+      );
+      reload();
+    } catch (e) {
+      setMessage({ tone: "danger", text: (e as Error).message });
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <section aria-labelledby="trip-passenger-heading" className={className}>
@@ -68,7 +110,7 @@ export function TripPassengersSection({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {canCreate && (
+          {(canCreate || canBoard) && (
             <button
               type="button"
               className="btn px-3 text-xs"
@@ -146,6 +188,29 @@ export function TripPassengersSection({
         </div>
       </div>
 
+      {message && (
+        <div className="mb-3" data-message>
+          <Notice tone={message.tone}>{message.text}</Notice>
+        </div>
+      )}
+      {cancelling && (
+        <CancelDialog
+          booking={cancelling}
+          onClose={() => setCancelling(null)}
+          onDone={(r) => {
+            setCancelling(null);
+            setMessage({
+              tone: "success",
+              text: r.alreadyCancelled
+                ? `Đơn ${r.booking.code} đã được hủy trước đó.`
+                : r.refund
+                  ? `Đã hủy đơn ${r.booking.code}. Tạo khoản cần hoàn ${vnd(r.refund.amount)} cho kế toán.`
+                  : `Đã hủy đơn ${r.booking.code}, chỗ đã được nhả.`,
+            });
+            reload();
+          }}
+        />
+      )}
       {error && <LoadState error={error} reload={reload} />}
       {data && (
         <>
@@ -160,6 +225,19 @@ export function TripPassengersSection({
                 label={`${data.summary.bookings} đơn đã xác nhận · ${data.summary.people} khách · ${data.summary.seats} chỗ`}
               />
             </li>
+            {data.summary.boarded !== undefined && data.summary.seats > 0 && (
+              <li>
+                <StatusBadge
+                  tone={
+                    data.summary.boarded === data.summary.seats
+                      ? "success"
+                      : "neutral"
+                  }
+                  icon={BusFront}
+                  label={`Đã lên xe: ${data.summary.boarded}/${data.summary.seats} chỗ`}
+                />
+              </li>
+            )}
             {data.summary.infants > 0 && (
               <li>
                 <StatusBadge
@@ -207,9 +285,15 @@ export function TripPassengersSection({
                     <th className={thClass}>Điểm đón</th>
                     <th className={thClass}>Mã vé</th>
                     <th className={thClass}>Trạng thái</th>
+                    <th className={thClass}>Lên xe</th>
                     <th className={thClass}>Thanh toán</th>
                     <th className={`${thClass} text-right`}>Còn thu</th>
                     <th className={thClass}>Ghi chú</th>
+                    {canCancel && (
+                      <th className={thClass}>
+                        <span className="sr-only">Thao tác</span>
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -286,6 +370,23 @@ export function TripPassengersSection({
                         )}
                       </td>
                       <td className={`${tdClass} whitespace-nowrap`}>
+                        {canBoardStatus(b) ? (
+                          <BoardingCell
+                            booking={b}
+                            canBoard={canBoard}
+                            busy={busy === b.code}
+                            onToggle={() => void toggleBoarding(b)}
+                          />
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                        {!!b.onboardCollected && (
+                          <span className="mt-1 block text-xs text-muted">
+                            Thu trên xe {vnd(b.onboardCollected)}
+                          </span>
+                        )}
+                      </td>
+                      <td className={`${tdClass} whitespace-nowrap`}>
                         {paymentStatusLabels[b.paymentStatus] ??
                           b.paymentStatus}
                         <span className="block text-xs text-muted">
@@ -298,8 +399,28 @@ export function TripPassengersSection({
                         {vnd(b.dueAmount)}
                       </td>
                       <td className={`${tdClass} max-w-64 break-words`}>
-                        {b.note || "—"}
+                        {b.cancelReason && (
+                          <span className="block text-xs text-muted">
+                            Lý do hủy: {b.cancelReason}
+                          </span>
+                        )}
+                        {b.note || (b.cancelReason ? null : "—")}
                       </td>
+                      {canCancel && (
+                        <td className={`${tdClass} whitespace-nowrap`}>
+                          {(b.status === "HOLDING" ||
+                            b.status === "CONFIRMED") && (
+                            <button
+                              type="button"
+                              className="btn px-3 text-xs"
+                              onClick={() => setCancelling(b)}
+                              aria-label={`Hủy đơn ${b.code}`}
+                            >
+                              Hủy đơn
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -309,5 +430,143 @@ export function TripPassengersSection({
         </>
       )}
     </section>
+  );
+}
+
+function BoardingCell({
+  booking: b,
+  canBoard,
+  busy,
+  onToggle,
+}: {
+  booking: AdminPassengerBooking;
+  canBoard: boolean;
+  busy: boolean;
+  onToggle: () => void;
+}) {
+  const done = boardedCount(b);
+  const all = done === b.seats.length;
+  const label = `${done}/${b.seats.length} lên xe`;
+  if (!canBoard)
+    return <StatusBadge tone={all ? "success" : "neutral"} label={label} />;
+  return (
+    <button
+      type="button"
+      className={`btn px-3 text-xs ${all ? "btn-primary" : ""}`}
+      aria-pressed={all}
+      aria-label={
+        all
+          ? `Bỏ đánh dấu lên xe đơn ${b.code}`
+          : `Đánh dấu đơn ${b.code} đã lên xe`
+      }
+      disabled={busy}
+      onClick={onToggle}
+    >
+      <BusFront size={14} aria-hidden="true" />
+      {busy ? "Đang lưu…" : label}
+    </button>
+  );
+}
+
+function CancelDialog({
+  booking: b,
+  onClose,
+  onDone,
+}: {
+  booking: AdminPassengerBooking;
+  onClose: () => void;
+  onDone: (r: CancelResult) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [notify, setNotify] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const boarded = boardedCount(b) > 0;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (reason.trim().length < 3) {
+      setError("Vui lòng ghi lý do hủy (ít nhất 3 ký tự).");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      onDone(
+        await postJson<CancelResult>(
+          `/api/bookings/${encodeURIComponent(b.code)}/cancel`,
+          { reason: reason.trim(), notifyCustomer: notify },
+        ),
+      );
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`Hủy đơn ${b.code}`} onClose={onClose}>
+      <form className="pn-page-stack" onSubmit={submit} noValidate>
+        <p className="text-sm">
+          {b.contactErased ? ERASED_LABEL : b.contactName} · chỗ{" "}
+          <span className="font-mono">
+            {b.seats.map((s) => s.code).join(", ")}
+          </span>
+          . Chỗ sẽ được nhả để bán lại.
+        </p>
+        {boarded && (
+          <Notice tone="warning">
+            Khách đã được đánh dấu lên xe. Bỏ đánh dấu lên xe trước khi hủy.
+          </Notice>
+        )}
+        {b.paidAmount > 0 && (
+          <Notice tone="warning">
+            Đơn đã thu {vnd(b.paidAmount)}. Hủy sẽ tạo khoản cần hoàn{" "}
+            {vnd(b.paidAmount)} để kế toán hoàn cho khách (hệ thống không tự
+            chuyển tiền).
+          </Notice>
+        )}
+        <div>
+          <label htmlFor="cancel-reason" className="label mb-1.5">
+            Lý do hủy
+          </label>
+          <textarea
+            id="cancel-reason"
+            className="field min-h-20 w-full"
+            maxLength={300}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            aria-invalid={!!error}
+            aria-describedby={error ? "cancel-error" : undefined}
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={notify}
+            onChange={(e) => setNotify(e.target.checked)}
+          />
+          Gửi tin báo hủy cho khách
+        </label>
+        {error && (
+          <p id="cancel-error" className="text-sm text-danger" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" className="btn" onClick={onClose}>
+            Giữ đơn
+          </button>
+          <button
+            type="submit"
+            className="btn border-danger/50 font-semibold text-danger"
+            disabled={busy || boarded}
+          >
+            {busy ? "Đang hủy…" : "Hủy đơn"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }

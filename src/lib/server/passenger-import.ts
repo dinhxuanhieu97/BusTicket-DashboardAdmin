@@ -24,6 +24,16 @@ export interface ImportRow {
   totalAmount: Cell;
   note: Cell;
 }
+/** Dòng có Mã vé (khách đã có đơn): chỉ cập nhật lên xe và thực thu trên xe. */
+export interface UpdateRow {
+  row: number;
+  code: string;
+  seatCode: Cell;
+  boarded: Cell;
+  collected: Cell;
+}
+/** Số dòng có Mã vé tối đa mỗi file (API giới hạn 2 × số dòng khách mới). */
+export const MAX_UPDATE_ROWS = MAX_IMPORT_ROWS * 2;
 
 const SHEET = "DanhSachKhach";
 /** Số dòng tối đa đọc trong sheet (kể cả dòng trống/dòng có mã vé) để chặn file bất thường. */
@@ -31,7 +41,10 @@ const MAX_SHEET_ROWS = 2000;
 /** Thân JSON gửi API phải dưới giới hạn mặc định 100 KB của API. */
 const MAX_PAYLOAD_BYTES = 90_000;
 
-const FIELD_BY_HEADER: Record<string, keyof Omit<ImportRow, "row"> | "code"> = {
+const FIELD_BY_HEADER: Record<
+  string,
+  keyof Omit<ImportRow, "row"> | "code" | "boarded" | "collected"
+> = {
   "Mã vé": "code",
   "Phòng/Chỗ": "seatCode",
   "Số người": "occupancy",
@@ -43,6 +56,8 @@ const FIELD_BY_HEADER: Record<string, keyof Omit<ImportRow, "row"> | "code"> = {
   "Tổng tiền": "totalAmount",
   "Đã trả": "paidAmount",
   "Ghi chú": "note",
+  "Đã lên xe": "boarded",
+  "Thực thu trên xe": "collected",
 };
 const REQUIRED = ["Phòng/Chỗ", "Họ tên khách", "SĐT"];
 
@@ -80,8 +95,9 @@ export const stripCompanions = (name: Cell): Cell =>
   typeof name === "string" ? name.replace(/\s*\(\+\d+\)\s*$/, "") : name;
 
 /**
- * Đọc sheet `DanhSachKhach` (cùng cột với file xuất). Dòng có Mã vé là khách đã có đơn: chỉ đếm, cập nhật lên xe/thực
- * thu làm ở D3. Dòng trống bị bỏ qua. Không ghi gì; API kiểm tra lại toàn bộ.
+ * Đọc sheet `DanhSachKhach` (cùng cột với file xuất). Dòng không có Mã vé → khách mới (`rows`); dòng có Mã vé → khách đã
+ * có đơn, chỉ lấy Phòng/Chỗ, Đã lên xe, Thực thu trên xe (`updates`). Dòng trống bị bỏ qua. Không ghi gì; API kiểm tra
+ * lại toàn bộ.
  */
 export async function readPassengerWorkbook(data: Uint8Array) {
   if (!data.length) throw bad("Chưa chọn tệp.");
@@ -121,7 +137,7 @@ export async function readPassengerWorkbook(data: Uint8Array) {
     throw bad(`Dòng tiêu đề thiếu cột: ${missing.join(", ")}.`);
 
   const rows: ImportRow[] = [];
-  let existingRows = 0;
+  const updates: UpdateRow[] = [];
   sheet.eachRow({ includeEmpty: false }, (r, rowNumber) => {
     if (rowNumber === 1) return;
     const get = (header: string) => {
@@ -131,10 +147,20 @@ export async function readPassengerWorkbook(data: Uint8Array) {
     const values = Object.fromEntries(
       Object.entries(FIELD_BY_HEADER).map(([h, field]) => [field, get(h)]),
     ) as Record<string, Cell>;
-    const { code, ...fields } = values;
-    if (Object.values(fields).every(isBlank) && isBlank(code ?? null)) return;
+    const { code, boarded, collected, ...fields } = values;
+    if (
+      Object.values(fields).every(isBlank) &&
+      [code, boarded, collected].every((v) => isBlank(v ?? null))
+    )
+      return;
     if (!isBlank(code ?? null)) {
-      existingRows += 1;
+      updates.push({
+        row: rowNumber,
+        code: String(code).trim().slice(0, 40),
+        seatCode: fields.seatCode ?? null,
+        boarded: boarded ?? null,
+        collected: collected ?? null,
+      });
       return;
     }
     rows.push({
@@ -155,9 +181,16 @@ export async function readPassengerWorkbook(data: Uint8Array) {
     throw bad(
       `Mỗi lần nhập tối đa ${MAX_IMPORT_ROWS} dòng khách mới (file có ${rows.length}).`,
     );
-  if (JSON.stringify(rows).length > MAX_PAYLOAD_BYTES)
+  if (updates.length > MAX_UPDATE_ROWS)
+    throw bad(
+      `Mỗi lần cập nhật tối đa ${MAX_UPDATE_ROWS} dòng có Mã vé (file có ${updates.length}).`,
+    );
+  if (
+    JSON.stringify(rows).length > MAX_PAYLOAD_BYTES ||
+    JSON.stringify(updates).length > MAX_PAYLOAD_BYTES
+  )
     throw bad("Nội dung file quá dài. Hãy chia thành nhiều file nhỏ hơn.");
-  return { rows, existingRows };
+  return { rows, updates, existingRows: updates.length };
 }
 
 const TEMPLATE_GUIDE = [
@@ -167,7 +200,8 @@ const TEMPLATE_GUIDE = [
   "3. Phòng/Chỗ, Điểm đón, Điểm trả chọn từ danh sách (sheet ChoTrong, DiemDonTra). Số người: 1 hoặc 2 nếu phòng đôi.",
   "4. Đã trả: tiền khách đã đưa (tiền mặt). Tổng tiền tính theo bảng giá của hệ thống; số trong file chỉ để đối chiếu.",
   "5. Danh sách chỗ trống là lúc tải file. Hệ thống kiểm tra lại khi ghi: nếu có chỗ vừa được đặt, không dòng nào được ghi.",
-  "6. File có số điện thoại khách: không chia sẻ ra ngoài, xóa khỏi máy sau khi nhập xong.",
+  '6. File đã xuất (dòng có Mã vé): ghi "x" ở Đã lên xe khi khách lên xe; Thực thu trên xe là TỔNG tiền phụ xe đã thu của đơn (hệ thống chỉ ghi phần tăng thêm, nhập lại cùng file không ghi trùng).',
+  "7. File có số điện thoại khách: không chia sẻ ra ngoài, xóa khỏi máy sau khi nhập xong.",
 ];
 
 const TEMPLATE_WIDTHS = [

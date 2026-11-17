@@ -16,12 +16,18 @@ const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 export function Passengers({
   canExport,
   canCreate = false,
+  canBoard = false,
+  canCancel = false,
   initialDate,
   initialTripId,
 }: {
   canExport: boolean;
   /** `booking.create`: nút "Nhập danh sách" khách mới từ file. */
   canCreate?: boolean;
+  /** `booking.board`: nút lên xe. */
+  canBoard?: boolean;
+  /** `booking.cancel`: nút hủy đơn. */
+  canCancel?: boolean;
   initialDate?: string;
   initialTripId?: string;
 }) {
@@ -179,6 +185,8 @@ export function Passengers({
               tripId={selected.id}
               canExport={canExport}
               canCreate={canCreate}
+              canBoard={canBoard}
+              canCancel={canCancel}
               className="card pn-panel-inset"
             />
           </>

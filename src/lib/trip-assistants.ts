@@ -68,6 +68,8 @@ export const passengerBookingSchema = z.object({
       floor: z.string(),
       occupancy: z.number().int(),
       infantCount: z.number().int(),
+      /** Giờ đánh dấu lên xe; null = chưa lên (API cũ không có). */
+      boardedAt: z.string().nullable().optional(),
     }),
   ),
 });
@@ -80,6 +82,9 @@ export const tripPassengersSchema = z.object({
     people: z.number().int(),
     infants: z.number().int(),
     dueAmount: z.number().int(),
+    /** Số chỗ đã lên xe (API cũ không có). */
+    boarded: z.number().int().optional(),
+    boardedPeople: z.number().int().optional(),
   }),
   fetchedAt: z.string(),
 });

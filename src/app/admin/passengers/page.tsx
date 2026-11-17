@@ -16,6 +16,8 @@ export default async function Page({
     <Passengers
       canExport={hasPermission(session, "booking.export")}
       canCreate={hasPermission(session, "booking.create")}
+      canBoard={hasPermission(session, "booking.board")}
+      canCancel={hasPermission(session, "booking.cancel")}
       initialDate={typeof query.date === "string" ? query.date : undefined}
       initialTripId={
         typeof query.trip === "string" && UUID.test(query.trip)

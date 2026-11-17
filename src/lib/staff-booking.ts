@@ -118,16 +118,28 @@ export const importResultSchema = z.object({
 
 /** Thông tin đọc file kèm theo kết quả xem trước/ghi (dashboard tự thêm). */
 export const fileInfoSchema = z.object({
-  /** Dòng có Mã vé: cập nhật lên xe/thực thu — làm ở D3, lần này bỏ qua. */
+  /** Dòng có Mã vé: khách đã có đơn — chỉ cập nhật lên xe/thực thu trên xe. */
   existingRows: z.number().int().nonnegative(),
   newRows: z.number().int().nonnegative(),
 });
 export type FileInfo = z.infer<typeof fileInfoSchema>;
+/** Phần cập nhật dòng có Mã vé (null khi file không có dòng nào như vậy). */
+export type BoardingPart = import("./passenger-ops").BoardingPlan | null;
 export type ImportPreview = z.infer<typeof importPreviewSchema> & {
   file: FileInfo;
+  boarding: BoardingPart;
 };
 export type ImportResult = z.infer<typeof importResultSchema> & {
   file: FileInfo;
+  boarding: BoardingPart;
+};
+/** Xem trước rỗng khi file chỉ có dòng cập nhật (không gọi API tạo đơn). */
+export const EMPTY_IMPORT_PREVIEW: z.infer<typeof importPreviewSchema> = {
+  ok: true,
+  issues: [],
+  warnings: [],
+  bookings: [],
+  totals: { bookings: 0, seats: 0, totalAmount: 0, paidAmount: 0 },
 };
 
 /** Tùy chọn nhập file gửi qua query (thân request là chính tệp xlsx). */
