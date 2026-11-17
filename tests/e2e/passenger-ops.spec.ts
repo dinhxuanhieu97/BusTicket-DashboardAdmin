@@ -364,3 +364,135 @@ test("guards the cancel, boarding and refund routes", async ({
   );
   await ctx.close();
 });
+
+test("staff edits a booking: contact and stops, records a cash payment and boards one seat", async ({
+  page,
+}) => {
+  const main = await passengers(page);
+  const row = main.locator('tr[data-booking="TESTA1"]');
+  // Nút Sửa nằm ngay trước nút Hủy.
+  const actions = row.getByRole("button", { name: /đơn TESTA1$/ });
+  await expect(actions.last()).toHaveAccessibleName("Hủy đơn TESTA1");
+  await expect(actions.nth(-2)).toHaveAccessibleName("Sửa đơn TESTA1");
+
+  await row.getByRole("button", { name: "Sửa đơn TESTA1" }).click();
+  let dialog = page.getByRole("dialog", { name: "Sửa đơn TESTA1" });
+  await expect(dialog.getByLabel("Số điện thoại")).toHaveValue("0912000001");
+  await dialog.getByLabel("Họ tên").fill("Khách Đã Sửa Tên");
+  await dialog.getByLabel("Số điện thoại").fill("0987 654 321");
+  await dialog.getByLabel("Điểm đón").selectOption("Ngã tư Thủ Đức");
+  await dialog.getByLabel("Ghi chú").fill("Gọi trước 30 phút");
+  await dialog.getByRole("button", { name: "Lưu thông tin" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(main.locator("[data-message]")).toContainText(
+    "Đã cập nhật thông tin đơn TESTA1",
+  );
+  await expect(row).toContainText("Khách Đã Sửa Tên");
+  await expect(row).toContainText("0987654321");
+  await expect(row).toContainText("Ngã tư Thủ Đức");
+  await expect(row).toContainText("Gọi trước 30 phút");
+
+  // Thu tiền: mặc định là số còn phải thu; vượt số còn thu bị chặn ở form.
+  await row.getByRole("button", { name: "Sửa đơn TESTA1" }).click();
+  dialog = page.getByRole("dialog", { name: "Sửa đơn TESTA1" });
+  await dialog.getByRole("button", { name: "Thanh toán" }).click();
+  const amount = dialog.getByLabel("Số tiền thu thêm (đ)");
+  await expect(amount).toHaveValue("440000");
+  await amount.fill("500000");
+  await dialog.getByRole("button", { name: "Ghi nhận thu tiền" }).click();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "lớn hơn số còn phải thu",
+  );
+  await amount.fill("440000");
+  await dialog.getByRole("button", { name: "Ghi nhận thu tiền" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(main.locator("[data-message]")).toContainText(
+    "Đã ghi nhận 440.000",
+  );
+  await expect(row).not.toContainText("Còn thu");
+
+  // Lên xe theo chỗ: A1 (2 người) lên, A2 chưa.
+  await row.getByRole("button", { name: "Sửa đơn TESTA1" }).click();
+  dialog = page.getByRole("dialog", { name: "Sửa đơn TESTA1" });
+  await dialog.getByRole("button", { name: "Lên xe" }).click();
+  await dialog.getByRole("checkbox", { name: /A1/ }).check();
+  await expect(dialog).toContainText("2/3 người");
+  await dialog.getByRole("button", { name: "Lưu lên xe" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(
+    row.getByRole("button", { name: "Đánh dấu đơn TESTA1 đã lên xe" }),
+  ).toHaveText(/1\/2 lên xe/);
+
+  // Đơn khách đã xóa thông tin: không có phần sửa thông tin.
+  await main
+    .locator('tr[data-booking="TESTE1"]')
+    .getByRole("button", { name: "Sửa đơn TESTE1" })
+    .click();
+  dialog = page.getByRole("dialog", { name: "Sửa đơn TESTE1" });
+  await expect(dialog.getByLabel("Họ tên")).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Thông tin" })).toHaveCount(
+    0,
+  );
+});
+
+test("edit and payment routes validate input before calling the API", async ({
+  page,
+}) => {
+  const api = page.request;
+  expect(
+    (
+      await api.patch("/api/bookings/bad!code", {
+        headers,
+        data: { note: "x" },
+      })
+    ).status(),
+  ).toBe(400);
+  expect(
+    (
+      await api.patch("/api/bookings/TESTA1", {
+        headers,
+        data: { seatCode: "A1" },
+      })
+    ).status(),
+  ).toBe(400);
+  expect(
+    (await api.patch("/api/bookings/TESTA1", { headers, data: {} })).status(),
+  ).toBe(400);
+  // Thiếu Idempotency-Key, số tiền âm, chuyển khoản không có mã giao dịch.
+  expect(
+    (
+      await api.post("/api/bookings/TESTA1/payments", {
+        headers,
+        data: { amount: 1000, method: "CASH" },
+      })
+    ).status(),
+  ).toBe(400);
+  for (const data of [
+    { amount: -1, method: "CASH" },
+    { amount: 1000, method: "MANUAL_BANK" },
+  ])
+    expect(
+      (
+        await api.post("/api/bookings/TESTA1/payments", {
+          headers: { ...headers, "Idempotency-Key": "test-key-0001" },
+          data,
+        })
+      ).status(),
+    ).toBe(400);
+  // Cùng khóa gửi hai lần: chỉ ghi một khoản.
+  for (let i = 0; i < 2; i++)
+    expect(
+      (
+        await api.post("/api/bookings/TESTA1/payments", {
+          headers: { ...headers, "Idempotency-Key": "test-key-0002" },
+          data: { amount: 1000, method: "CASH" },
+        })
+      ).status(),
+    ).toBe(200);
+  const list = await (
+    await api.get(`/api/trip-management/${TRIP}/passengers?status=active`)
+  ).json();
+  expect(
+    list.bookings.find((b: { code: string }) => b.code === "TESTA1").paidAmount,
+  ).toBe(401000);
+});

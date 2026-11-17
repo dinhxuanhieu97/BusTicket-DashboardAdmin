@@ -25,6 +25,8 @@ export function Passengers({
   canCreate = false,
   canBoard = false,
   canCancel = false,
+  canEdit = false,
+  canPay = false,
   initialDate,
   initialTripId,
 }: {
@@ -35,6 +37,10 @@ export function Passengers({
   canBoard?: boolean;
   /** `booking.cancel`: nút hủy đơn. */
   canCancel?: boolean;
+  /** `booking.update`: nút Sửa đơn (họ tên, SĐT, điểm đón/trả, ghi chú). */
+  canEdit?: boolean;
+  /** `payment.record`: thu thêm tiền trong hộp thoại Sửa. */
+  canPay?: boolean;
   initialDate?: string;
   initialTripId?: string;
 }) {
@@ -241,6 +247,8 @@ export function Passengers({
           canCreate={canCreate}
           canBoard={canBoard}
           canCancel={canCancel}
+          canEdit={canEdit}
+          canPay={canPay}
           className="card pn-panel-inset"
         />
       ) : (

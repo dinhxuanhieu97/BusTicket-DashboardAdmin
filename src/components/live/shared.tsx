@@ -188,11 +188,15 @@ export const tdClass =
   "pn-panel-inline border-b border-line py-3 align-middle text-sm";
 
 /** POST JSON tới route của dashboard; lỗi API → Error với thông điệp tiếng Việt; hết phiên → về trang đăng nhập. */
-export async function postJson<T>(url: string, body: unknown) {
+export async function postJson<T>(
+  url: string,
+  body: unknown,
+  init: { method?: "POST" | "PATCH"; headers?: Record<string, string> } = {},
+) {
   const res = await fetch(url, {
-    method: "POST",
+    method: init.method ?? "POST",
     cache: "no-store",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...init.headers },
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
