@@ -46,6 +46,11 @@ test.beforeEach(async ({ request, page }) => {
 });
 
 async function openTrip(page: Page, tab: "Bán vé" | "Hành khách") {
+  // Danh sách khách ở trang riêng; modal chi tiết chuyến chỉ còn tab "Bán vé".
+  if (tab === "Hành khách") {
+    await page.goto(`/admin/passengers?date=2027-02-05&trip=${TRIP}`);
+    return page.locator("main");
+  }
   await page.goto("/admin/trips?date=2027-02-05");
   await page
     .getByRole("button", { name: "Chi tiết", exact: true })
@@ -453,12 +458,20 @@ test("guards the import, template and counter routes", async ({
     403,
   );
   const page = await ctx.newPage();
-  const dialog = await openTrip(page, "Hành khách");
+  await page.goto("/admin/trips?date=2027-02-05");
+  await page
+    .getByRole("button", { name: "Chi tiết", exact: true })
+    .first()
+    .click();
   await expect(
-    dialog.getByRole("button", { name: "Bán vé", exact: true }),
+    page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Bán vé", exact: true }),
   ).toHaveCount(0);
+  const list = await openTrip(page, "Hành khách");
+  await expect(list.getByText("TESTE1").first()).toBeVisible();
   await expect(
-    dialog.getByRole("button", { name: "Nhập danh sách" }),
+    list.getByRole("button", { name: "Nhập danh sách" }),
   ).toHaveCount(0);
   await ctx.close();
 });

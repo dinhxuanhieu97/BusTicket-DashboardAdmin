@@ -29,14 +29,9 @@ test.beforeEach(async ({ request, page }) => {
 });
 
 async function passengers(page: Page) {
-  await page.goto("/admin/trips?date=2027-02-05");
-  await page
-    .getByRole("button", { name: "Chi tiết", exact: true })
-    .first()
-    .click();
-  const dialog = page.getByRole("dialog").first();
-  await dialog.getByRole("button", { name: "Hành khách", exact: true }).click();
-  return dialog;
+  // Danh sách khách ở trang riêng (/admin/passengers), không còn là tab trong modal chuyến.
+  await page.goto(`/admin/passengers?date=2027-02-05&trip=${TRIP}`);
+  return page.locator("main");
 }
 
 test("staff boards a booking, cannot cancel it while boarded, cancels it after undo and the accountant settles the refund", async ({
@@ -358,13 +353,7 @@ test("guards the cancel, boarding and refund routes", async ({
     ).status(),
   ).toBe(403);
   const page = await ctx.newPage();
-  await page.goto("/admin/trips?date=2027-02-05");
-  await page
-    .getByRole("button", { name: "Chi tiết", exact: true })
-    .first()
-    .click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByRole("button", { name: "Hành khách", exact: true }).click();
+  const dialog = await passengers(page);
   await expect(
     dialog.getByRole("button", { name: "Đánh dấu đơn TESTE1 đã lên xe" }),
   ).toBeVisible();
