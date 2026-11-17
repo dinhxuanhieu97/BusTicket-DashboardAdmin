@@ -33,6 +33,7 @@ export const stopTime = (s: StopPoint) =>
 export const tripDetailSchema = z.object({
   trip: z.object({
     id: z.string().uuid(),
+    code: z.string(),
     name: z.string(),
     status: z.enum(["DRAFT", "OPEN", "CLOSED", "CANCELLED"]),
     departAt: z.string().datetime(),

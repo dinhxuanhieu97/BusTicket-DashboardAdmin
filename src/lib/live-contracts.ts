@@ -77,6 +77,7 @@ export const paymentSchema = z.object({
 });
 export const tripSchema = z.object({
   id: z.string().uuid(),
+  code: z.string(),
   name: z.string(),
   status: z.enum(["DRAFT", "OPEN", "CLOSED", "CANCELLED"]),
   depart_at: z.string(),
@@ -150,6 +151,26 @@ export const vnDateTime = (value: string) => {
     ? "—"
     : d.toLocaleString("vi-VN", {
         timeZone: "Asia/Ho_Chi_Minh",
+        hour12: false,
+      });
+};
+/** Ngày (YYYY-MM-DD) theo giờ Việt Nam của một thời điểm ISO. */
+export const vnDateOf = (value: string) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(value));
+/** Giờ:phút theo giờ Việt Nam. */
+export const vnTime = (value: string) => {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime())
+    ? "—"
+    : d.toLocaleTimeString("vi-VN", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        hour: "2-digit",
+        minute: "2-digit",
         hour12: false,
       });
 };

@@ -323,7 +323,9 @@ http
       method: req.method,
       path: url.pathname,
       query: url.search,
-      ...(path.includes("/trips") ? { body } : {}),
+      ...(path.includes("/trips") || path.endsWith("/reinstate")
+        ? { body }
+        : {}),
     });
     if (down) return fail(res, 503, "SERVICE_UNAVAILABLE", "Test outage");
     // Thương hiệu công khai theo mã nhà xe.
@@ -575,6 +577,67 @@ http
       }
     }
     const tripBase = `/api/v1/admin/operators/${op}/`;
+    // Tiền về muộn — khớp apps/api/src/payments/payments.service.ts (reinstateContext / reinstateLate).
+    const LATE_PAYMENT = "55555555-5555-4555-8555-555555555555";
+    if (path === `${tripBase}payments/${LATE_PAYMENT}/reinstate`) {
+      if (req.method === "GET")
+        return send(res, 200, {
+          paymentId: LATE_PAYMENT,
+          unallocatedAmount: 380000,
+          eligible: true,
+          booking: {
+            code: "TESTLATE",
+            status: "EXPIRED",
+            previousTotal: 380000,
+            paidAmount: 0,
+            pickupStop: null,
+            dropoffStop: null,
+          },
+          legs: [
+            {
+              tripId: "44444444-4444-4444-8444-444444444444",
+              tripName: "Chuyến kiểm thử",
+              tripCode: "PN050227-TEST",
+              departAt: "2027-02-05T10:30:00.000Z",
+              departed: false,
+              cancelled: false,
+              seats: [
+                {
+                  seatCode: "A1",
+                  occupancy: 1,
+                  infantCount: 0,
+                  available: true,
+                },
+              ],
+            },
+          ],
+        });
+      if (req.method === "POST") {
+        const seats = body.legs?.[0]?.items ?? [];
+        if (seats.some((i) => i.seatCode === "B1"))
+          return fail(
+            res,
+            409,
+            "SEAT_UNAVAILABLE",
+            "Chỗ B1 đã có người giữ hoặc không bán.",
+          );
+        const total = seats.length * 380000;
+        return send(res, 200, {
+          booking: {
+            code: "TESTLATE",
+            status: total > 380000 ? "HOLDING" : "CONFIRMED",
+            tripId: body.legs[0].tripId,
+            totalAmount: total,
+            depositAmount: total,
+            paidAmount: Math.min(total, 380000),
+            paymentStatus: total > 380000 ? "PARTIAL" : "PAID",
+            holdExpiresAt: total > 380000 ? "2027-02-01T03:10:00.000Z" : null,
+            items: [],
+          },
+          payment: {},
+        });
+      }
+    }
     // Phân công phụ xe (khớp apps/api/src/trips/trip-assistants.service.ts).
     const can = (perm) => !grants || grants.includes(perm);
     const assistantRef = (m) => ({
@@ -1457,6 +1520,7 @@ http
       const rows = body.trips.map((v, i) => ({
         id: crypto.randomUUID(),
         name: v.name,
+        code: i ? "PN050227-BACK" : "PN050227-TEST",
         status: v.status,
         depart_at: v.departAt,
         sales_open_at: v.salesOpenAt,
@@ -1543,6 +1607,7 @@ http
         sales_open_at: body.salesOpenAt,
         sales_close_at: body.salesCloseAt,
         contact_phone: body.contactPhone ?? null,
+        code: "PN050227-TEST",
         route_code: "TEST",
         vehicle_code: "TEST01",
         vehicle_name: "Xe kiểm thử",
@@ -1593,6 +1658,21 @@ http
             recordedBy: null,
             allocations: [{ bookingCode: "TEST123", amount: 200000, at: when }],
           },
+          {
+            id: "55555555-5555-4555-8555-555555555555",
+            method: "BANK_TRANSFER",
+            amount: 380000,
+            allocatedAmount: 0,
+            unallocatedAmount: 380000,
+            content: "TESTLATE",
+            bankReference: "TEST-LATE",
+            transactionAt: when,
+            receivedAt: when,
+            matchedBookingCode: "TESTLATE",
+            review: { status: "NEEDS_REVIEW", reason: "LATE", note: null },
+            recordedBy: null,
+            allocations: [],
+          },
         ],
       });
     const detailMatch = /^trips\/([0-9a-f-]{36})$/.exec(resource);
@@ -1623,6 +1703,7 @@ http
       return send(res, 200, {
         trip: {
           id,
+          code: "PN050227-TEST",
           name: base.name,
           status: statusOverrides[id] ?? base.status,
           departAt: base.depart_at,
@@ -1672,6 +1753,9 @@ http
         fetchedAt: when,
       });
     }
+    // Ngày cố định không có chuyến, để kiểm thử trạng thái rỗng.
+    if (resource === "trips" && url.searchParams.get("date") === "2027-03-09")
+      return send(res, 200, { trips: [] });
     if (resource === "trips")
       return send(res, 200, {
         trips: [
@@ -1688,6 +1772,7 @@ http
             sales_open_at: when,
             sales_close_at: when,
             contact_phone: null,
+            code: "PN050227-TEST",
             route_code: "TEST",
             vehicle_code: "TEST01",
             vehicle_name: "Xe kiểm thử",

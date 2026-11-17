@@ -17,6 +17,7 @@ import {
   Moon,
   Settings,
   ClipboardList,
+  Contact,
 } from "lucide-react";
 import { roleLabels, type AppUser } from "@/lib/live-contracts";
 import { visibleNav, type NavKey } from "@/lib/nav";
@@ -32,12 +33,16 @@ const icons: Record<NavKey, typeof LayoutDashboard> = {
   payments: ReceiptText,
   users: Users,
   trips: Bus,
+  passengers: Contact,
   audit: History,
   settings: Settings,
 };
 
 const navGroups: { title: string; keys: NavKey[] }[] = [
-  { title: "Vận hành", keys: ["assigned", "overview", "trips", "schedules"] },
+  {
+    title: "Vận hành",
+    keys: ["assigned", "overview", "trips", "passengers", "schedules"],
+  },
   { title: "Quản lý", keys: ["payments", "users", "audit", "settings"] },
 ];
 

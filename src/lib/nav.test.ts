@@ -16,6 +16,8 @@ test("owner permissions show every menu item", () => {
     "payment.record",
     "payment.manage",
     "trip.assigned.read",
+    "booking.read",
+    "booking.export",
   ];
   assert.deepEqual(
     keys(owner),
@@ -27,6 +29,15 @@ test("items without a permission are hidden; the account page always stays", () 
   assert.deepEqual(keys(["trip.read"]), ["overview", "trips", "settings"]);
   assert.deepEqual(keys(["payment.read"]), ["payments", "settings"]);
   assert.deepEqual(keys([]), ["settings"]);
+});
+
+test("passenger list needs booking.read", () => {
+  assert.deepEqual(keys(["trip.read", "booking.read"]), [
+    "overview",
+    "trips",
+    "passengers",
+    "settings",
+  ]);
 });
 
 test("assistants only see their assigned trips and the account page", () => {

@@ -52,9 +52,15 @@ test("login needs OTP, creates HttpOnly cookie, reads data and logs out", async 
   );
   await page.getByRole("link", { name: "Sổ thu", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: /Chi tiết khoản thu/ }),
+    page.getByRole("button", {
+      name: "Chi tiết khoản thu 33333333-3333-4333-8333-333333333333",
+    }),
   ).toBeVisible();
-  await page.getByRole("button", { name: /Chi tiết khoản thu/ }).click();
+  await page
+    .getByRole("button", {
+      name: "Chi tiết khoản thu 33333333-3333-4333-8333-333333333333",
+    })
+    .click();
   await expect(page.getByRole("dialog")).toContainText("Thanh toán thừa");
   await page.getByRole("button", { name: "Đóng", exact: true }).click();
   await page.getByRole("link", { name: "Nhân viên", exact: true }).click();
@@ -218,7 +224,9 @@ test("mobile login, navigation and read-only screen fit viewport", async ({
   await page.getByRole("button", { name: "Mở menu", exact: true }).click();
   await page.getByRole("link", { name: "Sổ thu", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: /Chi tiết khoản thu/ }),
+    page.getByRole("button", {
+      name: "Chi tiết khoản thu 33333333-3333-4333-8333-333333333333",
+    }),
   ).toBeVisible();
   expect(
     await page.evaluate(

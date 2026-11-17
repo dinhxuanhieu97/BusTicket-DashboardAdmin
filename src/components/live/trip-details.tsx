@@ -1,9 +1,9 @@
 "use client";
 import { tripStates } from "@/lib/overview";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Modal } from "../modal";
 import { TripAssistantsSection } from "./trip-assistants";
-import { TripPassengersSection } from "./trip-passengers";
 import { CounterSale } from "./counter-sale";
 import {
   LoadState,
@@ -12,7 +12,7 @@ import {
   StatusBadge,
   TableScroll,
 } from "./shared";
-import { vnDateTime, vnd, type Trip } from "@/lib/live-contracts";
+import { vnDateOf, vnDateTime, vnd, type Trip } from "@/lib/live-contracts";
 import {
   arrival,
   seatGrid,
@@ -20,15 +20,7 @@ import {
   type SeatStatus,
   type TripDetail,
 } from "@/lib/trip-detail";
-import {
-  Bus,
-  Clock,
-  Calendar,
-  MapPin,
-  Phone,
-  Tag,
-  CheckCircle2,
-} from "lucide-react";
+import { Bus, Users } from "lucide-react";
 
 const seatTone = {
   AVAILABLE: "success",
@@ -77,11 +69,14 @@ function useTripDetail(id: string) {
   return { ...state, reload: () => setRevision((n) => n + 1) };
 }
 
+/**
+ * Danh sách khách nằm ở trang riêng `/admin/passengers` (nút "Xem hành khách");
+ * modal chỉ có thông tin chuyến và tab "Bán vé" (quyền `booking.create`).
+ */
 export function TripDetails({
   trip,
   onClose,
   canReadPassengers = false,
-  canExportPassengers = false,
   canCreateBookings = false,
   canBoard = false,
   canCancel = false,
@@ -89,21 +84,15 @@ export function TripDetails({
   trip: Trip;
   onClose: () => void;
   canReadPassengers?: boolean;
-  canExportPassengers?: boolean;
   canCreateBookings?: boolean;
   canBoard?: boolean;
   canCancel?: boolean;
 }) {
   const { data, error, loading, reload } = useTripDetail(trip.id);
-  const [tab, setTab] = useState<"info" | "passengers" | "sell">("info");
-  const tabs = [
-    ["info", "Thông tin chuyến"],
-    ...(canReadPassengers ? [["passengers", "Hành khách"] as const] : []),
-    ...(canCreateBookings ? [["sell", "Bán vé"] as const] : []),
-  ] as const;
+  const [tab, setTab] = useState<"info" | "sell">("info");
 
   return (
-    <Modal title="Chi tiết chuyến xe" onClose={onClose}>
+    <Modal wide title="Chi tiết chuyến xe" onClose={onClose}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-4">
         <div>
           <p className="text-base font-bold text-ink">
@@ -116,13 +105,18 @@ export function TripDetails({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {tabs.length > 1 && (
+          {canCreateBookings && (
             <div
               className="pn-segmented"
               role="group"
               aria-label="Nội dung chi tiết chuyến"
             >
-              {tabs.map(([value, label]) => (
+              {(
+                [
+                  ["info", "Thông tin chuyến"],
+                  ["sell", "Bán vé"],
+                ] as const
+              ).map(([value, label]) => (
                 <button
                   key={value}
                   type="button"
@@ -134,47 +128,37 @@ export function TripDetails({
               ))}
             </div>
           )}
-          {tab !== "passengers" && (
-            <RefreshButton reload={reload} loading={loading} />
+          {canReadPassengers && (
+            <Link
+              className="btn px-3 text-xs"
+              href={`/admin/passengers?date=${vnDateOf(trip.depart_at)}&trip=${trip.id}`}
+            >
+              <Users size={14} aria-hidden="true" />
+              Xem hành khách
+            </Link>
           )}
+          <RefreshButton reload={reload} loading={loading} />
         </div>
       </div>
 
-      {tab === "passengers" ? (
-        <TripPassengersSection
-          tripId={trip.id}
-          canExport={canExportPassengers}
-          canCreate={canCreateBookings}
-          canBoard={canBoard}
-          canCancel={canCancel}
-        />
-      ) : tab === "sell" ? (
-        data ? (
+      {error && <LoadState error={error} reload={reload} />}
+
+      {!data && loading && (
+        <div
+          className="flex flex-col items-center justify-center gap-3 p-4 text-center text-muted"
+          role="status"
+        >
+          <div className="size-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          <p className="text-sm font-medium">Đang tải giá vé và sơ đồ chỗ…</p>
+        </div>
+      )}
+
+      {data &&
+        (tab === "sell" ? (
           <CounterSale detail={data} onSold={reload} />
         ) : (
-          <LoadState loading={loading} error={error} reload={reload} />
-        )
-      ) : (
-        <>
-          {error && <LoadState error={error} reload={reload} />}
-
-          {!data && loading && (
-            <div
-              className="flex flex-col items-center justify-center gap-3 p-4 text-center text-muted"
-              role="status"
-            >
-              <div className="size-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-              <p className="text-sm font-medium">
-                Đang tải giá vé và sơ đồ chỗ…
-              </p>
-            </div>
-          )}
-
-          {data && (
-            <DetailBody d={data} canReadPassengers={canReadPassengers} />
-          )}
-        </>
-      )}
+          <DetailBody d={data} canReadPassengers={canReadPassengers} />
+        ))}
     </Modal>
   );
 }
@@ -191,52 +175,48 @@ function DetailBody({
 
   return (
     <div className="pn-page-stack">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <dl className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] rounded-xl border border-line/60 text-sm">
         {[
           [
             "Trạng thái",
             tripStates[d.trip.status].label +
               (d.trip.onSale ? " · đang nhận đặt" : ""),
-            CheckCircle2,
           ],
           [
             "Tuyến",
             `${d.route.code} · ${d.route.origin} → ${d.route.destination}`,
-            MapPin,
           ],
-          ["Xuất bến (giờ Việt Nam)", vnDateTime(d.trip.departAt), Clock],
+          ["Xuất bến (giờ Việt Nam)", vnDateTime(d.trip.departAt)],
           [
             "Dự kiến tới nơi",
             vnDateTime(arrive.at) +
               (arrive.source === "default"
                 ? " (giờ mặc định PN; lễ tết có thể khác)"
                 : " (theo điểm trả cuối của tuyến)"),
-            Calendar,
           ],
-          ["Mở bán từ", vnDateTime(d.trip.salesOpenAt), Clock],
-          ["Đóng bán lúc", vnDateTime(d.trip.salesCloseAt), Clock],
+          ["Mở bán từ", vnDateTime(d.trip.salesOpenAt)],
+          ["Đóng bán lúc", vnDateTime(d.trip.salesCloseAt)],
           [
             "Xe",
             `${d.vehicle.code} · ${d.vehicle.name}${d.vehicle.plateNumber ? " · " + d.vehicle.plateNumber : ""}`,
-            Bus,
           ],
-          ["Liên hệ", d.trip.contactPhone || "Chưa có", Phone],
-          ["Mã chuyến", d.trip.id, Tag],
-        ].map(([k, v, Icon]) => (
-          <div
-            key={k as string}
-            className="rounded-xl border border-line/60 bg-surface/30 p-4 transition-colors hover:bg-surface/50"
-          >
-            <div className="flex items-center gap-1.5 text-xs text-muted">
-              <Icon size={13} className="text-muted/80" aria-hidden="true" />
-              <span>{k as string}</span>
-            </div>
-            <p className="mt-1 break-words text-sm font-medium text-ink">
+          ["Liên hệ", d.trip.contactPhone || "Chưa có"],
+          ["Mã chuyến", d.trip.code],
+        ].map(([k, v], i, rows) => (
+          <div key={k as string} className="contents">
+            <dt
+              className={`px-3 py-2 text-muted ${i < rows.length - 1 ? "border-b border-line/40" : ""}`}
+            >
+              {k as string}
+            </dt>
+            <dd
+              className={`min-w-0 break-words px-3 py-2 font-medium text-ink ${k === "Mã chuyến" ? "font-mono text-xs font-normal text-muted" : ""} ${i < rows.length - 1 ? "border-b border-line/40" : ""}`}
+            >
               {v as string}
-            </p>
+            </dd>
           </div>
         ))}
-      </div>
+      </dl>
 
       <TripAssistantsSection
         tripId={d.trip.id}
@@ -385,14 +365,8 @@ function DetailBody({
                                 : seatStatusLabels[cell.seat.status]}
                             </span>
                           </div>
-                        ) : cell.kind === "marker" ? (
-                          <div
-                            key={ci}
-                            className="flex min-h-12 items-center justify-center rounded-xl border border-dashed border-line/60 bg-surface/30 text-[10px] font-medium text-muted"
-                          >
-                            {cell.label}
-                          </div>
                         ) : (
+                          // Tài xế, cửa, WC chỉ giữ chỗ trống để hai tầng thẳng hàng.
                           <div key={ci} aria-hidden="true" />
                         ),
                       )}
@@ -408,7 +382,7 @@ function DetailBody({
           Chỗ giữ đã hết hạn được tính là còn trống. Sơ đồ chỉ hiện mã đơn để
           đối chiếu
           {canReadPassengers
-            ? "; tên và số điện thoại khách xem ở mục Hành khách."
+            ? "; tên và số điện thoại khách xem ở trang Hành khách."
             : "; không hiển thị tên hoặc số điện thoại khách."}
         </p>
       </section>
