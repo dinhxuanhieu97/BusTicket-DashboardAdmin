@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Modal } from "../modal";
 import { TripAssistantsSection } from "./trip-assistants";
+import { CounterSale } from "./counter-sale";
 import {
   LoadState,
   Notice,
@@ -68,16 +69,23 @@ function useTripDetail(id: string) {
   return { ...state, reload: () => setRevision((n) => n + 1) };
 }
 
+/**
+ * Danh sách khách nằm ở trang riêng `/admin/passengers` (nút "Xem hành khách");
+ * modal chỉ có thông tin chuyến và tab "Bán vé" (quyền `booking.create`).
+ */
 export function TripDetails({
   trip,
   onClose,
   canReadPassengers = false,
+  canCreateBookings = false,
 }: {
   trip: Trip;
   onClose: () => void;
   canReadPassengers?: boolean;
+  canCreateBookings?: boolean;
 }) {
   const { data, error, loading, reload } = useTripDetail(trip.id);
+  const [tab, setTab] = useState<"info" | "sell">("info");
 
   return (
     <Modal wide title="Chi tiết chuyến xe" onClose={onClose}>
@@ -93,6 +101,29 @@ export function TripDetails({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {canCreateBookings && (
+            <div
+              className="pn-segmented"
+              role="group"
+              aria-label="Nội dung chi tiết chuyến"
+            >
+              {(
+                [
+                  ["info", "Thông tin chuyến"],
+                  ["sell", "Bán vé"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={tab === value}
+                  onClick={() => setTab(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           {canReadPassengers && (
             <Link
               className="btn px-3 text-xs"
@@ -118,7 +149,12 @@ export function TripDetails({
         </div>
       )}
 
-      {data && <DetailBody d={data} canReadPassengers={canReadPassengers} />}
+      {data &&
+        (tab === "sell" ? (
+          <CounterSale detail={data} onSold={reload} />
+        ) : (
+          <DetailBody d={data} canReadPassengers={canReadPassengers} />
+        ))}
     </Modal>
   );
 }

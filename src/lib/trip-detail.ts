@@ -11,6 +11,25 @@ const money = z.number().int().nonnegative().max(20_000_000);
 const seatStatus = z.enum(["AVAILABLE", "HELD", "BOOKED", "BLOCKED"]);
 export type SeatStatus = z.infer<typeof seatStatus>;
 
+const stopPoint = z.object({
+  name: z.string(),
+  time: z.string(),
+  day: z.number().int(),
+});
+export type StopPoint = z.infer<typeof stopPoint>;
+export const stopListSchema = z.array(stopPoint).max(50);
+/** Điểm đón/trả của chuyến (bản chụp lúc tạo chuyến, hoặc của tuyến). */
+export const tripStopsSchema = z.object({
+  pickup: stopListSchema.default([]),
+  dropoff: stopListSchema.default([]),
+});
+export type TripStops = z.infer<typeof tripStopsSchema>;
+export const stopPointSchema = stopPoint;
+
+/** "17:30" hoặc "05:30 (+1 ngày)" theo ngày khởi hành. */
+export const stopTime = (s: StopPoint) =>
+  s.day ? `${s.time} (+${s.day} ngày)` : s.time;
+
 export const tripDetailSchema = z.object({
   trip: z.object({
     id: z.string().uuid(),
@@ -75,6 +94,11 @@ export const tripDetailSchema = z.object({
       }),
     )
     .max(200),
+  /** API cũ chưa trả `stops` → không có điểm để chọn. */
+  stops: tripStopsSchema
+    .nullable()
+    .optional()
+    .transform((v) => v ?? { pickup: [], dropoff: [] }),
   summary: z.object({
     capacity: z.number().int().nonnegative(),
     available: z.number().int().nonnegative(),

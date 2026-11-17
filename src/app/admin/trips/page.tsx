@@ -27,6 +27,7 @@ export default async function Page({
       initialDate={initialDate}
       initialPeriod={initialPeriod}
       canReadPassengers={hasPermission(session, "booking.read")}
+      canCreateBookings={hasPermission(session, "booking.create")}
       canWrite={canManageTrips(
         session,
         process.env.PNTICKET_TRIP_WRITE_OPERATOR_ID,

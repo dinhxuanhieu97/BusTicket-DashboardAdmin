@@ -44,6 +44,8 @@ const data: AdminTripPassengers = adminTripPassengersSchema.parse({
   trip,
   bookings: [
     booking("PN7K3D2Q", {
+      pickupStop: { name: "Bến xe Miền Đông", time: "17:30", day: 0 },
+      dropoffStop: { name: "Hoài Ân", time: "05:30", day: 1 },
       seats: [
         { code: "A2", floor: "1", occupancy: 2, infantCount: 1 },
         { code: "A4", floor: "1", occupancy: 1, infantCount: 0 },
@@ -120,6 +122,13 @@ test("manifestRows writes one row per seat with money only on the first row of a
     "0912000001",
   ]);
   assert.deepEqual(rows[0]!.slice(11, 14), [840000, 400000, 440000]);
+  // Điểm đón, giờ đón dự kiến, điểm trả của đơn (đơn không chọn điểm để trống).
+  assert.deepEqual(rows[0]!.slice(8, 11), [
+    "Bến xe Miền Đông",
+    "17:30",
+    "Hoài Ân",
+  ]);
+  assert.deepEqual(rows[2]!.slice(8, 11), [null, null, null]);
   assert.deepEqual(rows[1]!.slice(0, 7), [
     2,
     "PN7K3D2Q",

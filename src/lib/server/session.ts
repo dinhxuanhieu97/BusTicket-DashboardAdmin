@@ -109,7 +109,13 @@ export function errorResponse(e: unknown) {
           )
         : new ApiError(500, "INTERNAL_ERROR", "Không thể xử lý yêu cầu.");
   const res = json(
-    { error: { code: error.code, message: error.message } },
+    {
+      error: {
+        code: error.code,
+        message: error.message,
+        ...(error.issues ? { issues: error.issues } : {}),
+      },
+    },
     error.status,
   );
   if (error.retryAfter && /^\d+$/.test(error.retryAfter))

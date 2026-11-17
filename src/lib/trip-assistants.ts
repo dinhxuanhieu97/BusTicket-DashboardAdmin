@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { stopPointSchema } from "./trip-detail";
 
 /** Hợp đồng API phân công phụ xe (khớp `apps/api/src/trips/trip-assistants.service.ts`). */
 export const MAX_ASSISTANTS_PER_TRIP = 5;
@@ -59,6 +60,8 @@ export const passengerBookingSchema = z.object({
   paidAmount: z.number().int(),
   dueAmount: z.number().int(),
   paymentStatus: z.string(),
+  pickupStop: stopPointSchema.nullable().optional(),
+  dropoffStop: stopPointSchema.nullable().optional(),
   seats: z.array(
     z.object({
       code: z.string(),

@@ -27,12 +27,14 @@ export function Trips({
   overview = false,
   canWrite = false,
   canReadPassengers = false,
+  canCreateBookings = false,
   initialDate,
   initialPeriod = "day",
 }: {
   overview?: boolean;
   canWrite?: boolean;
   canReadPassengers?: boolean;
+  canCreateBookings?: boolean;
   initialDate?: string;
   initialPeriod?: TripPeriod;
 }) {
@@ -419,6 +421,7 @@ export function Trips({
           trip={detail}
           onClose={() => setDetail(null)}
           canReadPassengers={canReadPassengers}
+          canCreateBookings={canCreateBookings}
         />
       )}
 
