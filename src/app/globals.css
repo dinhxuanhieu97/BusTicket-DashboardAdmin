@@ -388,8 +388,45 @@ fieldset:disabled button {
   margin: 0 auto 0 0;
   border-radius: 0;
 }
+/* Sidebar desktop: rộng đầy đủ hoặc thu gọn chỉ còn icon (html[data-sidebar="collapsed"], nhớ trong localStorage). */
+:root {
+  --sidebar-w: 15rem;
+}
+html[data-sidebar="collapsed"] {
+  --sidebar-w: 4.25rem;
+}
+.pn-shell {
+  min-height: 100dvh;
+}
+@media (min-width: 64rem) {
+  .pn-shell {
+    padding-left: var(--sidebar-w);
+    transition: padding-left 200ms ease;
+  }
+}
 .pn-sidebar {
+  width: var(--sidebar-w);
   background: var(--panel);
+  transition: width 200ms ease;
+}
+html[data-sidebar="collapsed"] .pn-sidebar .pn-sidebar-text {
+  display: none;
+}
+html[data-sidebar="collapsed"] .pn-sidebar .pn-sidebar-brand,
+html[data-sidebar="collapsed"] .pn-sidebar .pn-sidebar-account {
+  justify-content: center;
+  padding-inline: 0.5rem;
+}
+html[data-sidebar="collapsed"] .pn-sidebar nav {
+  padding-inline: 0.5rem;
+}
+html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-link,
+html[data-sidebar="collapsed"] .pn-sidebar .btn-ghost {
+  justify-content: center;
+  padding-inline: 0;
+}
+html[data-sidebar="collapsed"] .pn-sidebar .btn-ghost span {
+  display: none;
 }
 .pn-nav-link {
   @apply flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-muted transition-colors;
