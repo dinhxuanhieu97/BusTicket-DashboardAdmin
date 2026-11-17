@@ -6,7 +6,7 @@ import { OverviewPanels } from "./overview-panels";
 import { TripEditor, TripDetails, TripStatusDialog } from "./trip-editor";
 import { tripPeriodRange, type TripPeriod } from "@/lib/trip-period";
 import { useEffect, useState } from "react";
-import { Trip, vnToday, vnDateTime } from "@/lib/live-contracts";
+import { Trip, vnDateOf, vnToday, vnDateTime } from "@/lib/live-contracts";
 import { useResource } from "./use-resource";
 import {
   LoadState,
@@ -19,7 +19,7 @@ import {
   thClass,
   tdClass,
 } from "./shared";
-import { Eye, Play, Pause, ArrowRight, Clock } from "lucide-react";
+import { Eye, Play, Pause, ArrowRight, Clock, Users } from "lucide-react";
 
 import { tripStates } from "@/lib/overview";
 
@@ -27,14 +27,12 @@ export function Trips({
   overview = false,
   canWrite = false,
   canReadPassengers = false,
-  canExportPassengers = false,
   initialDate,
   initialPeriod = "day",
 }: {
   overview?: boolean;
   canWrite?: boolean;
   canReadPassengers?: boolean;
-  canExportPassengers?: boolean;
   initialDate?: string;
   initialPeriod?: TripPeriod;
 }) {
@@ -249,6 +247,15 @@ export function Trips({
                           <Eye size={14} aria-hidden="true" />
                           Chi tiết
                         </button>
+                        {canReadPassengers && (
+                          <Link
+                            href={`/admin/passengers?date=${vnDateOf(t.depart_at)}&trip=${t.id}`}
+                            className="flex min-h-8 items-center gap-1.5 rounded-lg text-xs font-semibold text-accent hover:underline"
+                          >
+                            <Users size={14} aria-hidden="true" />
+                            Hành khách
+                          </Link>
+                        )}
                       </td>
                       <td className={tdClass + " whitespace-nowrap"}>
                         <div className="flex items-center gap-1.5 text-sm text-ink font-mono">
@@ -412,7 +419,6 @@ export function Trips({
           trip={detail}
           onClose={() => setDetail(null)}
           canReadPassengers={canReadPassengers}
-          canExportPassengers={canExportPassengers}
         />
       )}
 

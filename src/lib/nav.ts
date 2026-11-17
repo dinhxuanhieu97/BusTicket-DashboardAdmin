@@ -6,6 +6,7 @@ export type NavKey =
   | "payments"
   | "users"
   | "trips"
+  | "passengers"
   | "audit"
   | "settings";
 
@@ -50,6 +51,13 @@ export const NAV: {
     perm: "user.manage",
   },
   { key: "trips", href: "/admin/trips", label: "Chuyến xe", perm: "trip.read" },
+  // Danh sách khách theo chuyến: họ tên, SĐT, chỗ, tiền còn thu.
+  {
+    key: "passengers",
+    href: "/admin/passengers",
+    label: "Hành khách",
+    perm: "booking.read",
+  },
   {
     key: "audit",
     href: "/admin/audit-logs",

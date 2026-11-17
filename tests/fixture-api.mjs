@@ -1170,6 +1170,9 @@ http
         fetchedAt: when,
       });
     }
+    // Ngày cố định không có chuyến, để kiểm thử trạng thái rỗng.
+    if (resource === "trips" && url.searchParams.get("date") === "2027-03-09")
+      return send(res, 200, { trips: [] });
     if (resource === "trips")
       return send(res, 200, {
         trips: [

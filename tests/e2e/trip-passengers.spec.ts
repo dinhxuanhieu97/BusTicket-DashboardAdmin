@@ -30,14 +30,13 @@ test.beforeEach(async ({ request, page }) => {
 });
 
 async function openPassengers(page: Page) {
-  await page.goto("/admin/trips?date=2027-02-05");
-  await page
-    .getByRole("button", { name: "Chi tiết", exact: true })
-    .first()
-    .click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByRole("button", { name: "Hành khách" }).click();
-  return dialog.getByRole("region", { name: "Hành khách", exact: true });
+  await page.goto("/admin/passengers?date=2027-02-05");
+  await expect(
+    page
+      .getByRole("button", { pressed: true })
+      .filter({ hasText: "PN050227-TEST" }),
+  ).toBeVisible();
+  return page.getByRole("region", { name: "Hành khách", exact: true });
 }
 
 test("OWNER sees passengers with contacts, filters them, and switches to every booking", async ({
@@ -81,9 +80,68 @@ test("OWNER sees passengers with contacts, filters them, and switches to every b
   await expect(table.locator('tr[data-booking="TESTX1"]')).toContainText(
     "Đã hủy",
   );
+  await expect(page).toHaveURL(/trip=44444444-4444-4444-8444-444444444444/);
+});
+
+test("Hành khách is its own menu page, reachable from the trip list and trip detail", async ({
+  page,
+}) => {
+  await page.goto("/admin/trips?date=2027-02-05");
+  const nav = page.getByRole("navigation").first();
+  await expect(nav.getByRole("link", { name: "Hành khách" })).toBeVisible();
+
+  const row = page.getByRole("row").filter({ hasText: "PN050227-TEST" });
+  await row.getByRole("link", { name: "Hành khách", exact: true }).click();
+  await expect(page).toHaveURL(
+    /\/admin\/passengers\?date=\d{4}-\d{2}-\d{2}&trip=44444444-4444-4444-8444-444444444444/,
+  );
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Hành khách",
+  );
   await expect(
-    page.getByRole("dialog").getByRole("button", { name: "Thông tin chuyến" }),
-  ).toBeVisible();
+    page.getByRole("region", { name: "Chuyến đang xem" }),
+  ).toContainText("PN050227-TEST");
+  await expect(page.locator('tr[data-booking="TESTA1"]')).toBeVisible();
+
+  // Chi tiết chuyến không còn tab khách; có nút sang trang Hành khách.
+  await page.goto("/admin/trips?date=2027-02-05");
+  await row.getByRole("button", { name: "Chi tiết", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("button", { name: "Hành khách" })).toHaveCount(
+    0,
+  );
+  await dialog.getByRole("link", { name: "Xem hành khách" }).click();
+  await expect(page).toHaveURL(
+    /\/admin\/passengers\?date=\d{4}-\d{2}-\d{2}&trip=4{8}-/,
+  );
+
+  // Ngày không có chuyến: báo rõ, không hiện bảng cũ.
+  await page.getByLabel("Ngày khởi hành · Giờ Việt Nam").fill("2027-03-09");
+  await expect(page.getByText("Không có chuyến nào khởi hành")).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Hành khách", exact: true }),
+  ).toHaveCount(0);
+});
+
+test("dialogs size by percentage of the screen, not a fixed width", async ({
+  page,
+}) => {
+  for (const [width, ratio] of [
+    [375, 1],
+    [1024, 0.9],
+    [1440, 0.75],
+  ] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/admin/trips?date=2027-02-05");
+    await page
+      .getByRole("button", { name: "Chi tiết", exact: true })
+      .first()
+      .click();
+    const box = (await page.getByRole("dialog").boundingBox())!;
+    const expected = width < 768 ? width - 32 : width * ratio;
+    expect(Math.abs(box.width - expected)).toBeLessThan(2);
+    await page.getByRole("button", { name: "Đóng", exact: true }).click();
+  }
 });
 
 test("exports the manifest as Excel in the operator template and as safe CSV", async ({
@@ -209,7 +267,7 @@ test("SELLER can view and export; ASSISTANT and owners without the permission ca
   ).toBe(403);
   await assistant.close();
 
-  // Người không có quyền: không thấy nút Hành khách, gọi thẳng route bị chặn.
+  // Người không có quyền: không thấy menu/nút Hành khách, trang và route bị chặn.
   await request.post(`${fixture}/state`, {
     data: { permissions: ["trip.read", "trip.write"] },
   });
@@ -223,13 +281,22 @@ test("SELLER can view and export; ASSISTANT and owners without the permission ca
   });
   expect(relogin.status()).toBe(200);
   await page.goto("/admin/trips?date=2027-02-05");
+  await expect(
+    page
+      .getByRole("navigation")
+      .first()
+      .getByRole("link", { name: "Hành khách" }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Hành khách" })).toHaveCount(0);
   await page
     .getByRole("button", { name: "Chi tiết", exact: true })
     .first()
     .click();
   await expect(
-    page.getByRole("dialog").getByRole("button", { name: "Hành khách" }),
+    page.getByRole("dialog").getByRole("link", { name: "Xem hành khách" }),
   ).toHaveCount(0);
+  await page.goto("/admin/passengers?date=2027-02-05");
+  await expect(page.locator('tr[data-booking="TESTA1"]')).toHaveCount(0);
   expect((await request.get(listUrl)).status()).toBe(403);
   expect((await request.get(`${listUrl}/export`)).status()).toBe(403);
 });

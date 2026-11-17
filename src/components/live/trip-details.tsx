@@ -1,9 +1,9 @@
 "use client";
 import { tripStates } from "@/lib/overview";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Modal } from "../modal";
 import { TripAssistantsSection } from "./trip-assistants";
-import { TripPassengersSection } from "./trip-passengers";
 import {
   LoadState,
   Notice,
@@ -11,7 +11,7 @@ import {
   StatusBadge,
   TableScroll,
 } from "./shared";
-import { vnDateTime, vnd, type Trip } from "@/lib/live-contracts";
+import { vnDateOf, vnDateTime, vnd, type Trip } from "@/lib/live-contracts";
 import {
   arrival,
   seatGrid,
@@ -19,7 +19,7 @@ import {
   type SeatStatus,
   type TripDetail,
 } from "@/lib/trip-detail";
-import { Bus } from "lucide-react";
+import { Bus, Users } from "lucide-react";
 
 const seatTone = {
   AVAILABLE: "success",
@@ -72,18 +72,15 @@ export function TripDetails({
   trip,
   onClose,
   canReadPassengers = false,
-  canExportPassengers = false,
 }: {
   trip: Trip;
   onClose: () => void;
   canReadPassengers?: boolean;
-  canExportPassengers?: boolean;
 }) {
   const { data, error, loading, reload } = useTripDetail(trip.id);
-  const [tab, setTab] = useState<"info" | "passengers">("info");
 
   return (
-    <Modal title="Chi tiết chuyến xe" onClose={onClose}>
+    <Modal wide title="Chi tiết chuyến xe" onClose={onClose}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-line/60 pb-4">
         <div>
           <p className="text-base font-bold text-ink">
@@ -97,60 +94,31 @@ export function TripDetails({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canReadPassengers && (
-            <div
-              className="pn-segmented"
-              role="group"
-              aria-label="Nội dung chi tiết chuyến"
+            <Link
+              className="btn px-3 text-xs"
+              href={`/admin/passengers?date=${vnDateOf(trip.depart_at)}&trip=${trip.id}`}
             >
-              {(
-                [
-                  ["info", "Thông tin chuyến"],
-                  ["passengers", "Hành khách"],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={tab === value}
-                  onClick={() => setTab(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+              <Users size={14} aria-hidden="true" />
+              Xem hành khách
+            </Link>
           )}
-          {tab === "info" && (
-            <RefreshButton reload={reload} loading={loading} />
-          )}
+          <RefreshButton reload={reload} loading={loading} />
         </div>
       </div>
 
-      {tab === "passengers" ? (
-        <TripPassengersSection
-          tripId={trip.id}
-          canExport={canExportPassengers}
-        />
-      ) : (
-        <>
-          {error && <LoadState error={error} reload={reload} />}
+      {error && <LoadState error={error} reload={reload} />}
 
-          {!data && loading && (
-            <div
-              className="flex flex-col items-center justify-center gap-3 p-4 text-center text-muted"
-              role="status"
-            >
-              <div className="size-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-              <p className="text-sm font-medium">
-                Đang tải giá vé và sơ đồ chỗ…
-              </p>
-            </div>
-          )}
-
-          {data && (
-            <DetailBody d={data} canReadPassengers={canReadPassengers} />
-          )}
-        </>
+      {!data && loading && (
+        <div
+          className="flex flex-col items-center justify-center gap-3 p-4 text-center text-muted"
+          role="status"
+        >
+          <div className="size-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          <p className="text-sm font-medium">Đang tải giá vé và sơ đồ chỗ…</p>
+        </div>
       )}
+
+      {data && <DetailBody d={data} canReadPassengers={canReadPassengers} />}
     </Modal>
   );
 }
@@ -374,7 +342,7 @@ function DetailBody({
           Chỗ giữ đã hết hạn được tính là còn trống. Sơ đồ chỉ hiện mã đơn để
           đối chiếu
           {canReadPassengers
-            ? "; tên và số điện thoại khách xem ở mục Hành khách."
+            ? "; tên và số điện thoại khách xem ở trang Hành khách."
             : "; không hiển thị tên hoặc số điện thoại khách."}
         </p>
       </section>
