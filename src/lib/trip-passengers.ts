@@ -210,3 +210,60 @@ export function attachmentHeader(fileName: string) {
 export function boardedCount(b: Pick<AdminPassengerBooking, "seats">) {
   return b.seats.filter((s) => s.boardedAt).length;
 }
+
+/** Bộ lọc thanh toán của danh sách khách (lọc trên dữ liệu đã tải). */
+export type PaymentFilter = "all" | "due" | "paid";
+export const paymentFilterLabels: Record<PaymentFilter, string> = {
+  all: "Tất cả thanh toán",
+  due: "Còn phải thu",
+  paid: "Đã thu đủ",
+};
+export const NO_PICKUP = "__none__";
+
+/** Lọc theo trạng thái tiền và điểm đón (`""` = mọi điểm, `NO_PICKUP` = chưa chọn điểm đón). */
+export function filterBookings(
+  bookings: readonly AdminPassengerBooking[],
+  payment: PaymentFilter,
+  pickup: string,
+) {
+  return bookings.filter(
+    (b) =>
+      (payment === "all" ||
+        (payment === "due" ? b.dueAmount > 0 : b.dueAmount === 0)) &&
+      (!pickup ||
+        (pickup === NO_PICKUP ? !b.pickupStop : b.pickupStop?.name === pickup)),
+  );
+}
+
+/** Các điểm đón có trong danh sách, theo giờ đón. */
+export function pickupOptions(bookings: readonly AdminPassengerBooking[]) {
+  const seen = new Map<string, string>();
+  for (const b of bookings)
+    if (b.pickupStop && !seen.has(b.pickupStop.name))
+      seen.set(b.pickupStop.name, `${b.pickupStop.day}-${b.pickupStop.time}`);
+  return [...seen.entries()]
+    .sort((a, b) => a[1].localeCompare(b[1]) || a[0].localeCompare(b[0], "vi"))
+    .map(([name]) => name);
+}
+
+export const PAGE_SIZES = [10, 20, 50] as const;
+
+/** Cắt trang (trang bắt đầu từ 1, tự kẹp khi danh sách ngắn lại sau khi lọc). */
+export function paginate<T>(rows: readonly T[], page: number, size: number) {
+  const pages = Math.max(1, Math.ceil(rows.length / size));
+  const current = Math.min(Math.max(1, page), pages);
+  const start = (current - 1) * size;
+  return {
+    rows: rows.slice(start, start + size),
+    page: current,
+    pages,
+    from: rows.length ? start + 1 : 0,
+    to: Math.min(start + size, rows.length),
+  };
+}
+
+/** Ký hiệu chỗ gọn cho ô đầu dòng: "A1", "A7 +1", kèm số người/em bé. */
+export function seatSummary(b: Pick<AdminPassengerBooking, "seats">) {
+  const [first, ...rest] = b.seats;
+  return first ? first.code + (rest.length ? ` +${rest.length}` : "") : "—";
+}

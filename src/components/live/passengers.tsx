@@ -10,7 +10,7 @@ import { TripPassengersSection } from "./trip-passengers";
 const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 /**
- * Trang "Hành khách": chọn ngày → chọn chuyến → bảng khách của chuyến (tên, SĐT, chỗ, tiền còn thu).
+ * Trang "Hành khách": thanh chọn ngày/chuyến ở trên, danh sách khách rộng hết trang bên dưới (kiểu CardFlow) của chuyến (tên, SĐT, chỗ, tiền còn thu).
  * Bảng và nút xuất file dùng chung `TripPassengersSection`; quyền vẫn do API kiểm tra.
  */
 export function Passengers({
@@ -53,49 +53,51 @@ export function Passengers({
   }, [date, selected]);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)] lg:items-start">
+    <div className="flex min-w-0 flex-col gap-4">
       <section
         aria-labelledby="passenger-trips-heading"
         className="card pn-panel-inset flex flex-col gap-3"
       >
-        <div className="flex items-center justify-between gap-3">
-          <h2
-            id="passenger-trips-heading"
-            className="text-base font-bold text-ink"
-          >
-            Chọn chuyến
-          </h2>
-          <RefreshButton reload={reload} loading={loading} />
-        </div>
-        <div>
-          <label htmlFor="passenger-date" className="label mb-1.5">
-            Ngày khởi hành · Giờ Việt Nam
-          </label>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              id="passenger-date"
-              type="date"
-              className="field w-auto max-w-full tabular-nums"
-              value={date}
-              onChange={(e) => {
-                if (!isDate(e.target.value)) return;
-                setDate(e.target.value);
-                setTripId("");
-              }}
-            />
-            {date !== vnToday() && (
-              <button
-                type="button"
-                className="btn px-3 text-xs"
-                onClick={() => {
-                  setDate(vnToday());
-                  setTripId("");
-                }}
-              >
-                Hôm nay
-              </button>
-            )}
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <h2
+              id="passenger-trips-heading"
+              className="w-full text-base font-bold text-ink sm:w-auto sm:self-center"
+            >
+              Chọn chuyến
+            </h2>
+            <div>
+              <label htmlFor="passenger-date" className="label mb-1.5">
+                Ngày khởi hành · Giờ Việt Nam
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  id="passenger-date"
+                  type="date"
+                  className="field w-auto max-w-full tabular-nums"
+                  value={date}
+                  onChange={(e) => {
+                    if (!isDate(e.target.value)) return;
+                    setDate(e.target.value);
+                    setTripId("");
+                  }}
+                />
+                {date !== vnToday() && (
+                  <button
+                    type="button"
+                    className="btn px-3 text-xs"
+                    onClick={() => {
+                      setDate(vnToday());
+                      setTripId("");
+                    }}
+                  >
+                    Hôm nay
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
+          <RefreshButton reload={reload} loading={loading} />
         </div>
 
         <LoadState loading={loading} error={error} reload={reload} />
@@ -108,18 +110,18 @@ export function Passengers({
         {trips.length > 0 && (
           <ul
             aria-label="Chuyến trong ngày"
-            className="-mx-1 flex max-h-72 flex-col gap-1.5 overflow-y-auto px-1 lg:max-h-[calc(100dvh-16rem)]"
+            className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 md:flex-wrap md:overflow-visible"
           >
             {trips.map((t) => {
               const active = t.id === selected?.id;
               return (
-                <li key={t.id}>
+                <li key={t.id} className="shrink-0 md:shrink">
                   <button
                     type="button"
                     aria-pressed={active}
                     data-trip={t.id}
                     onClick={() => setTripId(t.id)}
-                    className={`flex w-full flex-col gap-1 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                    className={`flex w-64 flex-col gap-1 rounded-xl border px-3 py-2 text-left transition-colors ${
                       active
                         ? "border-accent bg-accent/10"
                         : "border-line/60 hover:bg-surface"
@@ -156,49 +158,47 @@ export function Passengers({
         )}
       </section>
 
-      <div className="flex min-w-0 flex-col gap-4">
-        {selected ? (
-          <>
-            <section
-              aria-label="Chuyến đang xem"
-              className="card pn-panel-inset flex flex-wrap items-center justify-between gap-3"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-lg font-bold text-ink">
-                  {selected.name}
-                </p>
-                <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
-                  <span className="font-mono">{selected.code}</span>
-                  <span>Khởi hành {vnDateTime(selected.depart_at)}</span>
-                  <span className="flex items-center gap-1">
-                    <Bus size={14} aria-hidden="true" />
-                    {selected.vehicle_name} · {selected.vehicle_code}
-                  </span>
-                </p>
-              </div>
-              <span className="font-mono text-sm font-semibold text-ink">
-                Còn {selected.available}/{selected.capacity} chỗ
-              </span>
-            </section>
-            <TripPassengersSection
-              key={selected.id}
-              tripId={selected.id}
-              canExport={canExport}
-              canCreate={canCreate}
-              canBoard={canBoard}
-              canCancel={canCancel}
-              className="card pn-panel-inset"
-            />
-          </>
-        ) : (
-          !loading &&
-          !error && (
-            <section className="card pn-panel-inset text-sm text-muted">
-              Chọn ngày có chuyến để xem danh sách hành khách.
-            </section>
-          )
-        )}
-      </div>
+      {selected ? (
+        <>
+          <section
+            aria-label="Chuyến đang xem"
+            className="card pn-panel-inset flex flex-wrap items-center justify-between gap-3"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-lg font-bold text-ink">
+                {selected.name}
+              </p>
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+                <span className="font-mono">{selected.code}</span>
+                <span>Khởi hành {vnDateTime(selected.depart_at)}</span>
+                <span className="flex items-center gap-1">
+                  <Bus size={14} aria-hidden="true" />
+                  {selected.vehicle_name} · {selected.vehicle_code}
+                </span>
+              </p>
+            </div>
+            <span className="font-mono text-sm font-semibold text-ink">
+              Còn {selected.available}/{selected.capacity} chỗ
+            </span>
+          </section>
+          <TripPassengersSection
+            key={selected.id}
+            tripId={selected.id}
+            canExport={canExport}
+            canCreate={canCreate}
+            canBoard={canBoard}
+            canCancel={canCancel}
+            className="card pn-panel-inset"
+          />
+        </>
+      ) : (
+        !loading &&
+        !error && (
+          <section className="card pn-panel-inset text-sm text-muted">
+            Chọn ngày có chuyến để xem danh sách hành khách.
+          </section>
+        )
+      )}
     </div>
   );
 }

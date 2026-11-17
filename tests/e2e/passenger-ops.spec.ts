@@ -47,7 +47,9 @@ test("staff boards a booking, cannot cancel it while boarded, cancels it after u
   });
   await expect(undo).toHaveText(/2\/2 lên xe/);
   await expect(undo).toHaveAttribute("aria-pressed", "true");
-  await expect(dialog).toContainText("Đã lên xe: 2/3 chỗ");
+  await expect(dialog.getByLabel("Tóm tắt hành khách")).toContainText(
+    /Đã lên xe\s*2\/3 chỗ/,
+  );
 
   await row.getByRole("button", { name: "Hủy đơn TESTA1" }).click();
   let cancel = page.getByRole("dialog", { name: "Hủy đơn TESTA1" });
