@@ -9,6 +9,7 @@ import {
   vnDateTime,
 } from "@/lib/live-contracts";
 import { Modal } from "../modal";
+import { LateReinstateDialog } from "./late-reinstate";
 import { useResource } from "./use-resource";
 import {
   LoadState,
@@ -28,11 +29,12 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-export function Payments() {
+export function Payments({ canReinstate = false }: { canReinstate?: boolean }) {
   const [review, setReview] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Payment | null>(null);
+  const [reinstating, setReinstating] = useState<string | null>(null);
   const { data, error, loading, reload } = useResource<{
     payments: Payment[];
     meta: { fetchedAt: string; limit: number };
@@ -301,11 +303,43 @@ export function Payments() {
               )}
             </div>
 
+            {canReinstate &&
+              selected.review.status === "NEEDS_REVIEW" &&
+              selected.review.reason === "LATE" &&
+              selected.matchedBookingCode &&
+              selected.unallocatedAmount > 0 && (
+                <div className="space-y-2 rounded-xl border border-warning/40 p-4">
+                  <p className="text-sm text-ink">
+                    Tiền về sau khi đơn đã nhả chỗ. Cấp lại chỗ cũ nếu còn
+                    trống, hoặc đổi sang chỗ/chuyến khác đã thỏa thuận với
+                    khách. Không thỏa thuận được thì hoàn tiền.
+                  </p>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => setReinstating(selected.id)}
+                  >
+                    Cấp lại chỗ
+                  </button>
+                </div>
+              )}
+
             <p className="border-t border-line/60 pt-3 text-xs leading-relaxed text-muted">
-              Chế độ chỉ đọc. Chưa mở phân bổ, ghi nhận tiền hoặc đối soát.
+              Phân bổ thủ công, ghi nhận tiền và đối soát chưa mở trên
+              dashboard.
             </p>
           </div>
         </Modal>
+      )}
+
+      {reinstating && (
+        <LateReinstateDialog
+          paymentId={reinstating}
+          onClose={() => setReinstating(null)}
+          onDone={() => {
+            setReinstating(null);
+            refresh();
+          }}
+        />
       )}
     </div>
   );
