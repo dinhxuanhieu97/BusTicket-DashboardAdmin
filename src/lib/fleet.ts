@@ -43,6 +43,8 @@ export const fleetLayoutsSchema = z.object({
         name: z.string(),
         kind: z.enum(["room", "bed", "seat"]),
         capacity: z.number().int().nonnegative().optional(),
+        /** Sơ đồ mẫu chung của nền tảng (không thuộc riêng nhà xe). */
+        shared: z.boolean().optional(),
       }),
     )
     .max(500),

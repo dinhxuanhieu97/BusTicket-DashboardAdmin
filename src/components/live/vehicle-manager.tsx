@@ -261,8 +261,10 @@ function VehicleForm({
     setForm((f) => ({ ...f, [k]: v }));
   const layouts = data.layouts.filter((l) => l.kind === LAYOUT_KIND[form.type]);
   // Xe đang gắn một phiên bản sơ đồ cũ (không còn trong danh sách): vẫn hiện để không đổi ngoài ý muốn.
+  // Tính theo sơ đồ ban đầu của xe để lựa chọn này không biến mất khi người dùng thử chọn sơ đồ khác.
+  const originalLayout = vehicle?.seat_layout_id ?? "";
   const currentMissing =
-    !!form.seatLayoutId && !layouts.some((l) => l.id === form.seatLayoutId);
+    !!originalLayout && !data.layouts.some((l) => l.id === originalLayout);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -372,13 +374,14 @@ function VehicleForm({
             >
               <option value="">Chọn sơ đồ</option>
               {currentMissing && (
-                <option value={form.seatLayoutId}>
+                <option value={originalLayout}>
                   Sơ đồ đang dùng (phiên bản cũ)
                 </option>
               )}
               {layouts.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.name}
+                  {l.shared ? " (mẫu chung)" : ""}
                   {l.capacity ? ` · ${l.capacity} chỗ` : ""}
                 </option>
               ))}
@@ -408,7 +411,12 @@ function VehicleForm({
           </p>
         )}
         <div className="flex justify-end gap-2">
-          <button type="button" className="btn" onClick={onClose}>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            onClick={onClose}
+          >
             Hủy
           </button>
           <button className="btn btn-primary" disabled={busy}>
@@ -441,7 +449,12 @@ function DeleteVehicle({
         </p>
         {error && <Notice tone="danger">{error}</Notice>}
         <div className="flex justify-end gap-2">
-          <button type="button" className="btn" onClick={onClose}>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            onClick={onClose}
+          >
             Hủy
           </button>
           <button

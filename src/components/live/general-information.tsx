@@ -18,9 +18,11 @@ export type OperatorProfile = {
 };
 export function GeneralInformation({
   canConfigurePayments,
+  canReadFleet,
   mfaEnabled,
 }: {
   canConfigurePayments: boolean;
+  canReadFleet: boolean;
   mfaEnabled: boolean;
 }) {
   const [profile, setProfile] = useState<OperatorProfile | null>(null),
@@ -145,20 +147,22 @@ export function GeneralInformation({
           onSuccess={showSuccess}
         />
       )}
-      <section className="card space-y-2 pn-panel-inset">
-        <h2 className="text-base font-semibold">Xe</h2>
-        <p className="text-sm text-muted">
-          {options ? `${options.vehicles.length} xe đang chạy. ` : ""}
-          Thêm, sửa, đổi trạng thái hoặc xóa xe ở trang{" "}
-          <Link
-            className="font-semibold text-primary underline"
-            href="/admin/vehicles"
-          >
-            Đội xe
-          </Link>
-          .
-        </p>
-      </section>
+      {canReadFleet && (
+        <section className="card space-y-2 pn-panel-inset">
+          <h2 className="text-base font-semibold">Xe</h2>
+          <p className="text-sm text-muted">
+            {options ? `${options.vehicles.length} xe đang chạy. ` : ""}
+            Thêm, sửa, đổi trạng thái hoặc xóa xe ở trang{" "}
+            <Link
+              className="font-semibold text-primary underline"
+              href="/admin/vehicles"
+            >
+              Đội xe
+            </Link>
+            .
+          </p>
+        </section>
+      )}
       <section className="card space-y-4 pn-panel-inset">
         <h2 className="text-base font-semibold">Tuyến hai chiều</h2>
         <ul className="space-y-2 text-sm">
