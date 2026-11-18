@@ -105,6 +105,7 @@ let mustChange = new Set();
 let permissions = OWNER_PERMISSIONS;
 let createdTrips = [];
 let schedules = [];
+let fleet = null; // null = xe mặc định; tạo lại khi reset
 const defaultPolicy = () => ({
   operatorId: op,
   version: 1,
@@ -266,6 +267,7 @@ http
       permissions = OWNER_PERMISSIONS;
       createdTrips = [];
       schedules = [];
+      fleet = null;
       policy = null;
       profile = {
         id: op,
@@ -1644,25 +1646,68 @@ http
           },
         ],
       });
-    if (path === tripBase + "vehicles")
-      return send(res, 200, {
-        vehicles: [
-          {
-            id: vehicleId,
-            code: "TEST01",
-            name: "Xe kiểm thử",
-            seat_layout_id: layoutId,
-            status: "ACTIVE",
-          },
-          {
-            id: oldVehicleId,
-            code: "TEST02",
-            name: "Xe sơ đồ cũ",
-            seat_layout_id: oldLayoutId,
-            status: "ACTIVE",
-          },
-        ],
-      });
+    fleet ??= [
+      {
+        id: vehicleId,
+        code: "TEST01",
+        name: "Xe kiểm thử",
+        type: "LIMOUSINE",
+        plate_number: null,
+        seat_layout_id: layoutId,
+        status: "ACTIVE",
+      },
+      {
+        id: oldVehicleId,
+        code: "TEST02",
+        name: "Xe sơ đồ cũ",
+        type: "LIMOUSINE",
+        plate_number: "77B-000.02",
+        seat_layout_id: oldLayoutId,
+        status: "ACTIVE",
+      },
+    ];
+    if (path === tripBase + "vehicles" && req.method === "GET")
+      return send(res, 200, { vehicles: fleet });
+    if (path === tripBase + "vehicles" && req.method === "POST") {
+      if (fleet.some((v) => v.code === body.code))
+        return fail(res, 409, "CONFLICT", "Mã xe đã tồn tại.");
+      const v = {
+        id: crypto.randomUUID(),
+        code: body.code,
+        name: body.name,
+        type: body.type,
+        plate_number: body.plateNumber ?? null,
+        seat_layout_id: body.seatLayoutId,
+        status: "ACTIVE",
+      };
+      fleet.push(v);
+      return send(res, 201, v);
+    }
+    const vehicleMatch = path.match(/vehicles\/([0-9a-f-]{36})$/);
+    if (vehicleMatch && path === tripBase + "vehicles/" + vehicleMatch[1]) {
+      const v = fleet.find((x) => x.id === vehicleMatch[1]);
+      if (!v) return fail(res, 404, "NOT_FOUND", "Không tìm thấy xe.");
+      if (req.method === "PATCH") {
+        if (body.name !== undefined) v.name = body.name;
+        if (body.plateNumber !== undefined) v.plate_number = body.plateNumber;
+        if (body.status !== undefined) v.status = body.status;
+        if (body.seatLayoutId !== undefined)
+          v.seat_layout_id = body.seatLayoutId;
+        return send(res, 200, v);
+      }
+      if (req.method === "DELETE") {
+        // Xe mặc định đã gắn với chuyến kiểm thử → API thật trả 409.
+        if (v.id === vehicleId || v.id === oldVehicleId)
+          return fail(
+            res,
+            409,
+            "CONFLICT",
+            "Xe đã có chuyến hoặc lịch chạy; hãy chuyển sang Ngừng chạy.",
+          );
+        fleet = fleet.filter((x) => x !== v);
+        return send(res, 200, { ok: true });
+      }
+    }
     if (path === tripBase + "seat-layouts/" + oldLayoutId)
       return send(res, 200, {
         layout: {
@@ -1680,6 +1725,8 @@ http
           {
             id: layoutId,
             name: "Sơ đồ kiểm thử",
+            kind: "room",
+            capacity: 2,
             definition: {
               floors: [{ code: "1", label: "Tầng dưới", rows: ["A1 A2"] }],
               defaultMaxOccupancy: 1,

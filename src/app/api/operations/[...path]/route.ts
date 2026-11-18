@@ -16,6 +16,9 @@ const allowed = {
     // Chính sách đặt vé (giữ chỗ, cọc cố định...): API kiểm quyền và validate đầy đủ.
     { path: /^policy$/, permission: "policy.read" },
     { path: /^trip-schedules$/, permission: "trip.read" },
+    // Đội xe: danh sách mọi xe (kể cả bảo trì/ngừng chạy) và mẫu sơ đồ dùng được.
+    { path: /^vehicles$/, permission: "fleet.read" },
+    { path: /^seat-layouts$/, permission: "fleet.read" },
     {
       path: new RegExp(`^trip-schedules/${uuid}/preview$`),
       permission: "trip.read",
@@ -29,6 +32,7 @@ const allowed = {
   POST: [
     { path: /^trip-schedules$/, permission: "trip.write" },
     { path: /^routes$/, permission: "route.write" },
+    { path: /^vehicles$/, permission: "fleet.write" },
     { path: /^route-pairs$/, permission: "route.write" },
     {
       path: new RegExp(`^trip-schedules/${uuid}/generate$`),
@@ -52,6 +56,10 @@ const allowed = {
     { path: new RegExp(`^trip-schedules/${uuid}$`), permission: "trip.write" },
     { path: new RegExp(`^vehicles/${uuid}$`), permission: "fleet.write" },
   ],
+  // Xóa xe nhập nhầm (API từ chối 409 nếu xe đã có chuyến/lịch chạy).
+  DELETE: [
+    { path: new RegExp(`^vehicles/${uuid}$`), permission: "fleet.write" },
+  ],
 };
 async function handle(
   req: Request,
@@ -67,7 +75,8 @@ async function handle(
     const { token, session } = await operatorSession();
     requirePermission(session, operation.permission);
     let body: unknown;
-    if (method !== "GET") {
+    if (method === "DELETE") protectMutation(req);
+    else if (method !== "GET") {
       protectMutation(req);
       if (path.startsWith("trip-schedules"))
         assertTripManager(session, process.env.PNTICKET_TRIP_WRITE_OPERATOR_ID);
@@ -108,4 +117,5 @@ async function handle(
 export const GET = handle,
   POST = handle,
   PUT = handle,
-  PATCH = handle;
+  PATCH = handle,
+  DELETE = handle;
