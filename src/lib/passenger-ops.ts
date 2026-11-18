@@ -134,3 +134,79 @@ export const refundStatusLabels: Record<Refund["status"], string> = {
   REFUNDED: "Đã hoàn",
   WAIVED: "Không hoàn",
 };
+
+/** Sửa họ tên, SĐT, điểm đón/trả, ghi chú (`booking.update`). Chuỗi rỗng = xóa điểm đón/trả, ghi chú. */
+export const bookingEditInput = z
+  .object({
+    contactName: z
+      .string()
+      .trim()
+      .min(1, "Họ tên không được để trống.")
+      .max(120, "Họ tên tối đa 120 ký tự.")
+      .optional(),
+    contactPhone: z
+      .string()
+      .trim()
+      .min(1, "Nhập số điện thoại.")
+      .max(30)
+      .optional(),
+    pickupStop: z.string().trim().max(160).nullable().optional(),
+    dropoffStop: z.string().trim().max(160).nullable().optional(),
+    note: z
+      .string()
+      .trim()
+      .max(500, "Ghi chú tối đa 500 ký tự.")
+      .nullable()
+      .optional(),
+  })
+  .strict()
+  .refine((v) => Object.values(v).some((x) => x !== undefined), {
+    message: "Chưa có thông tin nào để sửa.",
+  });
+export type BookingEditInput = z.input<typeof bookingEditInput>;
+
+const stopPoint = z.object({
+  name: z.string(),
+  time: z.string(),
+  day: z.number().int(),
+});
+export const bookingEditResultSchema = z.object({
+  booking: z.object({
+    code: z.string(),
+    contactName: z.string(),
+    contactPhone: z.string(),
+    note: z.string().nullable(),
+    pickupStop: stopPoint.nullable(),
+    dropoffStop: stopPoint.nullable(),
+  }),
+  changed: z.array(z.string()),
+});
+export type BookingEditResult = z.infer<typeof bookingEditResultSchema>;
+
+/**
+ * Ghi nhận tiền khách trả cho một đơn (`payment.record`). Bán vé chỉ ghi tiền mặt; chuyển khoản thấy trong app
+ * ngân hàng (cần mã giao dịch) chỉ chủ xe/kế toán — API kiểm tra vai trò.
+ */
+export const bookingPaymentInput = z
+  .object({
+    amount: z
+      .number({ error: "Nhập số tiền." })
+      .int("Số tiền phải là số nguyên.")
+      .min(1, "Số tiền phải lớn hơn 0.")
+      .max(2_000_000_000),
+    method: z.enum(["CASH", "MANUAL_BANK"]),
+    bankReference: z.string().trim().min(3).max(100).optional(),
+    note: z.string().trim().max(500).optional(),
+  })
+  .strict()
+  .refine((v) => v.method !== "MANUAL_BANK" || !!v.bankReference, {
+    message: "Chuyển khoản cần mã giao dịch ngân hàng.",
+    path: ["bankReference"],
+  });
+export type BookingPaymentInput = z.infer<typeof bookingPaymentInput>;
+export const bookingPaymentResultSchema = z.object({
+  id: z.string(),
+  amount: z.number().int(),
+  allocatedAmount: z.number().int().optional(),
+  replayed: z.boolean().optional(),
+});

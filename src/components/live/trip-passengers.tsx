@@ -8,6 +8,7 @@ import {
   FileUp,
   Flag,
   MapPin,
+  Pencil,
   Search,
   Trash2,
   X,
@@ -36,6 +37,7 @@ import {
   type PassengerScope,
 } from "@/lib/trip-passengers";
 import { useJson } from "./assigned-trips";
+import { BookingEditDialog } from "./booking-edit-dialog";
 import { PassengerImport } from "./passenger-import";
 import {
   LoadState,
@@ -62,7 +64,7 @@ const canBoardStatus = (b: AdminPassengerBooking) =>
 /**
  * Danh sách khách của chuyến cho nhân viên nhà xe (`booking.read`); xuất file khi có `booking.export`; nhập file khi có
  * `booking.create` (khách mới) hoặc `booking.board` (cập nhật lên xe); đánh dấu lên xe (`booking.board`); hủy đơn
- * (`booking.cancel`).
+ * (`booking.cancel`); sửa đơn (`booking.update` thông tin, `payment.record` thu tiền, `booking.board` lên xe theo chỗ).
  */
 export function TripPassengersSection({
   tripId,
@@ -70,6 +72,8 @@ export function TripPassengersSection({
   canCreate = false,
   canBoard = false,
   canCancel = false,
+  canEdit = false,
+  canPay = false,
   className = "rounded-xl border border-line/60 bg-surface/20 p-4",
 }: {
   tripId: string;
@@ -77,6 +81,10 @@ export function TripPassengersSection({
   canCreate?: boolean;
   canBoard?: boolean;
   canCancel?: boolean;
+  /** `booking.update`: sửa họ tên, SĐT, điểm đón/trả, ghi chú. */
+  canEdit?: boolean;
+  /** `payment.record`: ghi nhận tiền khách trả trong hộp thoại Sửa. */
+  canPay?: boolean;
   className?: string;
 }) {
   const [scope, setScope] = useState<PassengerScope>("active");
@@ -91,6 +99,7 @@ export function TripPassengersSection({
     tone: "success" | "danger";
     text: string;
   } | null>(null);
+  const [editing, setEditing] = useState<AdminPassengerBooking | null>(null);
   const [cancelling, setCancelling] = useState<AdminPassengerBooking | null>(
     null,
   );
@@ -338,6 +347,21 @@ export function TripPassengersSection({
           <Notice tone={message.tone}>{message.text}</Notice>
         </div>
       )}
+      {editing && (
+        <BookingEditDialog
+          booking={editing}
+          tripId={tripId}
+          canEdit={canEdit}
+          canPay={canPay}
+          canBoard={canBoard}
+          onClose={() => setEditing(null)}
+          onSaved={(text) => {
+            setEditing(null);
+            setMessage({ tone: "success", text });
+            reload();
+          }}
+        />
+      )}
       {cancelling && (
         <CancelDialog
           booking={cancelling}
@@ -387,7 +411,7 @@ export function TripPassengersSection({
                     <th className={thClass}>Đón · Trả</th>
                     <th className={`${thClass} text-right`}>Thanh toán</th>
                     <th className={thClass}>Trạng thái</th>
-                    {(canBoard || canCancel) && (
+                    {(canBoard || canCancel || canEdit || canPay) && (
                       <th className={`${thClass} text-right`}>Thao tác</th>
                     )}
                   </tr>
@@ -399,10 +423,12 @@ export function TripPassengersSection({
                       booking={b}
                       canBoard={canBoard}
                       canCancel={canCancel}
-                      showActions={canBoard || canCancel}
+                      canEdit={canEdit || canPay}
+                      showActions={canBoard || canCancel || canEdit || canPay}
                       busy={busy === b.code}
                       onToggleBoarding={() => void toggleBoarding(b)}
                       onCancel={() => setCancelling(b)}
+                      onEdit={() => setEditing(b)}
                     />
                   ))}
                 </tbody>
@@ -508,10 +534,12 @@ function PassengerRow({
   booking: b,
   canBoard,
   canCancel,
+  canEdit,
   showActions,
   busy,
   onToggleBoarding,
   onCancel,
+  onEdit,
 }: {
   booking: AdminPassengerBooking;
   canBoard: boolean;
@@ -520,6 +548,8 @@ function PassengerRow({
   busy: boolean;
   onToggleBoarding: () => void;
   onCancel: () => void;
+  canEdit: boolean;
+  onEdit: () => void;
 }) {
   const tone = statusTone[b.status] ?? "neutral";
   const people = b.seats.reduce((n, s) => n + s.occupancy, 0);
@@ -682,6 +712,19 @@ function PassengerRow({
                 onToggle={onToggleBoarding}
               />
             )}
+            {canEdit &&
+              (b.status === "HOLDING" || b.status === "CONFIRMED") && (
+                <button
+                  type="button"
+                  className="btn px-3 text-xs"
+                  onClick={onEdit}
+                  aria-label={`Sửa đơn ${b.code}`}
+                  title="Sửa đơn"
+                >
+                  <Pencil size={14} aria-hidden="true" />
+                  <span className="sr-only">Sửa đơn</span>
+                </button>
+              )}
             {canCancel &&
               (b.status === "HOLDING" || b.status === "CONFIRMED") && (
                 <button

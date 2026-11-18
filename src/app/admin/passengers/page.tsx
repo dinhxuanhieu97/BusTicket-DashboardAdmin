@@ -18,6 +18,8 @@ export default async function Page({
       canCreate={hasPermission(session, "booking.create")}
       canBoard={hasPermission(session, "booking.board")}
       canCancel={hasPermission(session, "booking.cancel")}
+      canEdit={hasPermission(session, "booking.update")}
+      canPay={hasPermission(session, "payment.record")}
       initialDate={typeof query.date === "string" ? query.date : undefined}
       initialTripId={
         typeof query.trip === "string" && UUID.test(query.trip)

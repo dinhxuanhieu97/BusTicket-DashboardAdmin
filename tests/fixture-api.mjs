@@ -43,6 +43,7 @@ const OWNER_PERMISSIONS = [
   "booking.create",
   "booking.board",
   "booking.cancel",
+  "booking.update",
   "trip.assigned.board",
 ];
 const STAFF_PERMISSIONS = {
@@ -66,6 +67,7 @@ const STAFF_PERMISSIONS = {
     "booking.create",
     "booking.board",
     "booking.cancel",
+    "booking.update",
   ],
   ACCOUNTANT: [
     "policy.read",
@@ -90,6 +92,7 @@ const STAFF_PERMISSIONS = {
     "booking.export",
     "booking.create",
     "booking.board",
+    "booking.update",
   ],
   ASSISTANT: ["trip.assigned.read", "trip.assigned.board"],
 };
@@ -140,6 +143,10 @@ let importKeys = new Set();
 let boardedSeats = new Map();
 let cancelledCodes = new Map();
 let onboardTotals = new Map();
+// Sửa đơn (PATCH bookings/:code) và tiền ghi tay (payments/manual) theo mã đơn.
+let bookingEdits = new Map();
+let manualPaid = new Map();
+let manualKeys = new Map();
 let refunds = [];
 const TRIP_STOPS = {
   pickup: [
@@ -278,6 +285,9 @@ http
       boardedSeats = new Map();
       cancelledCodes = new Map();
       onboardTotals = new Map();
+      bookingEdits = new Map();
+      manualPaid = new Map();
+      manualKeys = new Map();
       refunds = [];
       statusOverrides = {};
       down = false;
@@ -832,6 +842,88 @@ http
       }
       return send(res, 200, { booking: boardingView(code), changed });
     }
+    const editMatch = new RegExp(`^${tripBase}bookings/([A-Z0-9]{4,12})$`).exec(
+      path,
+    );
+    if (editMatch && req.method === "PATCH") {
+      if (!can("booking.update"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const code = editMatch[1];
+      if (!OPS_BOOKINGS[code])
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy đơn.");
+      if (opsStatus(code) === "CANCELLED" || !OPS_BOOKINGS[code].phone)
+        return fail(res, 409, "CONFLICT", "Đơn này không sửa được.");
+      const prev = bookingEdits.get(code) ?? {};
+      const next = { ...prev };
+      if (body.contactName !== undefined) next.contactName = body.contactName;
+      if (body.contactPhone !== undefined) {
+        const m = /^0([35789]\d{8})$/.exec(
+          body.contactPhone.replace(/\s/g, ""),
+        );
+        if (!m)
+          return fail(
+            res,
+            400,
+            "VALIDATION_FAILED",
+            "Số điện thoại di động không hợp lệ.",
+            {
+              field: "contactPhone",
+            },
+          );
+        next.contactPhone = `+84${m[1]}`;
+      }
+      for (const [field, kind] of [
+        ["pickupStop", "pickup"],
+        ["dropoffStop", "dropoff"],
+      ])
+        if (body[field] !== undefined) {
+          const stop = body[field]
+            ? TRIP_STOPS[kind].find((x) => x.name === body[field])
+            : null;
+          if (body[field] && !stop)
+            return fail(
+              res,
+              400,
+              "VALIDATION_FAILED",
+              "Điểm không có trong tuyến.",
+            );
+          next[field] = stop;
+        }
+      if (body.note !== undefined) next.note = body.note || null;
+      bookingEdits.set(code, next);
+      return send(res, 200, {
+        booking: {
+          code,
+          contactName: next.contactName ?? OPS_BOOKINGS[code].name,
+          contactPhone: next.contactPhone ?? OPS_BOOKINGS[code].phone,
+          note: next.note ?? null,
+          pickupStop: next.pickupStop ?? null,
+          dropoffStop: next.dropoffStop ?? null,
+        },
+        changed: Object.keys(body),
+      });
+    }
+    if (path === tripBase + "payments/manual" && req.method === "POST") {
+      if (!can("payment.record"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const code = body.bookingCode;
+      if (!OPS_BOOKINGS[code])
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy đơn.");
+      const key = req.headers["idempotency-key"];
+      if (!key)
+        return fail(res, 400, "VALIDATION_FAILED", "Thiếu Idempotency-Key.");
+      if (manualKeys.has(key))
+        return send(res, 200, { ...manualKeys.get(key), replayed: true });
+      manualPaid.set(code, (manualPaid.get(code) ?? 0) + body.amount);
+      const view = {
+        id: crypto.randomUUID(),
+        method: body.method,
+        amount: body.amount,
+        allocatedAmount: body.amount,
+      };
+      manualKeys.set(key, view);
+      return send(res, 200, view);
+    }
     const cancelMatch = new RegExp(
       `^${tripBase}bookings/([A-Z0-9]{4,12})/cancel$`,
     ).exec(path);
@@ -1315,16 +1407,16 @@ http
       const visible = bookings
         .map((b) => {
           const st = cancelledCodes.has(b.code) ? "CANCELLED" : b.status;
+          const extra =
+            (onboardTotals.get(b.code) ?? 0) + (manualPaid.get(b.code) ?? 0);
           return {
             ...b,
+            ...bookingEdits.get(b.code),
             status: st,
             cancelReason: cancelledCodes.get(b.code) ?? null,
             onboardCollected: onboardTotals.get(b.code) ?? 0,
-            paidAmount: b.paidAmount + (onboardTotals.get(b.code) ?? 0),
-            dueAmount: Math.max(
-              b.dueAmount - (onboardTotals.get(b.code) ?? 0),
-              0,
-            ),
+            paidAmount: b.paidAmount + extra,
+            dueAmount: Math.max(b.dueAmount - extra, 0),
             seats: b.seats.map((x) => ({
               ...x,
               boardedAt: boardedAt(b.code, x.code),
