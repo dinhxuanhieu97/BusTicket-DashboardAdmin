@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
+  Route,
   ReceiptText,
   Users,
   Bus,
@@ -36,6 +37,7 @@ const icons: Record<NavKey, typeof LayoutDashboard> = {
   payments: ReceiptText,
   users: Users,
   fleet: BusFront,
+  routes: Route,
   trips: Bus,
   passengers: Contact,
   audit: History,
@@ -49,7 +51,7 @@ const navGroups: { title: string; keys: NavKey[] }[] = [
   },
   {
     title: "Quản lý",
-    keys: ["payments", "fleet", "users", "audit", "settings"],
+    keys: ["payments", "fleet", "routes", "users", "audit", "settings"],
   },
 ];
 
