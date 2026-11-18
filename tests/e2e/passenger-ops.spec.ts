@@ -493,3 +493,84 @@ test("edit and payment routes validate input before calling the API", async ({
     list.bookings.find((b: { code: string }) => b.code === "TESTA1").paidAmount,
   ).toBe(401000);
 });
+
+test("staff sees the customer's transfer screenshot and opens it through the BFF", async ({
+  page,
+  request,
+  browser,
+  baseURL,
+}) => {
+  const PROOF_ID = "66666666-6666-4666-8666-666666666666";
+  const main = await passengers(page);
+  const row = main.locator('tr[data-booking="TESTH1"]');
+  await expect(row).toContainText("Khách báo đã CK · 1 ảnh");
+  await expect(main.locator('tr[data-booking="TESTA1"]')).not.toContainText(
+    "Khách báo đã CK",
+  );
+
+  await row.getByRole("button", { name: "Sửa đơn TESTH1" }).click();
+  const dialog = page.getByRole("dialog", { name: "Sửa đơn TESTH1" });
+  await expect(dialog).toContainText("Khách báo đã chuyển khoản lúc");
+  const thumb = dialog.getByRole("img", { name: "Ảnh chuyển khoản 1" });
+  await expect(thumb).toHaveAttribute("src", `/api/payment-proofs/${PROOF_ID}`);
+  await expect
+    .poll(() => thumb.evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBe(0); // dữ liệu giả không phải ảnh thật; chỉ kiểm tra đường dẫn và header bên dưới
+
+  const img = await request.get(`/api/payment-proofs/${PROOF_ID}`);
+  expect(img.status()).toBe(200);
+  expect(img.headers()["content-type"]).toBe("image/png");
+  expect(img.headers()["cache-control"]).toBe("private, no-store");
+  expect(img.headers()["x-content-type-options"]).toBe("nosniff");
+  expect(img.headers()["content-security-policy"]).toContain("sandbox");
+  expect((await img.body()).subarray(0, 4).toString("hex")).toBe("89504e47");
+  expect((await request.get("/api/payment-proofs/not-a-uuid")).status()).toBe(
+    404,
+  );
+  expect(
+    (
+      await request.get(
+        "/api/payment-proofs/77777777-7777-4777-8777-777777777777",
+      )
+    ).status(),
+  ).toBe(404);
+  const list = await request.get("/api/bookings/TESTH1/payment-proofs");
+  expect(list.status()).toBe(200);
+  expect((await list.json()).proofs).toHaveLength(1);
+  expect(
+    (await request.get("/api/bookings/bad!/payment-proofs")).status(),
+  ).toBe(400);
+
+  // Phụ xe không có payment.read; khách chưa đăng nhập bị chặn.
+  const created = await request.post("/api/staff", {
+    headers,
+    data: {
+      fullName: "Phụ xe 78",
+      phone: "0909876578",
+      password: staffPassword,
+      role: "ASSISTANT",
+    },
+  });
+  expect(created.status()).toBe(201);
+  const ctx = await browser.newContext({ baseURL });
+  expect(
+    (
+      await ctx.request.post("/api/auth/login", {
+        headers,
+        data: { phone: "0909876578", password: staffPassword },
+      })
+    ).status(),
+  ).toBe(200);
+  expect(
+    (await ctx.request.get(`/api/payment-proofs/${PROOF_ID}`)).status(),
+  ).toBe(403);
+  expect(
+    (await ctx.request.get("/api/bookings/TESTH1/payment-proofs")).status(),
+  ).toBe(403);
+  await ctx.close();
+  const anon = await browser.newContext({ baseURL });
+  expect(
+    (await anon.request.get(`/api/payment-proofs/${PROOF_ID}`)).status(),
+  ).toBe(401);
+  await anon.close();
+});
