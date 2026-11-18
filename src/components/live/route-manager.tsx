@@ -80,8 +80,8 @@ export function RouteManager({ canWrite }: { canWrite: boolean }) {
       </div>
       <p className="text-sm text-muted">
         Điểm đi/điểm đến là tên hiển thị trên Mini App. Đổi tên một điểm áp dụng
-        cho mọi tuyến (cả chiều đi và về), kể cả chuyến đã tạo. Tuyến đã có
-        chuyến hoặc lịch chạy không xóa được.
+        cho mọi tuyến (cả chiều đi và về); tên chuyến đã sinh từ lịch chạy giữ
+        tên cũ. Tuyến đã có chuyến hoặc lịch chạy không xóa được.
       </p>
       {message && <Notice tone="success">{message}</Notice>}
       <LoadState
@@ -232,6 +232,7 @@ export function RouteManager({ canWrite }: { canWrite: boolean }) {
       {action?.kind === "rename" && (
         <RenamePlace
           place={action.place}
+          others={places.map((p) => p.name)}
           onClose={() => setAction(null)}
           onSaved={(to) => done(`Đã đổi "${action.place.name}" thành "${to}".`)}
         />
@@ -423,16 +424,23 @@ function PairForm({
 
 function RenamePlace({
   place,
+  others,
   onClose,
   onSaved,
 }: {
   place: PlaceUsage;
+  others: string[];
   onClose: () => void;
   onSaved: (to: string) => void;
 }) {
   const [to, setTo] = useState(place.name);
   const { busy, error, setError, run } = useSubmit();
   const total = place.asOrigin + place.asDestination;
+  const key = (v: string) =>
+    v.normalize("NFC").trim().replace(/\s+/g, " ").toLocaleLowerCase("vi");
+  const merging = others.find(
+    (p) => key(p) === key(to) && key(to) !== key(place.name),
+  );
   return (
     <Modal title={`Đổi tên điểm ${place.name}`} onClose={onClose}>
       <form
@@ -440,7 +448,7 @@ function RenamePlace({
         noValidate
         onSubmit={(e) => {
           e.preventDefault();
-          const name = to.trim();
+          const name = to.normalize("NFC").trim().replace(/\s+/g, " ");
           if (!name) return setError("Nhập tên điểm.");
           if (name === place.name) return onClose();
           void run(
@@ -460,9 +468,16 @@ function RenamePlace({
           />
         </label>
         <p className="text-sm text-muted">
-          Áp dụng cho {total} lượt dùng trên các tuyến (điểm đi và điểm đến),
-          gồm cả chuyến đã tạo. Đổi sang tên một điểm đã có sẽ gộp hai điểm.
+          Áp dụng cho {total} lượt dùng trên các tuyến (điểm đi và điểm đến).
+          Tên chuyến đã sinh từ lịch chạy và liên kết cũ trên Mini App giữ tên
+          cũ.
         </p>
+        {merging && (
+          <Notice tone="warning">
+            &quot;{merging}&quot; đã có. Lưu sẽ gộp hai điểm thành một; nếu hai
+            tuyến trùng điểm đi và điểm đến, Mini App hiện cả hai.
+          </Notice>
+        )}
         <Actions
           busy={busy}
           onClose={onClose}
@@ -513,8 +528,8 @@ function StopsDialog({
               </h4>
               {stops[kind].length ? (
                 <ul>
-                  {stops[kind].map((s) => (
-                    <li key={s.name}>
+                  {stops[kind].map((s, i) => (
+                    <li key={`${i}-${s.name}`}>
                       {s.time}
                       {s.day > 0 ? ` (+${s.day} ngày)` : ""} · {s.name}
                     </li>
