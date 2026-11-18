@@ -104,4 +104,4 @@ E2E chạy API giả (`tests/fixture-api.mjs`) ở cổng 3101 và Next.js ở 3
 
 ## Giấy phép
 
-[MIT](LICENSE).
+Bản quyền © 2026 Hieu Dinh. Bảo lưu mọi quyền: không được sao chép, sửa đổi hay sử dụng lại mã nguồn khi chưa có sự đồng ý bằng văn bản. Xem [LICENSE](LICENSE).
