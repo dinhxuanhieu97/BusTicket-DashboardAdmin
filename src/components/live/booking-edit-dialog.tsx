@@ -14,6 +14,7 @@ import {
   type AdminPassengerBooking,
 } from "@/lib/trip-passengers";
 import { useJson } from "./assigned-trips";
+import { PaymentProofList } from "./payment-proofs";
 import { Notice, postJson } from "./shared";
 
 /**
@@ -296,6 +297,7 @@ export function BookingEditDialog({
               </span>
             }
           >
+            {!!b.paymentProofCount && <PaymentProofList code={b.code} />}
             {due <= 0 ? (
               <Notice tone="success">Đơn đã thu đủ tiền.</Notice>
             ) : (

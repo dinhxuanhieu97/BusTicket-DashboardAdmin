@@ -25,6 +25,10 @@ export const adminPassengerBookingSchema = passengerBookingSchema.extend({
   onboardCollected: z.number().int().nonnegative().optional(),
   /** Lý do nhân viên hủy đơn. */
   cancelReason: z.string().nullable().optional(),
+  /** Lúc khách báo đã chuyển khoản trên Mini App (gửi ảnh lệnh chuyển); API cũ không có. */
+  transferClaimedAt: z.string().nullable().optional(),
+  /** Số ảnh lệnh chuyển khoản khách đã gửi. */
+  paymentProofCount: z.number().int().nonnegative().optional(),
 });
 export const adminTripPassengersSchema = tripPassengersSchema.extend({
   bookings: z.array(adminPassengerBookingSchema).max(500),

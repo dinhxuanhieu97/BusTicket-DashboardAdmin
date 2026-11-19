@@ -143,6 +143,12 @@ let importKeys = new Set();
 let boardedSeats = new Map();
 let cancelledCodes = new Map();
 let onboardTotals = new Map();
+// Ảnh lệnh chuyển khoản khách gửi (Mini App) cho đơn TESTH1; chỉ dữ liệu giả.
+const PROOF_ID = "66666666-6666-4666-8666-666666666666";
+const PROOF_PNG = Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  Buffer.alloc(32, 7),
+]);
 // Sửa đơn (PATCH bookings/:code) và tiền ghi tay (payments/manual) theo mã đơn.
 let bookingEdits = new Map();
 let manualPaid = new Map();
@@ -1324,6 +1330,37 @@ http
         replayed,
       });
     }
+    const proofListMatch = new RegExp(
+      `^${tripBase}bookings/([A-Z0-9]{4,12})/payment-proofs$`,
+    ).exec(path);
+    if (proofListMatch && req.method === "GET") {
+      if (!can("payment.read"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      if (proofListMatch[1] !== "TESTH1")
+        return send(res, 200, { transferClaimedAt: null, proofs: [] });
+      return send(res, 200, {
+        transferClaimedAt: "2027-02-05T03:00:00.000Z",
+        proofs: [
+          {
+            id: PROOF_ID,
+            mime: "image/png",
+            bytes: PROOF_PNG.length,
+            createdAt: "2027-02-05T03:00:00.000Z",
+          },
+        ],
+      });
+    }
+    const proofImageMatch = new RegExp(
+      `^${tripBase}payment-proofs/([0-9a-f-]{36})$`,
+    ).exec(path);
+    if (proofImageMatch && req.method === "GET") {
+      if (!can("payment.read"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      if (proofImageMatch[1] !== PROOF_ID)
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy ảnh.");
+      res.writeHead(200, { "Content-Type": "image/png" });
+      return res.end(PROOF_PNG);
+    }
     const adminPassengerMatch = new RegExp(
       `^${tripBase}trips/([0-9a-f-]{36})/passengers(/export)?$`,
     ).exec(path);
@@ -1368,6 +1405,8 @@ http
           status: "HOLDING",
           channel: "STAFF",
           holdUntil: "2027-02-05T05:00:00.000Z",
+          transferClaimedAt: "2027-02-05T03:00:00.000Z",
+          paymentProofCount: 1,
           createdBy: "Test SELLER",
           contactName: "Khách Đang Giữ",
           contactPhone: "+84912000003",

@@ -693,6 +693,11 @@ function PassengerRow({
             đến {vnDateTime(b.holdUntil)}
           </span>
         )}
+        {!!b.paymentProofCount && !inactive && b.dueAmount > 0 && (
+          <span className="mt-1 block text-xs font-semibold text-warning">
+            Khách báo đã CK · {b.paymentProofCount} ảnh
+          </span>
+        )}
         {!canBoard && canBoardStatus(b) && boardedCount(b) > 0 && (
           <span className="mt-1 block text-xs text-muted">
             {boardedCount(b)}/{b.seats.length} đã lên xe
