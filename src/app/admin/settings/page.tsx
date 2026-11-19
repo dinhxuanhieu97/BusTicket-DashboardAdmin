@@ -158,6 +158,9 @@ export default async function Page({
           canConfigurePayments={
             access.session.permissions?.includes("payment.configure") ?? true
           }
+          canReadFleet={
+            access.session.permissions?.includes("fleet.read") ?? true
+          }
         />
       ) : (
         account

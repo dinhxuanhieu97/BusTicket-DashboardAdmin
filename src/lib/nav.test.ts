@@ -18,6 +18,7 @@ test("owner permissions show every menu item", () => {
     "trip.assigned.read",
     "booking.read",
     "booking.export",
+    "fleet.read",
   ];
   assert.deepEqual(
     keys(owner),

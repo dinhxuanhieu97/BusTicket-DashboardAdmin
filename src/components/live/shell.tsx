@@ -20,6 +20,7 @@ import {
   Settings,
   ClipboardList,
   Contact,
+  BusFront,
 } from "lucide-react";
 import { roleLabels, type AppUser } from "@/lib/live-contracts";
 import { visibleNav, type NavKey } from "@/lib/nav";
@@ -34,6 +35,7 @@ const icons: Record<NavKey, typeof LayoutDashboard> = {
   overview: LayoutDashboard,
   payments: ReceiptText,
   users: Users,
+  fleet: BusFront,
   trips: Bus,
   passengers: Contact,
   audit: History,
@@ -45,7 +47,10 @@ const navGroups: { title: string; keys: NavKey[] }[] = [
     title: "Vận hành",
     keys: ["assigned", "overview", "trips", "passengers", "schedules"],
   },
-  { title: "Quản lý", keys: ["payments", "users", "audit", "settings"] },
+  {
+    title: "Quản lý",
+    keys: ["payments", "fleet", "users", "audit", "settings"],
+  },
 ];
 
 export function LiveShell({
