@@ -86,7 +86,7 @@ test("general information is inside Settings and its previous URL redirects", as
     settings.getByRole("link", { name: "Thông tin chung" }),
   ).toHaveAttribute("aria-current", "page");
   await expect(
-    page.getByRole("heading", { name: "Tuyến hai chiều" }),
+    page.getByRole("heading", { name: "Tuyến đường" }),
   ).toBeVisible();
   await settings.getByRole("link", { name: "Tài khoản", exact: true }).click();
   await expect(

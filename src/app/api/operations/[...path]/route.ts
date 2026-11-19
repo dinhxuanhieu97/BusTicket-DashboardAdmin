@@ -19,6 +19,8 @@ const allowed = {
     // Đội xe: danh sách mọi xe (kể cả bảo trì/ngừng chạy) và mẫu sơ đồ dùng được.
     { path: /^vehicles$/, permission: "fleet.read" },
     { path: /^seat-layouts$/, permission: "fleet.read" },
+    // Tuyến đường: danh sách tuyến kèm điểm đón/trả.
+    { path: /^routes$/, permission: "route.read" },
     {
       path: new RegExp(`^trip-schedules/${uuid}/preview$`),
       permission: "trip.read",
@@ -47,6 +49,8 @@ const allowed = {
     { path: /^profile$/, permission: "policy.write" },
     { path: /^policy$/, permission: "policy.write" },
     { path: new RegExp(`^routes/${uuid}/stops$`), permission: "route.write" },
+    // Đổi tên điểm đi/đến trên mọi tuyến (hai chiều cùng lúc).
+    { path: /^places$/, permission: "route.write" },
     {
       path: new RegExp(`^trip-schedules/${uuid}/exception$`),
       permission: "trip.write",
@@ -56,9 +60,10 @@ const allowed = {
     { path: new RegExp(`^trip-schedules/${uuid}$`), permission: "trip.write" },
     { path: new RegExp(`^vehicles/${uuid}$`), permission: "fleet.write" },
   ],
-  // Xóa xe nhập nhầm (API từ chối 409 nếu xe đã có chuyến/lịch chạy).
+  // Xóa xe/tuyến nhập nhầm (API từ chối 409 nếu đã có chuyến/lịch chạy).
   DELETE: [
     { path: new RegExp(`^vehicles/${uuid}$`), permission: "fleet.write" },
+    { path: new RegExp(`^routes/${uuid}$`), permission: "route.write" },
   ],
 };
 async function handle(

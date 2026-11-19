@@ -105,7 +105,8 @@ let mustChange = new Set();
 let permissions = OWNER_PERMISSIONS;
 let createdTrips = [];
 let schedules = [];
-let fleet = null; // null = xe mặc định; tạo lại khi reset
+let fleet = null;
+let routeRows = null; // null = tuyến mặc định; tạo lại khi reset // null = xe mặc định; tạo lại khi reset
 const defaultPolicy = () => ({
   operatorId: op,
   version: 1,
@@ -274,6 +275,7 @@ http
       createdTrips = [];
       schedules = [];
       fleet = null;
+      routeRows = null;
       policy = null;
       profile = {
         id: op,
@@ -1668,23 +1670,77 @@ http
       createdTrips.push(...rows);
       return send(res, 201, { trips: rows });
     }
-    if (path === tripBase + "routes")
-      return send(res, 200, {
-        routes: [
-          {
-            id: routeId,
-            code: "TEST",
-            origin: "TP. Hồ Chí Minh",
-            destination: "Đà Lạt",
-          },
-          {
-            id: reverseRouteId,
-            code: "BACK",
-            origin: "Đà Lạt",
-            destination: "TP. Hồ Chí Minh",
-          },
-        ],
+    routeRows ??= [
+      {
+        id: routeId,
+        code: "TEST",
+        origin: "TP. Hồ Chí Minh",
+        destination: "Đà Lạt",
+        stops: { pickup: [], dropoff: [] },
+      },
+      {
+        id: reverseRouteId,
+        code: "BACK",
+        origin: "Đà Lạt",
+        destination: "TP. Hồ Chí Minh",
+        stops: { pickup: [], dropoff: [] },
+      },
+    ];
+    if (path === tripBase + "routes" && req.method === "GET")
+      return send(res, 200, { routes: routeRows });
+    if (path === tripBase + "route-pairs" && req.method === "POST") {
+      const made = [
+        [body.code, body.origin, body.destination],
+        [body.reverseCode, body.destination, body.origin],
+      ].map(([code, origin, destination]) => {
+        let r = routeRows.find((x) => x.code === code);
+        if (!r) {
+          r = {
+            id: crypto.randomUUID(),
+            code,
+            origin,
+            destination,
+            stops: { pickup: [], dropoff: [] },
+          };
+          routeRows.push(r);
+        }
+        return r;
       });
+      return send(res, 201, { routes: made });
+    }
+    if (path === tripBase + "places" && req.method === "PUT") {
+      const hit = routeRows.filter(
+        (r) => r.origin === body.from || r.destination === body.from,
+      );
+      if (!hit.length)
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy điểm đi/đến.");
+      for (const r of hit) {
+        if (r.origin === body.from) r.origin = body.to;
+        if (r.destination === body.from) r.destination = body.to;
+      }
+      return send(res, 200, { updated: hit.length });
+    }
+    const routeMatch = path.match(/routes\/([0-9a-f-]{36})(\/stops)?$/);
+    if (routeMatch && path.startsWith(tripBase + "routes/")) {
+      const r = routeRows.find((x) => x.id === routeMatch[1]);
+      if (!r) return fail(res, 404, "NOT_FOUND", "Không tìm thấy tuyến.");
+      if (routeMatch[2] && req.method === "PUT") {
+        r.stops = body;
+        return send(res, 200, { id: r.id });
+      }
+      if (!routeMatch[2] && req.method === "DELETE") {
+        // Tuyến mặc định đã có chuyến kiểm thử → API thật trả 409.
+        if (r.id === routeId || r.id === reverseRouteId)
+          return fail(
+            res,
+            409,
+            "CONFLICT",
+            `Tuyến ${r.code} đã có chuyến nên không xóa được.`,
+          );
+        routeRows = routeRows.filter((x) => x !== r);
+        return send(res, 200, { ok: true });
+      }
+    }
     fleet ??= [
       {
         id: vehicleId,

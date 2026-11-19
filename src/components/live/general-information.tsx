@@ -2,7 +2,6 @@
 import Link from "next/link";
 import { Notice } from "./shared";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RouteStopsEditor } from "./route-stops-editor";
 import { PaymentAccountSettings } from "./payment-account-settings";
 import { operation } from "./operations-client";
 import { SuccessToast, type SuccessMessage } from "./success-toast";
@@ -19,10 +18,12 @@ export type OperatorProfile = {
 export function GeneralInformation({
   canConfigurePayments,
   canReadFleet,
+  canReadRoutes,
   mfaEnabled,
 }: {
   canConfigurePayments: boolean;
   canReadFleet: boolean;
+  canReadRoutes: boolean;
   mfaEnabled: boolean;
 }) {
   const [profile, setProfile] = useState<OperatorProfile | null>(null),
@@ -163,71 +164,23 @@ export function GeneralInformation({
           </p>
         </section>
       )}
-      <section className="card space-y-4 pn-panel-inset">
-        <h2 className="text-base font-semibold">Tuyến hai chiều</h2>
-        <ul className="space-y-2 text-sm">
-          {options?.routes.map((r) => (
-            <li key={r.id}>
-              <details className="rounded-lg border border-line p-3">
-                <summary className="cursor-pointer">
-                  {r.code} · {r.origin} → {r.destination}
-                </summary>
-                <RouteStopsEditor
-                  initial={r.stops}
-                  busy={busy}
-                  onSave={(stops) =>
-                    void save(() =>
-                      operation(`routes/${r.id}/stops`, "PUT", stops),
-                    )
-                  }
-                />
-              </details>
-            </li>
-          ))}
-        </ul>
-        <form
-          className="grid gap-4 sm:grid-cols-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const form = new FormData(e.currentTarget);
-            void save(() =>
-              operation(
-                "route-pairs",
-                "POST",
-                Object.fromEntries(form.entries()),
-              ),
-            );
-          }}
-        >
-          {[
-            ["origin", "Điểm đầu"],
-            ["destination", "Điểm cuối"],
-            ["code", "Mã chiều đi"],
-            ["reverseCode", "Mã chiều về"],
-          ].map(([name, label]) => (
-            <label className="label" key={name}>
-              {label}
-              <input
-                className="field"
-                name={name}
-                required
-                maxLength={name.includes("ode") ? 32 : 80}
-                pattern={name.includes("ode") ? "[A-Z0-9-]{2,32}" : undefined}
-              />
-            </label>
-          ))}
-          <button
-            className="btn btn-primary sm:col-span-2 sm:justify-self-start"
-            disabled={busy}
-          >
-            Lưu cặp tuyến
-          </button>
-        </form>
-        <p className="text-xs text-muted">
-          Mã đã có cùng địa điểm sẽ được giữ lại. Timeline đón/trả sẽ cấu hình
-          riêng cho từng chiều khi có giờ chính xác.
-        </p>
-      </section>
+      {canReadRoutes && (
+        <section className="card space-y-2 pn-panel-inset">
+          <h2 className="text-base font-semibold">Tuyến đường</h2>
+          <p className="text-sm text-muted">
+            {options ? `${options.routes.length} tuyến. ` : ""}
+            Thêm cặp tuyến, đổi tên điểm đi/điểm đến, sửa điểm đón/trả hoặc xóa
+            tuyến ở trang{" "}
+            <Link
+              className="font-semibold text-primary underline"
+              href="/admin/routes"
+            >
+              Tuyến đường
+            </Link>
+            .
+          </p>
+        </section>
+      )}
     </div>
   );
 }

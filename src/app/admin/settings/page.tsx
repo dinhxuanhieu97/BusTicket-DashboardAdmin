@@ -161,6 +161,9 @@ export default async function Page({
           canReadFleet={
             access.session.permissions?.includes("fleet.read") ?? true
           }
+          canReadRoutes={
+            access.session.permissions?.includes("route.read") ?? true
+          }
         />
       ) : (
         account
