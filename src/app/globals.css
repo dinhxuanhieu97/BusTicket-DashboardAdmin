@@ -804,9 +804,11 @@ html[data-sidebar="collapsed"] .pn-sidebar .btn-ghost span {
   padding: 0.5rem;
   border-radius: 1.25rem;
 }
+/* Ô chia theo độ dài nhãn (flex-auto), không chia đều: "Tổng quan" vừa khít 1/5 bar ở 390 px
+   nên font hơi rộng hơn (Linux CI) hoặc màn 375 px là bị cắt. */
 .pn-bottom-nav > a,
 .pn-bottom-nav > button {
-  @apply flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[0.875rem] px-1 text-[11px] font-medium text-muted;
+  @apply flex min-h-12 min-w-0 flex-auto flex-col items-center justify-center gap-1 rounded-[0.875rem] px-1 text-[11px] font-medium text-muted;
 }
 .pn-bottom-nav > a[aria-current="page"] {
   background: var(--primary);
