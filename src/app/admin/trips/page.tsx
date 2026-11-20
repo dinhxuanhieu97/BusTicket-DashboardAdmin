@@ -26,6 +26,7 @@ export default async function Page({
     <Trips
       initialDate={initialDate}
       initialPeriod={initialPeriod}
+      initialCreate={query.create === "1"}
       canReadPassengers={hasPermission(session, "booking.read")}
       canCreateBookings={hasPermission(session, "booking.create")}
       canBoard={hasPermission(session, "booking.board")}

@@ -14,8 +14,11 @@ import {
   History,
   ShieldCheck,
   Menu,
-  PanelLeftClose,
-  PanelLeftOpen,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Plus,
+  MoreHorizontal,
   Sun,
   Moon,
   Settings,
@@ -24,11 +27,12 @@ import {
   BusFront,
 } from "lucide-react";
 import { roleLabels, type AppUser } from "@/lib/live-contracts";
-import { visibleNav, type NavKey } from "@/lib/nav";
+import { groupNav, mobileNav, visibleNav, type NavKey } from "@/lib/nav";
 import { subscribeSessionEvents } from "@/lib/session-sync";
 import { LogoutButton } from "./auth-forms";
 import { Modal } from "../modal";
-import { LoadState, StatusBadge } from "./shared";
+import { LoadState } from "./shared";
+import { CommandPalette } from "./command-palette";
 
 const icons: Record<NavKey, typeof LayoutDashboard> = {
   assigned: ClipboardList,
@@ -43,17 +47,6 @@ const icons: Record<NavKey, typeof LayoutDashboard> = {
   audit: History,
   settings: Settings,
 };
-
-const navGroups: { title: string; keys: NavKey[] }[] = [
-  {
-    title: "Vận hành",
-    keys: ["assigned", "overview", "trips", "passengers", "schedules"],
-  },
-  {
-    title: "Quản lý",
-    keys: ["payments", "fleet", "routes", "users", "audit", "settings"],
-  },
-];
 
 export function LiveShell({
   children,
@@ -94,6 +87,8 @@ export function LiveShell({
     return () => window.removeEventListener("operator-profile-updated", load);
   }, [canReadProfile]);
   const [menu, setMenu] = useState(false);
+  const [palette, setPalette] = useState(false);
+  const [now, setNow] = useState("");
   const [dark, setDark] = useState(true);
   // Sidebar desktop thu gọn (chỉ icon). Trạng thái ban đầu do script trong layout đặt lên <html> để không nháy.
   const [collapsed, setCollapsed] = useState(false);
@@ -135,6 +130,40 @@ export function LiveShell({
       setSidebarCollapsed(
         document.documentElement.dataset.sidebar !== "collapsed",
       );
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Ngày giờ ở đầu trang theo giờ Việt Nam; chỉ tính ở trình duyệt để không lệch khi hydrate.
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date();
+      const date = d.toLocaleDateString("vi-VN", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        timeZone: "Asia/Ho_Chi_Minh",
+      });
+      const time = d.toLocaleTimeString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Ho_Chi_Minh",
+      });
+      setNow(`${date.charAt(0).toUpperCase()}${date.slice(1)} · ${time}`);
+    };
+    tick();
+    const timer = setInterval(tick, 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // ⌘K / Ctrl+K mở hộp tìm nhanh; bỏ qua khi giữ phím hoặc đang có hộp thoại khác.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "k") return;
+      if (e.repeat || document.querySelector("dialog[open]")) return;
+      e.preventDefault();
+      setPalette(true);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -218,6 +247,16 @@ export function LiveShell({
     };
   }, [user.id, user.operatorId, user.role, user.mfaEnabled, permissionKey]);
 
+  const groups = groupNav(items);
+  const quick = mobileNav(items);
+  const paletteItems = groups.flatMap((g) =>
+    g.items.map((i) => ({
+      href: i.href,
+      label: i.label,
+      group: g.title,
+      icon: i.icon,
+    })),
+  );
   const currentItem = items.find((item) => item.href === path);
   const pageTitle = currentItem?.label ?? "Quản trị";
   const accountName = user.fullName?.trim() || user.phone;
@@ -226,7 +265,7 @@ export function LiveShell({
     <>
       <Link
         href="/admin"
-        className="pn-sidebar-brand pn-panel-inline flex min-h-18 min-w-0 shrink-0 items-center gap-3 border-b border-line py-4"
+        className="pn-sidebar-brand flex min-h-18 min-w-0 shrink-0 items-center gap-3 px-5 pt-5 pb-3"
         onClick={() => setMenu(false)}
         title={operatorName}
       >
@@ -240,37 +279,43 @@ export function LiveShell({
       </Link>
       <nav
         aria-label="Điều hướng quản trị"
-        className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4"
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-2"
       >
-        {navGroups.map(({ title, keys }) => {
-          const group = keys.flatMap((key) =>
-            items.filter((item) => item.key === key),
-          );
-          if (!group.length) return null;
-          return (
-            <div key={title} className="space-y-1">
-              <p className="pn-sidebar-text px-3 pb-1 text-xs font-semibold text-muted">
-                {title}
-              </p>
-              {group.map(({ href, label, icon: Icon }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setMenu(false)}
-                  aria-current={path === href ? "page" : undefined}
-                  aria-label={label}
-                  title={label}
-                  className="pn-nav-link"
-                >
-                  <Icon size={17} className="shrink-0" aria-hidden="true" />
-                  <span className="pn-sidebar-text">{label}</span>
-                </Link>
-              ))}
-            </div>
-          );
-        })}
+        {groups.map(({ id, title, items: group }) => (
+          <div key={id} className="space-y-1">
+            <p className="pn-nav-group">{title}</p>
+            {group.map(({ href, label, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setMenu(false)}
+                aria-current={path === href ? "page" : undefined}
+                aria-label={label}
+                title={label}
+                className="pn-nav-link"
+              >
+                <Icon size={18} className="shrink-0" aria-hidden="true" />
+                <span className="pn-sidebar-text">{label}</span>
+              </Link>
+            ))}
+          </div>
+        ))}
       </nav>
-      <div className="pn-sidebar-account pn-panel-inset shrink-0 space-y-3 border-t border-line">
+      <div
+        className={`pn-sidebar-status mx-3 mt-2 flex shrink-0 items-center gap-3 rounded-2xl border border-line bg-surface/60 p-3 ${sessionError ? "text-warning" : ""}`}
+        title={sessionError || "Phiên được bảo vệ · Giờ Việt Nam (UTC+7)"}
+      >
+        <span className="grid size-9 shrink-0 place-items-center rounded-[0.6875rem] bg-accent-soft text-accent">
+          <ShieldCheck size={18} aria-hidden="true" />
+        </span>
+        <span className="pn-sidebar-text min-w-0 text-xs leading-snug">
+          <b className="block text-sm font-medium text-ink">
+            {sessionError ? "Cần xác minh lại phiên" : "Phiên được bảo vệ"}
+          </b>
+          <span className="text-muted">Giờ Việt Nam (UTC+7)</span>
+        </span>
+      </div>
+      <div className="pn-sidebar-account shrink-0 space-y-3 px-5 pt-3 pb-5">
         <div className="flex min-w-0 items-center gap-3" title={accountName}>
           <span
             className="pn-avatar size-9 shrink-0 text-sm"
@@ -298,7 +343,22 @@ export function LiveShell({
       >
         Đến nội dung chính
       </a>
-      <aside className="pn-sidebar fixed inset-y-0 left-0 hidden flex-col border-r border-line lg:flex">
+      <aside className="pn-sidebar pn-glass hidden flex-col lg:flex">
+        <button
+          type="button"
+          className="pn-sidebar-collapse"
+          aria-label={collapsed ? "Mở rộng menu" : "Thu gọn menu"}
+          aria-expanded={!collapsed}
+          aria-keyshortcuts="["
+          title={collapsed ? "Mở rộng menu (phím [)" : "Thu gọn menu (phím [)"}
+          onClick={() => setSidebarCollapsed(!collapsed)}
+        >
+          {collapsed ? (
+            <ChevronRight size={16} aria-hidden="true" />
+          ) : (
+            <ChevronLeft size={16} aria-hidden="true" />
+          )}
+        </button>
         {navigation}
       </aside>
       {menu && (
@@ -306,79 +366,94 @@ export function LiveShell({
           {navigation}
         </Modal>
       )}
-      <header className="border-b border-line bg-panel">
-        <div className="mx-auto flex min-h-16 max-w-[96rem] items-center justify-between gap-3 pn-page-inline">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              type="button"
-              className="icon-btn lg:hidden"
-              aria-label="Mở menu"
-              aria-expanded={menu}
-              aria-haspopup="dialog"
-              onClick={() => setMenu(true)}
-            >
-              <Menu size={18} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className="icon-btn hidden lg:inline-flex"
-              aria-label={collapsed ? "Mở rộng menu" : "Thu gọn menu"}
-              aria-expanded={!collapsed}
-              aria-keyshortcuts="["
-              title={
-                collapsed ? "Mở rộng menu (phím [)" : "Thu gọn menu (phím [)"
-              }
-              onClick={() => setSidebarCollapsed(!collapsed)}
-            >
-              {collapsed ? (
-                <PanelLeftOpen size={18} aria-hidden="true" />
-              ) : (
-                <PanelLeftClose size={18} aria-hidden="true" />
-              )}
-            </button>
-            <p className="min-w-0 truncate text-sm text-muted">
-              {operatorName}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-3">
-            {!sessionError && (
-              <span className="hidden sm:inline-flex">
-                <StatusBadge
-                  tone="success"
-                  label="Phiên được bảo vệ"
-                  icon={ShieldCheck}
-                />
-              </span>
-            )}
-            <button
-              type="button"
-              className="icon-btn"
-              aria-label="Đổi giao diện"
-              aria-pressed={!dark}
-              onClick={toggleTheme}
-              title={
-                dark
-                  ? "Chuyển sang giao diện sáng"
-                  : "Chuyển sang giao diện tối"
-              }
-            >
-              {dark ? (
-                <Sun size={17} aria-hidden="true" />
-              ) : (
-                <Moon size={17} aria-hidden="true" />
-              )}
-            </button>
-          </div>
+      {palette && (
+        <CommandPalette
+          items={paletteItems}
+          onClose={() => setPalette(false)}
+        />
+      )}
+      <header className="pn-topbar pn-glass flex min-h-16 items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 lg:pl-6">
+        <button
+          type="button"
+          className="icon-btn lg:hidden"
+          aria-label="Mở menu"
+          aria-expanded={menu}
+          aria-haspopup="dialog"
+          onClick={() => setMenu(true)}
+        >
+          <Menu size={18} aria-hidden="true" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-lg font-semibold tracking-tight">
+            {pageTitle}
+          </h1>
+          <p className="hidden truncate text-xs text-muted sm:block">
+            {now || "\u00a0"}
+          </p>
         </div>
+        <button
+          type="button"
+          className="hidden min-h-11 w-60 items-center gap-2.5 rounded-[0.8125rem] border border-line bg-surface px-3 text-sm text-muted transition-colors hover:text-ink md:flex xl:w-72"
+          aria-label="Tìm nhanh"
+          aria-keyshortcuts="Meta+K Control+K"
+          aria-haspopup="dialog"
+          onClick={() => setPalette(true)}
+        >
+          <Search size={17} aria-hidden="true" />
+          <span className="flex-1 text-left">Tìm trang…</span>
+          <kbd className="pn-kbd font-sans">⌘K</kbd>
+        </button>
+        <button
+          type="button"
+          className="icon-btn md:hidden"
+          aria-label="Tìm nhanh"
+          aria-haspopup="dialog"
+          onClick={() => setPalette(true)}
+        >
+          <Search size={17} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="Đổi giao diện"
+          aria-pressed={!dark}
+          onClick={toggleTheme}
+          title={
+            dark ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối"
+          }
+        >
+          {dark ? (
+            <Sun size={17} aria-hidden="true" />
+          ) : (
+            <Moon size={17} aria-hidden="true" />
+          )}
+        </button>
+        {tripWrite && (
+          <Link
+            href="/admin/trips?create=1"
+            className="btn btn-primary max-sm:w-[var(--control-height)] max-sm:px-0"
+            aria-label="Tạo chuyến"
+          >
+            <Plus size={17} aria-hidden="true" />
+            <span className="hidden sm:inline">Tạo chuyến</span>
+          </Link>
+        )}
+        <span className="max-sm:hidden">
+          <span
+            className="pn-avatar-round"
+            role="img"
+            aria-label={`${accountName} · ${roleLabels[user.role]}`}
+            title={`${accountName} · ${roleLabels[user.role]}`}
+          >
+            {accountName.charAt(0).toUpperCase()}
+          </span>
+        </span>
       </header>
       <main
         id="main"
         tabIndex={-1}
-        className="mx-auto max-w-[96rem] pn-page-inline py-4 sm:py-6"
+        className="mx-auto mt-4 max-w-[96rem] outline-none sm:mt-6"
       >
-        <h1 className="mb-4 text-xl font-semibold tracking-tight sm:mb-6">
-          {pageTitle}
-        </h1>
         {sessionError ? (
           <LoadState
             error={sessionError}
@@ -388,10 +463,35 @@ export function LiveShell({
         ) : (
           children
         )}
-        <footer className="mt-6 border-t border-line pt-4 sm:mt-8 text-xs text-muted">
+        <footer className="mt-6 border-t border-line pt-4 text-xs text-muted sm:mt-8">
           {operatorName} · Giờ Việt Nam (UTC+7)
         </footer>
       </main>
+      {!menu && quick.length > 0 && (
+        <nav aria-label="Điều hướng nhanh" className="pn-bottom-nav pn-glass">
+          {quick.map(({ href, label, short, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              aria-label={short ? label : undefined}
+              aria-current={path === href ? "page" : undefined}
+            >
+              <Icon size={19} aria-hidden="true" />
+              <span>{short ?? label}</span>
+            </Link>
+          ))}
+          {items.length > quick.length && (
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              onClick={() => setMenu(true)}
+            >
+              <MoreHorizontal size={19} aria-hidden="true" />
+              <span>Thêm</span>
+            </button>
+          )}
+        </nav>
+      )}
     </div>
   );
 }

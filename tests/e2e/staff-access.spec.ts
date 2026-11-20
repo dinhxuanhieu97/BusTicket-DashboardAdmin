@@ -56,9 +56,10 @@ const cases = [
       "Tổng quan",
       "Chuyến xe",
       "Hành khách",
-      "Sổ thu",
       "Đội xe",
       "Tuyến đường",
+      // Nhóm Tài chính nằm sau nhóm Vận hành.
+      "Sổ thu",
       "Nhật ký",
       "Cài đặt",
     ],
@@ -73,9 +74,10 @@ const cases = [
       "Tổng quan",
       "Chuyến xe",
       "Hành khách",
-      "Sổ thu",
       "Đội xe",
       "Tuyến đường",
+      // Nhóm Tài chính nằm sau nhóm Vận hành.
+      "Sổ thu",
       "Cài đặt",
     ],
     readable: [tripQuery, "/api/live/payments"],
