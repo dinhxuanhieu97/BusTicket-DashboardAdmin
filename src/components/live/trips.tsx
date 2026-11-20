@@ -19,7 +19,31 @@ import {
   thClass,
   tdClass,
 } from "./shared";
-import { Eye, Play, Pause, ArrowRight, Clock, Users } from "lucide-react";
+import {
+  Eye,
+  Play,
+  Pause,
+  ArrowRight,
+  Clock,
+  Users,
+  LayoutGrid,
+  List,
+} from "lucide-react";
+import { PageHero } from "../ui/page-hero";
+import { FilterChips } from "../ui/filter-chips";
+import { Switch } from "../ui/switch";
+
+const VIEW_KEY = "pnticket_trip_view";
+type View = "table" | "cards";
+function readView(): View {
+  try {
+    return window.localStorage.getItem(VIEW_KEY) === "cards"
+      ? "cards"
+      : "table";
+  } catch {
+    return "table";
+  }
+}
 
 import { tripStates } from "@/lib/overview";
 
@@ -54,6 +78,17 @@ export function Trips({
   const [date, setDate] = useState(initialDate ?? vnToday());
   const [period, setPeriod] = useState<TripPeriod>(initialPeriod);
   const [cursors, setCursors] = useState<string[]>([]);
+  const [route, setRoute] = useState("");
+  const [view, setView] = useState<View>("table");
+  useEffect(() => setView(readView()), []);
+  const changeView = (next: View) => {
+    setView(next);
+    try {
+      window.localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      /* storage blocked */
+    }
+  };
   useEffect(() => {
     if (overview) return;
     const url = new URL(window.location.href);
@@ -70,10 +105,36 @@ export function Trips({
     nextCursor?: string | null;
     meta: { fetchedAt: string };
   }>(overview ? "trips?date=" + date : "trips?" + query.toString());
-  const rows = data?.trips || [];
+  const loaded = data?.trips || [];
+  const routes = [...new Set(loaded.map((t) => t.route_code))].sort();
+  const activeRoute = routes.includes(route) ? route : "";
+  const rows = activeRoute
+    ? loaded.filter((t) => t.route_code === activeRoute)
+    : loaded;
+  const cards = !overview && view === "cards";
 
   return (
     <div className="pn-page-stack">
+      {!overview && (
+        <PageHero
+          title="Chuyến xe"
+          description="Lịch chạy, tình trạng mở bán và chỗ khả dụng theo ngày, tháng hoặc năm."
+          actions={
+            <>
+              <RefreshButton reload={reload} loading={loading} />
+              {canWrite && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setCreating("pair")}
+                >
+                  + Thêm chuyến
+                </button>
+              )}
+            </>
+          }
+        />
+      )}
       {overview && (
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -188,18 +249,43 @@ export function Trips({
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        {overview ? (
           <RefreshButton reload={reload} loading={loading} />
-          {canWrite && (
+        ) : (
+          <div className="pn-segmented" role="group" aria-label="Kiểu hiển thị">
             <button
-              className="btn btn-primary"
-              onClick={() => setCreating("pair")}
+              type="button"
+              aria-pressed={view === "table"}
+              onClick={() => changeView("table")}
             >
-              + Thêm chuyến
+              <List size={15} aria-hidden="true" className="inline" /> Bảng
             </button>
-          )}
-        </div>
+            <button
+              type="button"
+              aria-pressed={view === "cards"}
+              onClick={() => changeView("cards")}
+            >
+              <LayoutGrid size={15} aria-hidden="true" className="inline" /> Thẻ
+            </button>
+          </div>
+        )}
       </div>
+
+      {!overview && routes.length > 1 && (
+        <FilterChips
+          label="Lọc theo tuyến"
+          value={activeRoute}
+          onChange={setRoute}
+          items={[
+            { value: "", label: "Tất cả tuyến", count: loaded.length },
+            ...routes.map((code) => ({
+              value: code,
+              label: code,
+              count: loaded.filter((t) => t.route_code === code).length,
+            })),
+          ]}
+        />
+      )}
 
       {notice && <Notice tone="success">{notice}</Notice>}
 
@@ -217,144 +303,170 @@ export function Trips({
                 </h2>
                 <span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-semibold text-muted">
                   {rows.length} chuyến{!overview && " trong trang"}
+                  {activeRoute && ` · tuyến ${activeRoute}`}
                 </span>
               </div>
               <p className="text-xs text-muted">
                 Cập nhật: {vnDateTime(data.meta.fetchedAt)}
               </p>
             </header>
-            <TableScroll label="Danh sách chuyến">
-              <table className={tableClass} data-pin-first>
-                <thead>
-                  <tr>
-                    {[
-                      "Chuyến / tuyến",
-                      "Khởi hành",
-                      "Xe",
-                      "Chỗ khả dụng / tổng",
-                      "Trạng thái",
-                      ...(canWrite ? ["Thao tác"] : []),
-                    ].map((h) => (
-                      <th className={thClass} key={h}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line/40">
-                  {rows.map((t) => (
-                    <tr key={t.id} className="transition-colors">
-                      <td className={tdClass}>
-                        <strong className="block font-semibold text-ink">
-                          {t.name}
-                        </strong>
-                        <span className="inline-block mt-0.5 rounded bg-surface/80 px-1.5 py-0.5 text-[11px] font-mono text-muted">
-                          {t.code}
-                        </span>
-                        <button
-                          type="button"
-                          className="mt-1 flex min-h-8 items-center gap-1.5 rounded-lg text-xs font-semibold text-accent hover:underline"
-                          onClick={() => setDetail(t)}
-                        >
-                          <Eye size={14} aria-hidden="true" />
-                          Chi tiết
-                        </button>
-                        {canReadPassengers && (
-                          <Link
-                            href={`/admin/passengers?date=${vnDateOf(t.depart_at)}&trip=${t.id}`}
-                            className="flex min-h-8 items-center gap-1.5 rounded-lg text-xs font-semibold text-accent hover:underline"
-                          >
-                            <Users size={14} aria-hidden="true" />
-                            Hành khách
-                          </Link>
-                        )}
-                      </td>
-                      <td className={tdClass + " whitespace-nowrap"}>
-                        <div className="flex items-center gap-1.5 text-sm text-ink font-mono">
-                          <Clock
-                            size={14}
-                            className="text-muted shrink-0"
-                            aria-hidden="true"
-                          />
-                          <span>{vnDateTime(t.depart_at)}</span>
-                        </div>
-                      </td>
-                      <td className={tdClass}>
-                        <span className="font-medium text-ink">
-                          {t.vehicle_name}
-                        </span>
-                        <small className="block font-mono text-xs text-muted">
-                          {t.vehicle_code}
-                        </small>
-                      </td>
-                      <td className={tdClass}>
-                        <div className="flex flex-col gap-1.5">
-                          <span className="font-mono text-sm font-semibold text-ink">
-                            {t.available} / {t.capacity}
-                          </span>
-                          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface">
-                            <div
-                              className="h-full rounded-full bg-accent transition-all duration-300"
-                              style={{
-                                width: `${
-                                  t.capacity > 0
-                                    ? Math.min(
-                                        100,
-                                        Math.round(
-                                          (t.available / t.capacity) * 100,
-                                        ),
-                                      )
-                                    : 0
-                                }%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td className={tdClass + " whitespace-nowrap"}>
-                        <StatusBadge
-                          tone={tripStates[t.status].tone}
-                          label={tripStates[t.status].label}
-                        />
-                      </td>
-                      {canWrite && (
+            {cards ? (
+              <ul
+                className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3"
+                aria-label="Thẻ chuyến"
+              >
+                {rows.map((t) => (
+                  <TripCard
+                    key={t.id}
+                    trip={t}
+                    canWrite={canWrite}
+                    canReadPassengers={canReadPassengers}
+                    onDetail={() => setDetail(t)}
+                    onToggle={() => setChanging(t)}
+                  />
+                ))}
+                {!rows.length && (
+                  <li className="col-span-full text-center text-sm text-muted">
+                    {period === "day"
+                      ? "Không có chuyến trong ngày đã chọn."
+                      : "Không có chuyến trong khoảng thời gian đã chọn."}
+                  </li>
+                )}
+              </ul>
+            ) : (
+              <TableScroll label="Danh sách chuyến">
+                <table className={tableClass} data-pin-first>
+                  <thead>
+                    <tr>
+                      {[
+                        "Chuyến / tuyến",
+                        "Khởi hành",
+                        "Xe",
+                        "Chỗ khả dụng / tổng",
+                        "Trạng thái",
+                        ...(canWrite ? ["Thao tác"] : []),
+                      ].map((h) => (
+                        <th className={thClass} key={h}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line/40">
+                    {rows.map((t) => (
+                      <tr key={t.id} className="transition-colors">
                         <td className={tdClass}>
-                          {t.status !== "CANCELLED" && (
-                            <button
-                              className="btn py-1.5 text-xs"
-                              type="button"
-                              onClick={() => setChanging(t)}
+                          <strong className="block font-semibold text-ink">
+                            {t.name}
+                          </strong>
+                          <span className="inline-block mt-0.5 rounded bg-surface/80 px-1.5 py-0.5 text-[11px] font-mono text-muted">
+                            {t.code}
+                          </span>
+                          <button
+                            type="button"
+                            className="mt-1 flex min-h-8 items-center gap-1.5 rounded-lg text-xs font-semibold text-accent hover:underline"
+                            onClick={() => setDetail(t)}
+                          >
+                            <Eye size={14} aria-hidden="true" />
+                            Chi tiết
+                          </button>
+                          {canReadPassengers && (
+                            <Link
+                              href={`/admin/passengers?date=${vnDateOf(t.depart_at)}&trip=${t.id}`}
+                              className="flex min-h-8 items-center gap-1.5 rounded-lg text-xs font-semibold text-accent hover:underline"
                             >
-                              {t.status === "OPEN" ? (
-                                <>
-                                  <Pause size={13} aria-hidden="true" />
-                                  Đóng bán
-                                </>
-                              ) : (
-                                <>
-                                  <Play size={13} aria-hidden="true" />
-                                  Mở bán
-                                </>
-                              )}
-                            </button>
+                              <Users size={14} aria-hidden="true" />
+                              Hành khách
+                            </Link>
                           )}
                         </td>
-                      )}
-                    </tr>
-                  ))}
-                  {!rows.length && (
-                    <EmptyRow
-                      columns={canWrite ? 6 : 5}
-                      text={
-                        overview || period === "day"
-                          ? "Không có chuyến trong ngày đã chọn."
-                          : "Không có chuyến trong khoảng thời gian đã chọn."
-                      }
-                    />
-                  )}
-                </tbody>
-              </table>
-            </TableScroll>
+                        <td className={tdClass + " whitespace-nowrap"}>
+                          <div className="flex items-center gap-1.5 text-sm text-ink font-mono">
+                            <Clock
+                              size={14}
+                              className="text-muted shrink-0"
+                              aria-hidden="true"
+                            />
+                            <span>{vnDateTime(t.depart_at)}</span>
+                          </div>
+                        </td>
+                        <td className={tdClass}>
+                          <span className="font-medium text-ink">
+                            {t.vehicle_name}
+                          </span>
+                          <small className="block font-mono text-xs text-muted">
+                            {t.vehicle_code}
+                          </small>
+                        </td>
+                        <td className={tdClass}>
+                          <div className="flex flex-col gap-1.5">
+                            <span className="font-mono text-sm font-semibold text-ink">
+                              {t.available} / {t.capacity}
+                            </span>
+                            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface">
+                              <div
+                                className="h-full rounded-full bg-accent transition-all duration-300"
+                                style={{
+                                  width: `${
+                                    t.capacity > 0
+                                      ? Math.min(
+                                          100,
+                                          Math.round(
+                                            (t.available / t.capacity) * 100,
+                                          ),
+                                        )
+                                      : 0
+                                  }%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+                        <td className={tdClass + " whitespace-nowrap"}>
+                          <StatusBadge
+                            tone={tripStates[t.status].tone}
+                            label={tripStates[t.status].label}
+                          />
+                        </td>
+                        {canWrite && (
+                          <td className={tdClass}>
+                            {t.status !== "CANCELLED" && (
+                              <button
+                                className="btn py-1.5 text-xs"
+                                type="button"
+                                onClick={() => setChanging(t)}
+                              >
+                                {t.status === "OPEN" ? (
+                                  <>
+                                    <Pause size={13} aria-hidden="true" />
+                                    Đóng bán
+                                  </>
+                                ) : (
+                                  <>
+                                    <Play size={13} aria-hidden="true" />
+                                    Mở bán
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                    {!rows.length && (
+                      <EmptyRow
+                        columns={canWrite ? 6 : 5}
+                        text={
+                          overview || period === "day"
+                            ? "Không có chuyến trong ngày đã chọn."
+                            : "Không có chuyến trong khoảng thời gian đã chọn."
+                        }
+                      />
+                    )}
+                  </tbody>
+                </table>
+              </TableScroll>
+            )}
             {!overview && (
               <div className="pn-table-footer">
                 <span className="text-muted">
@@ -452,5 +564,99 @@ export function Trips({
         />
       )}
     </div>
+  );
+}
+
+function TripCard({
+  trip: t,
+  canWrite,
+  canReadPassengers,
+  onDetail,
+  onToggle,
+}: {
+  trip: Trip;
+  canWrite: boolean;
+  canReadPassengers: boolean;
+  onDetail: () => void;
+  onToggle: () => void;
+}) {
+  const sold = Math.max(0, t.capacity - t.available);
+  const pct = t.capacity > 0 ? Math.round((sold / t.capacity) * 100) : 0;
+  return (
+    <li
+      className="pn-trip-card"
+      data-on={t.status === "OPEN"}
+      aria-label={t.name}
+    >
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-mono text-xs text-muted">
+            {t.code} · {t.route_code}
+          </p>
+          <p className="font-semibold text-ink wrap-anywhere">{t.name}</p>
+        </div>
+        {canWrite && t.status !== "CANCELLED" ? (
+          <Switch
+            checked={t.status === "OPEN"}
+            onChange={onToggle}
+            label={`Mở bán ${t.name}`}
+          />
+        ) : (
+          <StatusBadge
+            tone={tripStates[t.status].tone}
+            label={tripStates[t.status].label}
+          />
+        )}
+      </div>
+      <p className="flex items-center gap-1.5 text-sm text-muted">
+        <Clock size={14} aria-hidden="true" />
+        {vnDateTime(t.depart_at)}
+      </p>
+      <p className="text-sm text-muted">
+        {t.vehicle_name} · {t.vehicle_code}
+      </p>
+      {canWrite && t.status !== "CANCELLED" && (
+        <span>
+          <StatusBadge
+            tone={tripStates[t.status].tone}
+            label={tripStates[t.status].label}
+          />
+        </span>
+      )}
+      <div className="mt-auto flex items-center gap-3 pt-2 text-xs text-muted">
+        <span className="tabular-nums">
+          {sold}/{t.capacity} chỗ đã bán
+        </span>
+        <span
+          className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--border)]"
+          aria-hidden="true"
+        >
+          <span
+            className="block h-full rounded-full bg-accent"
+            style={{ width: `${Math.min(100, pct)}%` }}
+          />
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-x-4">
+        <button
+          type="button"
+          className="flex min-h-11 items-center gap-1.5 text-xs font-semibold text-accent hover:underline"
+          onClick={onDetail}
+          aria-label={`Chi tiết ${t.name}`}
+        >
+          <Eye size={14} aria-hidden="true" />
+          Chi tiết
+        </button>
+        {canReadPassengers && (
+          <Link
+            href={`/admin/passengers?date=${vnDateOf(t.depart_at)}&trip=${t.id}`}
+            className="flex min-h-11 items-center gap-1.5 text-xs font-semibold text-accent hover:underline"
+          >
+            <Users size={14} aria-hidden="true" />
+            Hành khách
+          </Link>
+        )}
+      </div>
+    </li>
   );
 }

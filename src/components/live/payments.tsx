@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Payment,
   methodLabels,
@@ -11,6 +11,8 @@ import {
 import { Modal } from "../modal";
 import { LateReinstateDialog } from "./late-reinstate";
 import { useResource } from "./use-resource";
+import { PageHero } from "../ui/page-hero";
+import { FilterTabs } from "../ui/filter-tabs";
 import {
   LoadState,
   RefreshButton,
@@ -29,7 +31,14 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-export function Payments({ canReinstate = false }: { canReinstate?: boolean }) {
+export function Payments({
+  canReinstate = false,
+  afterHero,
+}: {
+  canReinstate?: boolean;
+  /** Khối hiện ngay dưới đầu trang (vd. "Khoản cần hoàn"). */
+  afterHero?: ReactNode;
+}) {
   const [review, setReview] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -39,6 +48,17 @@ export function Payments({ canReinstate = false }: { canReinstate?: boolean }) {
     payments: Payment[];
     meta: { fetchedAt: string; limit: number };
   }>("payments" + (review ? "?review=" + review : ""));
+  // Số đếm của tab lấy từ tập không lọc (200 khoản gần nhất); khi đang ở "Tất cả" dùng luôn dữ liệu chính.
+  const unfiltered = useResource<{
+    payments: Payment[];
+    meta: { fetchedAt: string; limit: number };
+  }>(review ? "payments" : null);
+  const all = review ? unfiltered.data : data;
+  const partial = !!all && all.payments.length >= all.meta.limit;
+  const countOf = (status?: string) =>
+    all
+      ? all.payments.filter((p) => !status || p.review.status === status).length
+      : undefined;
 
   const rows = (data?.payments || []).filter((p) =>
     `${p.id} ${p.matchedBookingCode || ""} ${p.bankReference || ""} ${p.content || ""}`
@@ -51,44 +71,43 @@ export function Payments({ canReinstate = false }: { canReinstate?: boolean }) {
   const refresh = () => {
     setSelected(null);
     reload();
+    if (review) unfiltered.reload();
   };
 
   return (
     <div className="pn-page-stack">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="pn-section-label">Sổ thu tài chính</h2>
-          <p className="text-sm text-muted">
-            Các khoản thu thực tế · Đơn vị VND
-          </p>
-          <p className="mt-0.5 text-xs text-muted/80">
-            API trả tối đa 200 khoản gần nhất theo bộ lọc. Tìm kiếm và phân
-            trang chỉ trong tập đã tải.
-          </p>
-        </div>
-        <RefreshButton reload={refresh} loading={loading} />
-      </div>
+      <PageHero
+        title="Sổ thu tài chính"
+        description="Các khoản thu thực tế · Đơn vị VND"
+        note="API trả tối đa 200 khoản gần nhất theo bộ lọc. Số trên tab, tìm kiếm và phân trang chỉ tính trong tập đã tải."
+        actions={<RefreshButton reload={refresh} loading={loading} />}
+      />
+      {afterHero}
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative">
-          <select
-            className="field w-auto max-w-full"
-            aria-label="Trạng thái kiểm tra"
-            value={review}
-            onChange={(e) => {
-              setReview(e.target.value);
-              setPage(1);
-              setSelected(null);
-            }}
-          >
-            <option value="">Tất cả trạng thái kiểm tra</option>
-            {Object.entries(reviewLabels).map(([key, value]) => (
-              <option key={key} value={key}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FilterTabs
+          label="Trạng thái kiểm tra"
+          value={review}
+          onChange={(next) => {
+            setReview(next);
+            setPage(1);
+            setSelected(null);
+          }}
+          items={[
+            { value: "", label: "Tất cả", count: countOf(), partial },
+            ...(
+              Object.entries(reviewLabels) as [
+                keyof typeof reviewLabels,
+                string,
+              ][]
+            ).map(([key, label]) => ({
+              value: key as string,
+              label,
+              count: countOf(key),
+              partial,
+            })),
+          ]}
+        />
 
         <div className="relative min-w-0 basis-full sm:max-w-sm sm:basis-auto sm:flex-1">
           <input

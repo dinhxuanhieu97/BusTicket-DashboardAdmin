@@ -41,7 +41,7 @@ test("logging out in one tab sends the other tab to the login page", async ({
   const b = await context.newPage();
   await b.goto("/admin/trips");
   await expect(
-    b.getByRole("heading", { name: "Chuyến xe", exact: true }),
+    b.getByRole("heading", { name: "Chuyến xe", exact: true, level: 1 }),
   ).toBeVisible();
 
   await a.getByRole("button", { name: "Đăng xuất" }).click();

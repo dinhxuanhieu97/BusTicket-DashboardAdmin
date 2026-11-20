@@ -3,16 +3,28 @@ import { useState } from "react";
 import { AuditEntry, vnDateTime } from "@/lib/live-contracts";
 import { Modal } from "../modal";
 import { useResource } from "./use-resource";
+import { LoadState, RefreshButton, EmptyState } from "./shared";
+import { PageHero } from "../ui/page-hero";
 import {
-  LoadState,
-  RefreshButton,
-  EmptyRow,
-  TableScroll,
-  tableClass,
-  thClass,
-  tdClass,
-} from "./shared";
-import { Clock, User, FileText, Code2 } from "lucide-react";
+  Bus,
+  Clock,
+  Code2,
+  FileText,
+  Route,
+  User,
+  Wallet,
+  Warehouse,
+  type LucideIcon,
+} from "lucide-react";
+
+function actionIcon(action: string): LucideIcon {
+  if (action.startsWith("trip.")) return Bus;
+  if (action.startsWith("payment.")) return Wallet;
+  if (action.startsWith("user.")) return User;
+  if (action.startsWith("vehicle.")) return Warehouse;
+  if (action.startsWith("route.")) return Route;
+  return FileText;
+}
 
 const labels: Record<string, string> = {
   "user.create": "Tạo nhân viên",
@@ -53,21 +65,19 @@ export function Audit() {
 
   return (
     <div className="pn-page-stack">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="pn-section-label">Nhật ký hoạt động</h2>
-          <p className="text-sm text-muted">
-            Tối đa 100 thao tác gần nhất của nhà xe.
-          </p>
-        </div>
-        <RefreshButton
-          loading={loading}
-          reload={() => {
-            setSelected(null);
-            reload();
-          }}
-        />
-      </div>
+      <PageHero
+        title="Nhật ký hoạt động"
+        description="Tối đa 100 thao tác gần nhất của nhà xe."
+        actions={
+          <RefreshButton
+            loading={loading}
+            reload={() => {
+              setSelected(null);
+              reload();
+            }}
+          />
+        }
+      />
 
       <LoadState loading={loading} error={error} reload={reload} />
 
@@ -79,73 +89,50 @@ export function Audit() {
             </span>
             <span className="text-xs text-muted">Bảo mật bất biến</span>
           </header>
-          <TableScroll label="Bảng nhật ký hoạt động">
-            <table className={tableClass}>
-              <thead>
-                <tr>
-                  {[
-                    "Thời gian",
-                    "Thao tác",
-                    "Người thực hiện",
-                    "Đối tượng",
-                    "Chi tiết",
-                  ].map((h) => (
-                    <th className={thClass} key={h}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line/40">
-                {data.entries.map((e) => (
-                  <tr key={e.id} className="transition-colors">
-                    <td className={tdClass + " whitespace-nowrap"}>
-                      <div className="flex items-center gap-1.5 font-mono text-xs text-muted">
-                        <Clock size={13} aria-hidden="true" />
-                        <span>{vnDateTime(e.at)}</span>
-                      </div>
-                    </td>
-                    <td className={tdClass}>
-                      <span
-                        className={`inline-flex items-center rounded-lg border px-2.5 py-0.5 text-xs font-semibold ${getActionColor(
-                          e.action,
-                        )}`}
-                      >
+          {data.entries.length ? (
+            <ul className="pn-panel-inline" aria-label="Nhật ký hoạt động">
+              {data.entries.map((e) => {
+                const Icon = actionIcon(e.action);
+                return (
+                  <li key={e.id} className="pn-list-row">
+                    <span className="pn-list-icon" aria-hidden="true">
+                      <Icon size={16} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-ink">
                         {labels[e.action] || e.action}
-                      </span>
-                    </td>
-                    <td className={tdClass}>
-                      <div className="flex items-center gap-1.5 text-sm font-medium text-ink">
-                        <User
-                          size={13}
-                          className="text-muted"
-                          aria-hidden="true"
-                        />
-                        <span>{e.actor_name || "Hệ thống"}</span>
-                      </div>
-                    </td>
-                    <td className={tdClass + " font-mono text-xs text-muted"}>
-                      <span className="rounded bg-surface px-2 py-0.5">
-                        {e.entity}
-                      </span>
-                    </td>
-                    <td className={tdClass}>
-                      <button
-                        className="btn py-1 text-xs text-accent hover:border-accent"
-                        onClick={() => setSelected(e)}
-                        aria-label={`Xem nhật ký ${e.id}`}
-                      >
-                        Xem
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {!data.entries.length && (
-                  <EmptyRow columns={5} text="Chưa có bản ghi nhật ký." />
-                )}
-              </tbody>
-            </table>
-          </TableScroll>
+                      </p>
+                      <p className="flex flex-wrap gap-x-3 text-xs text-muted">
+                        <span className="inline-flex items-center gap-1">
+                          <User size={12} aria-hidden="true" />
+                          {e.actor_name || "Hệ thống"}
+                        </span>
+                        <span className="font-mono">{e.entity}</span>
+                        <span className="font-mono sm:hidden">
+                          {vnDateTime(e.at)}
+                        </span>
+                      </p>
+                    </div>
+                    <span className="hidden font-mono text-xs whitespace-nowrap text-muted sm:inline">
+                      {vnDateTime(e.at)}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn py-1 text-xs text-accent hover:border-accent"
+                      onClick={() => setSelected(e)}
+                      aria-label={`Xem nhật ký ${e.id}`}
+                    >
+                      Xem
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <EmptyState>
+              <p>Chưa có bản ghi nhật ký.</p>
+            </EmptyState>
+          )}
         </section>
       )}
 

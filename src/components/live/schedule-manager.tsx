@@ -1,4 +1,5 @@
 "use client";
+import { PageHero } from "../ui/page-hero";
 
 import { useEffect, useState } from "react";
 import { vnToday, vnDateTime } from "@/lib/live-contracts";
@@ -90,19 +91,19 @@ export function ScheduleManager() {
   const active = schedules.find((s) => s.id === preview?.id);
   return (
     <div className="pn-page-stack">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <p className="text-sm text-muted">
-          Duy trì lịch chạy 30 ngày tới. Hai xe đổi chiều mỗi ngày kể từ ngày
-          bắt đầu.
-        </p>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => setCreating((v) => !v)}
-        >
-          {creating ? "Đóng thiết lập" : "+ Thiết lập lịch"}
-        </button>
-      </div>
+      <PageHero
+        title="Lịch tự động"
+        description="Duy trì lịch chạy 30 ngày tới. Hai xe đổi chiều mỗi ngày kể từ ngày bắt đầu."
+        actions={
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setCreating((v) => !v)}
+          >
+            {creating ? "Đóng thiết lập" : "+ Thiết lập lịch"}
+          </button>
+        }
+      />
       {error && <Notice tone="danger">{error}</Notice>}
       {notice && <Notice tone="success">{notice}</Notice>}
       {creating && (
