@@ -22,7 +22,7 @@ import {
 } from "@/lib/trip-detail";
 import { Bus, Users } from "lucide-react";
 
-const seatTone = {
+export const seatTone = {
   AVAILABLE: "success",
   HELD: "warning",
   BOOKED: "info",
@@ -31,7 +31,7 @@ const seatTone = {
 
 type Loaded = TripDetail & { meta: { fetchedAt: string } };
 
-function useTripDetail(id: string) {
+export function useTripDetail(id: string) {
   const [state, setState] = useState<{
     data: Loaded | null;
     error: string;

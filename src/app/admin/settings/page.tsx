@@ -105,6 +105,7 @@ export default async function Page({
           <TwoFactorSettings enabled={user.mfaEnabled} />
 
           <section
+            id="change-password"
             aria-labelledby="change-password-heading"
             className="mt-4 rounded-xl border border-line/60 bg-surface/20 p-4"
           >

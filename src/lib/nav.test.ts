@@ -28,9 +28,20 @@ test("owner permissions show every menu item", () => {
 });
 
 test("items without a permission are hidden; the account page always stays", () => {
-  assert.deepEqual(keys(["trip.read"]), ["overview", "trips", "settings"]);
-  assert.deepEqual(keys(["payment.read"]), ["payments", "settings"]);
-  assert.deepEqual(keys([]), ["settings"]);
+  assert.deepEqual(keys(["trip.read"]), [
+    "overview",
+    "trips",
+    "settings",
+    "seats",
+    "help",
+  ]);
+  assert.deepEqual(keys(["payment.read"]), [
+    "payments",
+    "settings",
+    "revenue",
+    "help",
+  ]);
+  assert.deepEqual(keys([]), ["settings", "help"]);
 });
 
 test("passenger list needs booking.read", () => {
@@ -39,11 +50,17 @@ test("passenger list needs booking.read", () => {
     "trips",
     "passengers",
     "settings",
+    "seats",
+    "help",
   ]);
 });
 
 test("assistants only see their assigned trips and the account page", () => {
-  assert.deepEqual(keys(["trip.assigned.read"]), ["assigned", "settings"]);
+  assert.deepEqual(keys(["trip.assigned.read"]), [
+    "assigned",
+    "settings",
+    "help",
+  ]);
 });
 
 test("an older API without permissions keeps the full menu", () => {
@@ -64,9 +81,9 @@ test("groups follow permissions and empty groups disappear", () => {
   assert.deepEqual(
     groups.map((g) => [g.title, g.items.map((i) => i.key)]),
     [
-      ["Vận hành", ["overview", "trips"]],
-      ["Tài chính", ["payments"]],
-      ["Quản lý", ["settings"]],
+      ["Vận hành", ["overview", "trips", "seats"]],
+      ["Tài chính", ["payments", "revenue"]],
+      ["Quản lý", ["settings", "help"]],
     ],
   );
   assert.deepEqual(

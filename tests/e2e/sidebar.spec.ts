@@ -41,9 +41,37 @@ test("desktop sidebar collapses to icons, remembers the choice and toggles with 
   ).toBeVisible();
   await expect.poll(width).toBe(84);
   await expect.poll(mainPad).toBe(116);
-  // Nhãn ẩn, icon + tên qua title vẫn còn.
+  // Nhãn ẩn; rê chuột hoặc focus vào icon thì tên hiện nổi bên phải (không dùng title).
   await expect(tripsLink.locator(".pn-sidebar-text")).toBeHidden();
-  await expect(tripsLink).toHaveAttribute("title", "Chuyến xe");
+  await expect(tripsLink).not.toHaveAttribute("title");
+  const tip = page.getByRole("tooltip");
+  await tripsLink.hover();
+  await expect(tip).toHaveText("Chuyến xe");
+  const linkBox = (await tripsLink.boundingBox())!;
+  const tipBox = (await tip.boundingBox())!;
+  expect(tipBox.x).toBeGreaterThan(linkBox.x + linkBox.width);
+  expect(
+    Math.abs(tipBox.y + tipBox.height / 2 - (linkBox.y + linkBox.height / 2)),
+  ).toBeLessThan(2);
+  await page.keyboard.press("Escape");
+  await expect(tip).toHaveCount(0);
+  await aside.getByRole("button", { name: "Đăng xuất" }).focus();
+  await expect(tip).toHaveText("Đăng xuất");
+  await page.mouse.move(800, 400);
+  await aside.getByRole("button", { name: "Đăng xuất" }).blur();
+  await expect(tip).toHaveCount(0);
+  // Nút mở rộng có nhãn nổi kèm phím tắt, mũi tên xoay theo trạng thái.
+  const toggle = page.getByRole("button", { name: "Mở rộng menu" });
+  await toggle.hover();
+  await expect(tip).toHaveText(/Mở rộng menu\s+\[/);
+  await expect(toggle.locator("svg")).toHaveCSS("rotate", "180deg");
+  await page.mouse.move(800, 400);
+  await expect(tip).toHaveCount(0);
+  // Avatar tài khoản nằm giữa thanh bên thu gọn, thẳng hàng với icon menu.
+  const avatar = (await aside.locator(".pn-avatar").boundingBox())!;
+  expect(
+    Math.abs(avatar.x + avatar.width / 2 - (linkBox.x + linkBox.width / 2)),
+  ).toBeLessThan(2);
   await expect(aside.getByRole("button", { name: "Đăng xuất" })).toBeVisible();
   expect(
     await page.evaluate(() =>

@@ -87,6 +87,7 @@ test("OWNER assigns an assistant in trip detail; the assistant sees only that tr
     await expect(nav.getByRole("link")).toHaveText([
       "Chuyến được giao",
       "Cài đặt",
+      "Trợ giúp",
     ]);
     await expect(
       p.getByRole("list", { name: "Chuyến được giao" }).getByRole("button"),
