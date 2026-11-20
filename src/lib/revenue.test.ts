@@ -159,3 +159,30 @@ test("API reports give net revenue, routes and a complete comparison", () => {
   );
   assert.equal(flat.change, null);
 });
+
+test("GF8: report periods for 30 days cross a year boundary", () => {
+  assert.deepEqual(revenuePeriods("2027-01-10", 30), {
+    current: { from: "2026-12-12", to: "2027-01-11" },
+    previous: { from: "2026-11-12", to: "2026-12-12" },
+  });
+});
+
+test("GF8: report figures are complete however many payments there are", () => {
+  const big = report([day("2026-11-21", 1_500_000_000)]);
+  big.totals.payments = 5000;
+  const r = revenueFromReports(big, report([day("2026-11-20", 0)]));
+  assert.equal(r.completeCurrent, true);
+  assert.equal(r.completePrevious, true);
+  assert.equal(r.count, 5000);
+  assert.equal(r.average, 300_000);
+  assert.equal(r.change, null);
+});
+
+test("GF8: an empty period has zero average and no peak hour", () => {
+  const empty = { ...report([day("2026-11-21", 0)]), byHour: [] };
+  const r = revenueFromReports(empty, empty);
+  assert.equal(r.count, 0);
+  assert.equal(r.average, 0);
+  assert.equal(r.peakHour, null);
+  assert.equal(r.total, 0);
+});

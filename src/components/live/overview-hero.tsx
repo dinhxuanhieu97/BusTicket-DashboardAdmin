@@ -31,6 +31,7 @@ import {
   nextDeparture,
   paymentStats,
   salesStats,
+  reportMoney,
   salesChangeText,
   cancelPercent,
   CANCEL_WARN,
@@ -113,16 +114,7 @@ export function OverviewHero({
   const next = now ? nextDeparture(trips, now) : null;
   const money =
     revenue.data && counters.data?.payments
-      ? {
-          today: revenue.data.byDay.at(-1)?.net ?? 0,
-          series: revenue.data.byDay.map((d) => ({
-            date: d.date,
-            amount: d.net,
-          })),
-          needsReview: counters.data.payments.NEEDS_REVIEW,
-          complete: true,
-          net: true,
-        }
+      ? reportMoney(revenue.data, counters.data.payments.NEEDS_REVIEW)
       : payments.data
         ? { ...paymentStats(payments.data.payments, today), net: false }
         : null;

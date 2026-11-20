@@ -149,6 +149,23 @@ export function salesStats(report: BookingsReport, today: string) {
   };
 }
 
+/**
+ * Thẻ tiền của Tổng quan từ API báo cáo (GF8): `today` = thu thuần của ngày cuối kỳ (kỳ kết thúc hôm nay),
+ * chuỗi 7 ngày theo thu thuần, luôn đủ dữ liệu (không giới hạn 200 khoản).
+ */
+export function reportMoney(
+  report: { byDay: { date: string; net: number }[] },
+  needsReview: number,
+) {
+  return {
+    today: report.byDay.at(-1)?.net ?? 0,
+    series: report.byDay.map((d) => ({ date: d.date, amount: d.net })),
+    needsReview,
+    complete: true,
+    net: true,
+  };
+}
+
 /** Tỷ lệ hủy (0–1) → "12,5" (một chữ số thập phân, dấu phẩy VN); chưa có đơn → `null`. */
 export function cancelPercent(rate: number | null) {
   return rate === null

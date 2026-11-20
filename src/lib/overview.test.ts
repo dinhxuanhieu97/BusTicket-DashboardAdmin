@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   salesStats,
+  reportMoney,
   salesChangeText,
   cancelPercent,
   CANCEL_WARN,
@@ -293,4 +294,27 @@ test("GF7: cancel rate is shown with one decimal and warns from 10%", () => {
   );
   assert.equal(none.cancelRate, null);
   assert.equal(none.bookings, 0);
+});
+
+test("GF8: overview money uses the last report day (today) as net and is always complete", () => {
+  const m = reportMoney(
+    {
+      byDay: [
+        { date: "2026-11-20", net: 200_000 },
+        { date: "2026-11-21", net: -50_000 },
+      ],
+    },
+    5,
+  );
+  assert.deepEqual(m, {
+    today: -50_000,
+    series: [
+      { date: "2026-11-20", amount: 200_000 },
+      { date: "2026-11-21", amount: -50_000 },
+    ],
+    needsReview: 5,
+    complete: true,
+    net: true,
+  });
+  assert.equal(reportMoney({ byDay: [] }, 0).today, 0);
 });
