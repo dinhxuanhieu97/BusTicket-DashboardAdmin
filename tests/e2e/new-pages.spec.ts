@@ -124,9 +124,16 @@ test("seat map: picking a seat shows its booking and opens the counter sale", as
 
   await page.getByRole("button", { name: "A1 · Còn trống" }).click();
   await panel.getByRole("button", { name: "Bán tại quầy" }).click();
+  const sale = page.getByRole("dialog", { name: "Bán tại quầy" });
+  await expect(sale).toBeVisible();
+  // Chỗ vừa bấm đã được chọn sẵn trong form bán (GF19), chỗ khác thì chưa.
+  await expect(sale.locator('[data-seat-pick="A1"]')).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   await expect(
-    page.getByRole("dialog", { name: "Bán tại quầy" }),
-  ).toBeVisible();
+    sale.locator('[data-seat-pick][aria-pressed="true"]'),
+  ).toHaveCount(1);
 });
 
 test("seat map deep link keeps the date and shows an empty day", async ({
@@ -176,10 +183,14 @@ test("DISPATCHER is sent away from revenue and help lists only its menus", async
   );
 });
 
-test("assistants can open help from the menu", async ({ page }) => {
+test("assistants open help from the account menu, not the sidebar", async ({
+  page,
+}) => {
   await signInAs(page, "ASSISTANT");
   const nav = page.getByRole("navigation", { name: "Điều hướng quản trị" });
-  await nav.getByRole("link", { name: "Trợ giúp" }).click();
+  await expect(nav.getByRole("link", { name: "Trợ giúp" })).toHaveCount(0);
+  await page.getByRole("button", { name: /^Tài khoản:/ }).click();
+  await page.getByRole("menuitem", { name: "Trợ giúp & phím tắt" }).click();
   await expect(page).toHaveURL(/\/admin\/help$/);
   const main = page.locator("#main");
   await expect(

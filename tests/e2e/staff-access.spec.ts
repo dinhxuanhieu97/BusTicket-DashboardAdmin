@@ -45,7 +45,6 @@ const cases = [
       "Đội xe",
       "Tuyến đường",
       "Cài đặt",
-      "Trợ giúp",
     ],
     readable: [tripQuery, "/api/trip-management/options"],
     forbidden: ["/api/live/payments", "/api/live/audit-logs"],
@@ -66,7 +65,6 @@ const cases = [
       "Doanh thu",
       "Nhật ký",
       "Cài đặt",
-      "Trợ giúp",
     ],
     readable: [tripQuery, "/api/live/payments", "/api/live/audit-logs"],
     forbidden: ["/api/trip-management/options"],
@@ -86,7 +84,6 @@ const cases = [
       "Sổ thu",
       "Doanh thu",
       "Cài đặt",
-      "Trợ giúp",
     ],
     readable: [tripQuery, "/api/live/payments"],
     forbidden: [
@@ -99,7 +96,7 @@ const cases = [
   {
     role: "ASSISTANT",
     label: "Phụ xe",
-    menu: ["Chuyến được giao", "Cài đặt", "Trợ giúp"],
+    menu: ["Chuyến được giao", "Cài đặt"],
     readable: ["/api/assigned-trips"],
     forbidden: [
       tripQuery,
@@ -154,6 +151,13 @@ for (const { role, label, menu, readable, forbidden, deniedPage } of cases) {
     await expect(
       page.getByRole("link", { name: "Thông tin chung" }),
     ).toHaveCount(0);
+    // Đầu trang Cài đặt theo page-hero; nhân viên không có quyền thấy mô tả không nhắc nhà xe (GF14).
+    await expect(
+      page.getByRole("heading", { name: "Tài khoản & nhà xe", level: 2 }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Hồ sơ và bảo mật đăng nhập của bạn."),
+    ).toBeVisible();
   });
 }
 

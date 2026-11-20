@@ -30,7 +30,13 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { roleLabels, type AppUser } from "@/lib/live-contracts";
-import { groupNav, mobileNav, visibleNav, type NavKey } from "@/lib/nav";
+import {
+  groupNav,
+  mobileNav,
+  sidebarGroups,
+  visibleNav,
+  type NavKey,
+} from "@/lib/nav";
 import { subscribeSessionEvents } from "@/lib/session-sync";
 import { LogoutButton } from "./auth-forms";
 import { AccountMenu } from "./account-menu";
@@ -325,7 +331,7 @@ export function LiveShell({
         aria-label="Điều hướng quản trị"
         className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-2"
       >
-        {groups.map(({ id, title, items: group }) => (
+        {sidebarGroups(groups).map(({ id, title, items: group }) => (
           <div key={id} className="space-y-1">
             <p className="pn-nav-group">{title}</p>
             {group.map(({ href, label, icon: Icon }) => (
@@ -474,7 +480,8 @@ export function LiveShell({
         </button>
         <button
           type="button"
-          className="icon-btn"
+          // Điện thoại: đổi giao diện trong menu tài khoản để topbar đủ chỗ cho tiêu đề (GF20).
+          className="icon-btn max-sm:hidden"
           aria-label="Đổi giao diện"
           aria-pressed={!dark}
           onClick={toggleTheme}

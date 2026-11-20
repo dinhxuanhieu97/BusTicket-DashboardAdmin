@@ -146,7 +146,6 @@ test("the menu follows the permissions returned by the server", async ({
     "Chuyến xe",
     "Sơ đồ chỗ",
     "Cài đặt",
-    "Trợ giúp",
   ]);
   await request.post("http://127.0.0.1:3101/__test/state", {
     data: { permissions: null },

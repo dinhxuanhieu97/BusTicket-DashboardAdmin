@@ -69,7 +69,7 @@ export function AccountMenu({ name, role, phone, dark, toggleTheme }: Props) {
   const initial = name.charAt(0).toUpperCase();
 
   return (
-    <div ref={wrap} className="relative max-sm:hidden">
+    <div ref={wrap} className="relative shrink-0">
       <button
         ref={button}
         type="button"

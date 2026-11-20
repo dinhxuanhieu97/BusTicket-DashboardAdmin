@@ -100,9 +100,24 @@ test("phones get a bottom bar that never covers the page and a Thêm drawer", as
   expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
     true,
   );
+  // Điện thoại: avatar mở menu tài khoản; nút đổi giao diện chuyển vào menu (GF20).
   await expect(
-    page.getByRole("button", { name: /^Tài khoản: Test OWNER/ }),
+    page.getByRole("button", { name: "Đổi giao diện", exact: true }),
   ).toBeHidden();
+  const avatar = page.getByRole("button", { name: /^Tài khoản: Test OWNER/ });
+  await avatar.click();
+  const menu = page.getByRole("menu", { name: "Tài khoản" });
+  // Đo sau hiệu ứng mở (scale 0.96 → 1), nếu không chiều cao bị nhỏ đi 4%.
+  await menu.evaluate((el) =>
+    Promise.all(el.getAnimations().map((a) => a.finished)),
+  );
+  const box = (await menu.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+  for (const item of await menu.locator("[role^=menuitem]").all())
+    expect((await item.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
   await expect(bar.getByRole("link", { name: "Tổng quan" })).toHaveAttribute(
     "aria-current",
     "page",
@@ -222,6 +237,9 @@ test("the avatar opens an account menu that works by mouse and keyboard", async 
     page.getByRole("heading", { name: "Đổi mật khẩu" }),
   ).toBeInViewport();
   await expect(menu).toHaveCount(0);
+  await expect(
+    page.getByText("Hồ sơ, bảo mật đăng nhập và thông tin chung của nhà xe."),
+  ).toBeVisible();
 
   // Đăng xuất từ menu đưa về trang đăng nhập.
   await avatar.click();

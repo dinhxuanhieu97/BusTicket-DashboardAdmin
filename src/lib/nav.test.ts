@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { NAV, NAV_GROUPS, groupNav, mobileNav, visibleNav } from "./nav";
+import {
+  NAV,
+  NAV_GROUPS,
+  groupNav,
+  mobileNav,
+  visibleNav,
+  sidebarGroups,
+} from "./nav";
 
 const keys = (p: readonly string[] | undefined) =>
   visibleNav(p).map((i) => i.key);
@@ -89,6 +96,23 @@ test("groups follow permissions and empty groups disappear", () => {
   assert.deepEqual(
     groupNav(visibleNav(["trip.assigned.read"])).map((g) => g.id),
     ["ops", "manage"],
+  );
+});
+
+test("help leaves the sidebar list but stays in the groups used by ⌘K", () => {
+  const groups = groupNav(visibleNav(["trip.read"]));
+  assert.ok(groups.some((g) => g.items.some((i) => i.key === "help")));
+  assert.deepEqual(
+    sidebarGroups(groups).map((g) => [g.id, g.items.map((i) => i.key)]),
+    [
+      ["ops", ["overview", "trips", "seats"]],
+      ["manage", ["settings"]],
+    ],
+  );
+  // Nhóm chỉ còn mục đã chuyển đi thì biến mất.
+  assert.deepEqual(
+    sidebarGroups([{ id: "x", title: "X", items: [{ key: "help" as const }] }]),
+    [],
   );
 });
 
