@@ -260,7 +260,7 @@ export function LogoutButton() {
   return (
     <div>
       <button
-        className="btn btn-ghost w-full justify-start text-muted"
+        className="btn btn-ghost pn-logout w-full justify-start"
         aria-label="Đăng xuất"
         disabled={busy}
         onClick={logout}

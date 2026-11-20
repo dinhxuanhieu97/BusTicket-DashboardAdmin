@@ -762,6 +762,15 @@ html[data-sidebar="collapsed"] .pn-sidebar .btn-ghost span {
 .pn-account-item:disabled {
   @apply cursor-wait opacity-60;
 }
+/* Đăng xuất ở chân thanh bên: nền đỏ nhạt để tách khỏi các mục điều hướng. */
+.btn.pn-logout {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.btn.pn-logout:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 24%, transparent);
+  color: var(--danger);
+}
 .pn-account-danger,
 .pn-account-danger > svg {
   color: var(--danger);
