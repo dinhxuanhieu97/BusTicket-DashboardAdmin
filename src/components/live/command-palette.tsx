@@ -2,7 +2,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState } from "react";
 import { BusFront, CornerDownLeft, Search, Ticket } from "lucide-react";
-import { vnDateOf, vnDateTime, type SearchResult } from "@/lib/live-contracts";
+import type { SearchResult } from "@/lib/live-contracts";
+import { searchHits, searchQuery } from "@/lib/search-hits";
 import { Modal } from "../modal";
 
 export type PaletteItem = {
@@ -16,22 +17,10 @@ export type PaletteItem = {
 
 /** Kết quả API `search` → mục trong hộp tìm (đơn mở Hành khách đúng chuyến, chuyến mở Sơ đồ chỗ). */
 export function searchItems(result: SearchResult): PaletteItem[] {
-  return [
-    ...(result.bookings ?? []).map((b) => ({
-      href: `/admin/passengers?date=${vnDateOf(b.trip.departAt)}&trip=${b.trip.id}`,
-      label: `${b.code} · ${b.contactName}`,
-      group: "Vé",
-      icon: Ticket,
-      detail: [b.contactPhone, b.trip.code].filter(Boolean).join(" · "),
-    })),
-    ...result.trips.map((t) => ({
-      href: `/admin/seats?trip=${t.id}`,
-      label: t.name,
-      group: "Chuyến",
-      icon: BusFront,
-      detail: `${t.code} · ${vnDateTime(t.departAt)}`,
-    })),
-  ];
+  return searchHits(result).map(({ kind, ...hit }) => ({
+    ...hit,
+    icon: kind === "booking" ? Ticket : BusFront,
+  }));
 }
 
 /** Bỏ dấu để gõ "so thu" vẫn ra "Sổ thu". */
@@ -65,7 +54,7 @@ export function CommandPalette({
   });
   const [searching, setSearching] = useState(false);
   const term = query.trim();
-  const wantData = searchData && term.length >= 2 && term.length <= 64;
+  const wantData = searchData && searchQuery(query) !== null;
   useEffect(() => {
     if (!wantData) return;
     const controller = new AbortController();
