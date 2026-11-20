@@ -48,7 +48,11 @@ export function CommandPalette({
   const listId = useId();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
-  const [found, setFound] = useState<{ q: string; items: PaletteItem[] }>({
+  const [found, setFound] = useState<{
+    q: string;
+    items: PaletteItem[];
+    limited?: boolean;
+  }>({
     q: "",
     items: [],
   });
@@ -65,9 +69,13 @@ export function CommandPalette({
         cache: "no-store",
         signal: controller.signal,
       })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((body: SearchResult | null) => {
-          setFound({ q: term, items: body ? searchItems(body) : [] });
+        .then(async (r) => ({
+          limited: r.status === 429,
+          body: r.ok ? ((await r.json()) as SearchResult) : null,
+        }))
+        .then(({ limited, body }) => {
+          // API giới hạn số lần tìm mỗi phút (GB8): báo rõ thay vì "không có kết quả".
+          setFound({ q: term, items: body ? searchItems(body) : [], limited });
           setSearching(false);
         })
         .catch(() => {
@@ -183,11 +191,18 @@ export function CommandPalette({
             Đang tìm vé và chuyến…
           </p>
         )}
-        {!results.length && !searching && (
-          <p className="py-6 text-center text-sm text-muted">
-            Không có kết quả nào khớp “{query.trim()}”.
+        {wantData && found.q === term && found.limited && !searching && (
+          <p className="text-center text-xs text-warning" role="status">
+            Bạn tìm quá nhiều lần trong một phút. Thử lại sau ít phút.
           </p>
         )}
+        {!results.length &&
+          !searching &&
+          !(found.q === term && found.limited) && (
+            <p className="py-6 text-center text-sm text-muted">
+              Không có kết quả nào khớp “{query.trim()}”.
+            </p>
+          )}
       </div>
     </Modal>
   );

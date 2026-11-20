@@ -342,3 +342,29 @@ test("⌘K finds tickets by code, phone or name and trips by code (GF1)", async 
     /\/admin\/passengers\?date=2027-02-05&trip=44444444-4444-4444-8444-444444444444$/,
   );
 });
+
+test("⌘K says when the search limit is hit instead of showing no results (GB8)", async ({
+  page,
+}) => {
+  await page.route("**/api/live/search?*", (route) =>
+    route.fulfill({
+      status: 429,
+      json: {
+        error: {
+          code: "TOO_MANY_ATTEMPTS",
+          message: "Tìm kiếm quá nhiều lần.",
+        },
+      },
+    }),
+  );
+  await page.goto("/admin");
+  await page.keyboard.press("ControlOrMeta+k");
+  const palette = page.getByRole("dialog", { name: "Tìm nhanh" });
+  await palette
+    .getByRole("combobox", { name: "Tìm trang, vé hoặc chuyến" })
+    .fill("0912 345");
+  await expect(
+    palette.getByText("Bạn tìm quá nhiều lần trong một phút."),
+  ).toBeVisible();
+  await expect(palette.getByText(/Không có kết quả nào khớp/)).toHaveCount(0);
+});
