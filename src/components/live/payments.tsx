@@ -12,6 +12,7 @@ import {
 import { Modal } from "../modal";
 import { LateReinstateDialog } from "./late-reinstate";
 import { useResource } from "./use-resource";
+import { paymentTabCounts } from "@/lib/payment-tabs";
 import { PageHero } from "../ui/page-hero";
 import { FilterTabs } from "../ui/filter-tabs";
 import {
@@ -57,16 +58,7 @@ export function Payments({
     meta: { fetchedAt: string; limit: number };
   }>(review && counters.error ? "payments" : null);
   const all = exact ? null : review ? unfiltered.data : data;
-  const partial = !!all && all.payments.length >= all.meta.limit;
-  const countOf = (status?: keyof typeof reviewLabels) =>
-    exact
-      ? status
-        ? exact[status]
-        : exact.total
-      : all
-        ? all.payments.filter((p) => !status || p.review.status === status)
-            .length
-        : undefined;
+  const { count: countOf, partial } = paymentTabCounts(exact, all ?? null);
 
   const rows = (data?.payments || []).filter((p) =>
     `${p.id} ${p.matchedBookingCode || ""} ${p.bankReference || ""} ${p.content || ""}`
