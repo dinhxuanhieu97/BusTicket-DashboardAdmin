@@ -182,6 +182,26 @@ test("route chips ask the API for that route across all pages (GF13)", async ({
   await expect(chips.getByRole("button")).toHaveCount(3);
 });
 
+test("changing the period while a route is filtered keeps the chips so the filter can be cleared (GF13)", async ({
+  page,
+}) => {
+  await withBackTrip(page, true);
+  await page.goto("/admin/trips");
+  const chips = page.getByRole("group", { name: "Lọc theo tuyến" });
+  await chips.getByRole("button", { name: "BACK" }).click();
+  const table = page.getByRole("region", { name: "Danh sách chuyến" });
+  await expect(table).not.toContainText("Chuyến kiểm thử");
+  // Đổi kỳ xem: danh sách tuyến đã thấy bị xóa, backend chỉ trả chuyến BACK.
+  await page.getByRole("button", { name: "Tháng", exact: true }).click();
+  await expect(chips).toBeVisible();
+  await expect(chips.getByRole("button", { name: "BACK" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await chips.getByRole("button", { name: "Tất cả tuyến" }).click();
+  await expect(table).toContainText("Chuyến kiểm thử");
+});
+
 test("route chips fall back to filtering the loaded page on an older API", async ({
   page,
   request,

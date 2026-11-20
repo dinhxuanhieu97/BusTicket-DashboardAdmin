@@ -8,6 +8,7 @@ import { tripPeriodRange, type TripPeriod } from "@/lib/trip-period";
 import { useEffect, useState } from "react";
 import { Trip, vnDateOf, vnToday, vnDateTime } from "@/lib/live-contracts";
 import { useResource } from "./use-resource";
+import { routeChips } from "@/lib/route-chips";
 import {
   LoadState,
   RefreshButton,
@@ -128,12 +129,13 @@ export function Trips({
       [...new Set([...prev, ...seenKey.split(",")])].sort(),
     );
   }, [seenKey]);
-  const routes = [...new Set([...knownRoutes, ...pageRoutes])].sort();
-  const activeRoute = routes.includes(route) ? route : "";
-  const rows =
-    activeRoute && !filterOnServer
-      ? loaded.filter((t) => t.route_code === activeRoute)
-      : loaded;
+  const chips = routeChips({
+    known: knownRoutes,
+    loaded,
+    selected: overview ? "" : route,
+    serverFiltered: filterOnServer,
+  });
+  const { routes, active: activeRoute, rows } = chips;
   const cards = !overview && view === "cards";
 
   return (
@@ -294,7 +296,7 @@ export function Trips({
         )}
       </div>
 
-      {!overview && routes.length > 1 && (
+      {!overview && chips.show && (
         <FilterChips
           label="Lọc theo tuyến"
           value={activeRoute}
