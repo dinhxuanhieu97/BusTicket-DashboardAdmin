@@ -3,7 +3,8 @@ import { BrandMark } from "./brand";
 import { logoUrl } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type SyntheticEvent } from "react";
+import { createPortal } from "react-dom";
 import {
   LayoutDashboard,
   Route,
@@ -15,7 +16,6 @@ import {
   ShieldCheck,
   Menu,
   ChevronLeft,
-  ChevronRight,
   Search,
   Plus,
   MoreHorizontal,
@@ -98,6 +98,42 @@ export function LiveShell({
   const [dark, setDark] = useState(true);
   // Sidebar desktop thu gọn (chỉ icon). Trạng thái ban đầu do script trong layout đặt lên <html> để không nháy.
   const [collapsed, setCollapsed] = useState(false);
+  // Nhãn nổi khi thanh bên thu gọn. Render qua portal: menu có thanh cuộn (cắt mất nhãn) và
+  // `backdrop-filter` của thanh bên làm `position: fixed` bên trong bị lệch (GF5).
+  const [tip, setTip] = useState<{
+    label: string;
+    top: number;
+    left: number;
+  } | null>(null);
+  const showTip = (e: SyntheticEvent) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>(
+      ".pn-nav-link, .btn-ghost, [data-tip]",
+    );
+    const label = el?.dataset.tip ?? el?.getAttribute("aria-label");
+    // Nút thu gọn luôn có nhãn; các mục khác chỉ cần khi chữ đang bị ẩn.
+    const always = el?.classList.contains("pn-sidebar-collapse");
+    if (
+      !el ||
+      !label ||
+      (!always && document.documentElement.dataset.sidebar !== "collapsed") ||
+      !window.matchMedia("(min-width: 64rem)").matches
+    )
+      return setTip(null);
+    const r = el.getBoundingClientRect();
+    setTip({ label, top: r.top + r.height / 2, left: r.right + 12 });
+  };
+  const hideTip = () => setTip(null);
+  useEffect(() => {
+    if (!tip) return;
+    // WCAG 1.4.13: đóng được bằng Esc mà không phải dời chuột/focus.
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setTip(null);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", hideTip, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", hideTip, true);
+    };
+  }, [tip]);
   const [sessionError, setSessionError] = useState("");
 
   useEffect(() => {
@@ -114,6 +150,7 @@ export function LiveShell({
   function setSidebarCollapsed(next: boolean) {
     if (next) document.documentElement.dataset.sidebar = "collapsed";
     else delete document.documentElement.dataset.sidebar;
+    setTip(null);
     setCollapsed(next);
     try {
       localStorage.setItem("pnticket_sidebar_collapsed", next ? "1" : "0");
@@ -297,7 +334,6 @@ export function LiveShell({
                 onClick={() => setMenu(false)}
                 aria-current={path === href ? "page" : undefined}
                 aria-label={label}
-                title={label}
                 className="pn-nav-link"
               >
                 <Icon size={18} className="shrink-0" aria-hidden="true" />
@@ -309,7 +345,7 @@ export function LiveShell({
       </nav>
       <div
         className={`pn-sidebar-status mx-3 mt-2 flex shrink-0 items-center gap-3 rounded-2xl border border-line bg-surface/60 p-3 ${sessionError ? "text-warning" : ""}`}
-        title={sessionError || "Phiên được bảo vệ · Giờ Việt Nam (UTC+7)"}
+        data-tip={sessionError || "Phiên được bảo vệ · Giờ Việt Nam (UTC+7)"}
       >
         <span className="grid size-9 shrink-0 place-items-center rounded-[0.6875rem] bg-accent-soft text-accent">
           <ShieldCheck size={18} aria-hidden="true" />
@@ -322,7 +358,10 @@ export function LiveShell({
         </span>
       </div>
       <div className="pn-sidebar-account shrink-0 space-y-3 px-5 pt-3 pb-5">
-        <div className="flex min-w-0 items-center gap-3" title={accountName}>
+        <div
+          className="pn-sidebar-who flex min-w-0 items-center gap-3"
+          data-tip={`${accountName} · ${roleLabels[user.role]}`}
+        >
           <span
             className="pn-avatar size-9 shrink-0 text-sm"
             aria-hidden="true"
@@ -349,24 +388,38 @@ export function LiveShell({
       >
         Đến nội dung chính
       </a>
-      <aside className="pn-sidebar pn-glass hidden flex-col lg:flex">
+      <aside
+        className="pn-sidebar pn-glass hidden flex-col lg:flex"
+        onMouseOver={showTip}
+        onFocus={showTip}
+        onMouseLeave={hideTip}
+        onBlur={hideTip}
+      >
         <button
           type="button"
           className="pn-sidebar-collapse"
           aria-label={collapsed ? "Mở rộng menu" : "Thu gọn menu"}
           aria-expanded={!collapsed}
           aria-keyshortcuts="["
-          title={collapsed ? "Mở rộng menu (phím [)" : "Thu gọn menu (phím [)"}
+          data-tip={collapsed ? "Mở rộng menu  [" : "Thu gọn menu  ["}
           onClick={() => setSidebarCollapsed(!collapsed)}
         >
-          {collapsed ? (
-            <ChevronRight size={16} aria-hidden="true" />
-          ) : (
-            <ChevronLeft size={16} aria-hidden="true" />
-          )}
+          {/* Một mũi tên, xoay 180° theo trạng thái (CSS dựa vào aria-expanded). */}
+          <ChevronLeft size={15} strokeWidth={2.5} aria-hidden="true" />
         </button>
         {navigation}
       </aside>
+      {tip &&
+        createPortal(
+          <div
+            role="tooltip"
+            className="pn-nav-tip"
+            style={{ top: tip.top, left: tip.left }}
+          >
+            {tip.label}
+          </div>,
+          document.body,
+        )}
       {menu && (
         <Modal drawer title="Điều hướng" onClose={() => setMenu(false)}>
           {navigation}
