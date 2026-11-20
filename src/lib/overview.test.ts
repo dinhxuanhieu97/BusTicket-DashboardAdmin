@@ -318,3 +318,9 @@ test("GF8: overview money uses the last report day (today) as net and is always 
   });
   assert.equal(reportMoney({ byDay: [] }, 0).today, 0);
 });
+
+test("GF17: shortVnd keeps the short unit for a negative net", () => {
+  assert.deepEqual(shortVnd(-2_500_000), { value: "-2,5", unit: "tr ₫" });
+  assert.deepEqual(shortVnd(-1_200_000_000), { value: "-1,2", unit: "tỷ ₫" });
+  assert.deepEqual(shortVnd(-50_000), { value: "-50.000", unit: "₫" });
+});

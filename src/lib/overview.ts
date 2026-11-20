@@ -188,9 +188,13 @@ export function salesChangeText(s: {
 
 /** Số tiền gọn cho thẻ: 1,25 tr / 1,94 tỷ / 850.000. */
 export function shortVnd(value: number) {
+  // Thu thuần có thể âm (GF17): chọn đơn vị theo độ lớn.
   const f = (n: number) =>
-    n.toLocaleString("vi-VN", { maximumFractionDigits: n < 10 ? 2 : 1 });
-  if (value >= 1e9) return { value: f(value / 1e9), unit: "tỷ ₫" };
-  if (value >= 1e6) return { value: f(value / 1e6), unit: "tr ₫" };
+    n.toLocaleString("vi-VN", {
+      maximumFractionDigits: Math.abs(n) < 10 ? 2 : 1,
+    });
+  const size = Math.abs(value);
+  if (size >= 1e9) return { value: f(value / 1e9), unit: "tỷ ₫" };
+  if (size >= 1e6) return { value: f(value / 1e6), unit: "tr ₫" };
   return { value: value.toLocaleString("vi-VN"), unit: "₫" };
 }

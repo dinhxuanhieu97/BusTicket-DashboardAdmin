@@ -242,3 +242,39 @@ test("GF16: the report contract accepts a refund-only route and rejects malforme
       false,
     );
 });
+
+test("GF17: total, series and change use net (received − refunded)", () => {
+  const r = revenueFromReports(
+    report([day("2026-11-19", 300_000, 100_000), day("2026-11-20", 0, 50_000)]),
+    report([day("2026-11-17", 100_000), day("2026-11-18", 100_000)]),
+  );
+  assert.equal(r.total, 150_000);
+  assert.equal(r.previousTotal, 200_000);
+  assert.equal(r.change, -25);
+  assert.deepEqual(
+    r.current.map((p) => p.amount),
+    [200_000, -50_000],
+  );
+  assert.deepEqual(
+    {
+      received: r.net?.received,
+      refunded: r.net?.refunded,
+      refunds: r.net?.refunds,
+    },
+    { received: 300_000, refunded: 150_000, refunds: 2 },
+  );
+  // Giá trung bình tính trên tiền đã nhận, không trên thu thuần.
+  assert.equal(r.average, 300_000);
+});
+
+test("GF17: no percentage change when the previous net is zero or negative", () => {
+  const current = report([day("2026-11-20", 100_000)]);
+  assert.equal(
+    revenueFromReports(current, report([day("2026-11-19", 0)])).change,
+    null,
+  );
+  assert.equal(
+    revenueFromReports(current, report([day("2026-11-19", 0, 80_000)])).change,
+    null,
+  );
+});
