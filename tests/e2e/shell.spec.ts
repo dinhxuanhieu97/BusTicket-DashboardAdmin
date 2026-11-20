@@ -91,10 +91,20 @@ test("phones get a bottom bar that never covers the page and a Thêm drawer", as
   await expect(
     bar.getByRole("link", { name: "Hành khách", exact: true }),
   ).toBeVisible();
-  for (const label of await bar.locator("span").all())
-    expect(await label.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
-      true,
-    );
+  // Nhãn không bị cắt và còn dư ít nhất 4px trong ô, kể cả ở 320px: font
+  // trên Linux (CI) rộng hơn macOS một chút nên "vừa khít" là chưa đủ.
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const label of await bar.locator("span").all())
+      expect(
+        await label.evaluate((el) => {
+          const box = el.parentElement!;
+          const pad = parseFloat(getComputedStyle(box).paddingLeft) * 2;
+          return box.clientWidth - pad - el.scrollWidth;
+        }),
+        `nhãn ở ${width}px`,
+      ).toBeGreaterThanOrEqual(4);
+  }
   // Tiêu đề trang không bị cắt ở điện thoại.
   const title = page.getByRole("heading", { level: 1 });
   expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
