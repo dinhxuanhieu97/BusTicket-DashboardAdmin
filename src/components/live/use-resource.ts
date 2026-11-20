@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { collectPages, withCursor } from "@/lib/paging";
 
 /** Phiên hết hạn / cần 2FA / đổi mật khẩu: chuyển trang và trả `null` (không coi là lỗi). */
 class Redirected extends Error {}
@@ -81,16 +82,10 @@ export function useResource<T>(path: string | null) {
 export function useAllTrips<
   T extends { trips: unknown[]; nextCursor?: string | null },
 >(path: string | null, maxPages = 10) {
-  return useLive<T>(path, async (p, signal) => {
-    let page = (await fetchLive(p, signal)) as T;
-    const trips = [...page.trips];
-    for (let i = 1; i < maxPages && page.nextCursor; i++) {
-      page = (await fetchLive(
-        `${p}&cursor=${encodeURIComponent(page.nextCursor)}`,
-        signal,
-      )) as T;
-      trips.push(...page.trips);
-    }
-    return { ...page, trips } as T;
-  });
+  return useLive<T>(path, (p, signal) =>
+    collectPages<T>(
+      (cursor) => fetchLive(withCursor(p, cursor), signal) as Promise<T>,
+      maxPages,
+    ),
+  );
 }
