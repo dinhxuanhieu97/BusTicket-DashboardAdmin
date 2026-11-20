@@ -32,6 +32,7 @@ export function Trips({
   canCancel = false,
   initialDate,
   initialPeriod = "day",
+  initialCreate = false,
 }: {
   overview?: boolean;
   canWrite?: boolean;
@@ -41,8 +42,12 @@ export function Trips({
   canCancel?: boolean;
   initialDate?: string;
   initialPeriod?: TripPeriod;
+  /** Mở sẵn form thêm chuyến (nút "Tạo chuyến" ở đầu trang dẫn tới `?create=1`). */
+  initialCreate?: boolean;
 }) {
-  const [creating, setCreating] = useState<"pair" | "single" | null>(null);
+  const [creating, setCreating] = useState<"pair" | "single" | null>(
+    initialCreate && canWrite ? "pair" : null,
+  );
   const [detail, setDetail] = useState<Trip | null>(null);
   const [changing, setChanging] = useState<Trip | null>(null);
   const [notice, setNotice] = useState("");
@@ -54,6 +59,7 @@ export function Trips({
     const url = new URL(window.location.href);
     url.searchParams.set("date", date);
     url.searchParams.set("period", period);
+    url.searchParams.delete("create");
     window.history.replaceState(null, "", url);
   }, [overview, date, period]);
   const range = tripPeriodRange(date, period);

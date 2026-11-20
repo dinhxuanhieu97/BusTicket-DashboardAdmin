@@ -16,6 +16,8 @@ export const NAV: {
   key: NavKey;
   href: string;
   label: string;
+  /** Nhãn ngắn cho thanh dưới trên điện thoại (tên đầy đủ vẫn là tên truy cập). */
+  short?: string;
   perm?: string;
   /** Ẩn mục khi người dùng đã có quyền này (vd. phụ xe thấy "Chuyến được giao", người xem mọi chuyến thì không). */
   hideWith?: string;
@@ -24,6 +26,7 @@ export const NAV: {
     key: "assigned",
     href: "/admin/assigned-trips",
     label: "Chuyến được giao",
+    short: "Được giao",
     perm: "trip.assigned.read",
     hideWith: "trip.read",
   },
@@ -64,12 +67,19 @@ export const NAV: {
     label: "Tuyến đường",
     perm: "route.read",
   },
-  { key: "trips", href: "/admin/trips", label: "Chuyến xe", perm: "trip.read" },
+  {
+    key: "trips",
+    href: "/admin/trips",
+    label: "Chuyến xe",
+    short: "Chuyến",
+    perm: "trip.read",
+  },
   // Danh sách khách theo chuyến: họ tên, SĐT, chỗ, tiền còn thu.
   {
     key: "passengers",
     href: "/admin/passengers",
     label: "Hành khách",
+    short: "Khách",
     perm: "booking.read",
   },
   {
@@ -93,4 +103,53 @@ export function visibleNav(permissions: readonly string[] | undefined) {
       (!item.perm || granted.has(item.perm)) &&
       !(item.hideWith && granted.has(item.hideWith)),
   );
+}
+
+export type NavItem = (typeof NAV)[number];
+
+/** Nhóm trên thanh bên, theo việc nhân viên đang làm. Mỗi mục `NAV` thuộc đúng một nhóm. */
+export const NAV_GROUPS: { id: string; title: string; keys: NavKey[] }[] = [
+  {
+    id: "ops",
+    title: "Vận hành",
+    keys: [
+      "assigned",
+      "overview",
+      "trips",
+      "passengers",
+      "schedules",
+      "fleet",
+      "routes",
+    ],
+  },
+  { id: "finance", title: "Tài chính", keys: ["payments"] },
+  { id: "manage", title: "Quản lý", keys: ["users", "audit", "settings"] },
+];
+
+/** Xếp các mục đã lọc theo quyền vào nhóm; bỏ nhóm không còn mục nào. */
+export function groupNav<T extends { key: NavKey }>(items: readonly T[]) {
+  return NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.keys.flatMap((key) => items.filter((i) => i.key === key)),
+  })).filter((group) => group.items.length > 0);
+}
+
+/** Thứ tự ưu tiên cho thanh điều hướng dưới trên điện thoại; mục còn lại nằm trong "Thêm". */
+const MOBILE_PRIORITY: NavKey[] = [
+  "overview",
+  "assigned",
+  "trips",
+  "passengers",
+  "payments",
+  "settings",
+];
+
+/** Tối đa `limit` mục cho thanh dưới, chọn theo `MOBILE_PRIORITY` trong các mục được phép. */
+export function mobileNav<T extends { key: NavKey }>(
+  items: readonly T[],
+  limit = 4,
+) {
+  return MOBILE_PRIORITY.flatMap((key) =>
+    items.filter((i) => i.key === key),
+  ).slice(0, limit);
 }

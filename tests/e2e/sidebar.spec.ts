@@ -30,16 +30,17 @@ test("desktop sidebar collapses to icons, remembers the choice and toggles with 
       .evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft));
 
   await expect(tripsLink).toBeVisible();
-  expect(await width()).toBe(240);
-  expect(await mainPad()).toBe(240);
+  // Thanh bên nổi cách mép 16px: nội dung lùi vào bề rộng thanh + hai khoảng 16px.
+  expect(await width()).toBe(260);
+  expect(await mainPad()).toBe(292);
   await expect(tripsLink.locator(".pn-sidebar-text")).toBeVisible();
 
   await page.getByRole("button", { name: "Thu gọn menu" }).click();
   await expect(
     page.getByRole("button", { name: "Mở rộng menu" }),
   ).toBeVisible();
-  await expect.poll(width).toBe(68);
-  await expect.poll(mainPad).toBe(68);
+  await expect.poll(width).toBe(84);
+  await expect.poll(mainPad).toBe(116);
   // Nhãn ẩn, icon + tên qua title vẫn còn.
   await expect(tripsLink.locator(".pn-sidebar-text")).toBeHidden();
   await expect(tripsLink).toHaveAttribute("title", "Chuyến xe");
@@ -55,7 +56,7 @@ test("desktop sidebar collapses to icons, remembers the choice and toggles with 
   await expect(
     page.getByRole("button", { name: "Mở rộng menu" }),
   ).toBeVisible();
-  expect(await width()).toBe(68);
+  expect(await width()).toBe(84);
   expect(
     await page.evaluate(() => document.documentElement.dataset.sidebar),
   ).toBe("collapsed");
@@ -65,7 +66,7 @@ test("desktop sidebar collapses to icons, remembers the choice and toggles with 
   await expect(
     page.getByRole("button", { name: "Thu gọn menu" }),
   ).toBeVisible();
-  await expect.poll(width).toBe(240);
+  await expect.poll(width).toBe(260);
   await page.goto("/admin/users");
   const search = page
     .getByRole("searchbox")
@@ -73,7 +74,7 @@ test("desktop sidebar collapses to icons, remembers the choice and toggles with 
     .first();
   await search.focus();
   await page.keyboard.press("[");
-  expect(await width()).toBe(240);
+  expect(await width()).toBe(260);
 
   // Mobile: nút thu gọn ẩn, drawer ☰ vẫn hoạt động, không tràn ngang.
   await page.setViewportSize({ width: 375, height: 812 });

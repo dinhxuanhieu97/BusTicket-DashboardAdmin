@@ -5,12 +5,15 @@ export function Modal({
   title,
   wide = false,
   drawer = false,
+  focusClose = true,
   onClose,
   children,
 }: {
   title: string;
   wide?: boolean;
   drawer?: boolean;
+  /** false khi nội dung có ô `data-autofocus` cần focus trước (ví dụ ô tìm của hộp tìm nhanh). */
+  focusClose?: boolean;
   onClose: () => void;
   children: React.ReactNode;
 }) {
@@ -21,6 +24,8 @@ export function Modal({
     if (!el) return;
     const previous = document.activeElement as HTMLElement | null;
     el.showModal();
+    // showModal() chọn phần tử focus đầu tiên; ô được đánh dấu data-autofocus được ưu tiên.
+    el.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
@@ -62,7 +67,7 @@ export function Modal({
           onClick={onClose}
           className="icon-btn btn-ghost"
           aria-label={drawer ? "Đóng menu" : "Đóng"}
-          autoFocus
+          autoFocus={focusClose}
         >
           <X size={18} aria-hidden="true" />
         </button>
