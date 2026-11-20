@@ -1,14 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
-export function useResource<T>(path: string) {
+/** `path = null`: không tải (vd. người dùng không có quyền xem tài nguyên đó). */
+export function useResource<T>(path: string | null) {
   const [result, setResult] = useState<{
-    path: string;
+    path: string | null;
     data: T | null;
     error: string;
     loading: boolean;
-  }>({ path, data: null, error: "", loading: true });
+  }>({ path, data: null, error: "", loading: path !== null });
   const [revision, setRevision] = useState(0);
   useEffect(() => {
+    if (path === null) return;
     const controller = new AbortController();
     setResult({ path, data: null, error: "", loading: true });
     void (async () => {
@@ -53,7 +55,7 @@ export function useResource<T>(path: string) {
   return {
     data: result.path === path ? result.data : null,
     error: result.path === path ? result.error : "",
-    loading: result.path !== path || result.loading,
+    loading: path !== null && (result.path !== path || result.loading),
     reload: () => setRevision((n) => n + 1),
   };
 }
