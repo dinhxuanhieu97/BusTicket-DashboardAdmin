@@ -363,6 +363,21 @@ fieldset:disabled button {
     background: var(--primary);
     color: var(--on-primary);
   }
+  .pn-chip {
+    @apply inline-flex items-center gap-2 rounded-xl border border-line bg-surface/50 px-3 py-2 text-ink;
+  }
+  .pn-chip[data-tone="warning"] {
+    color: var(--warning);
+    background: var(--warning-bg);
+    border-color: transparent;
+  }
+  .pn-action {
+    @apply flex min-h-16 items-center gap-3.5 rounded-2xl border border-line bg-surface/40 p-3 text-left transition-[translate,border-color];
+  }
+  .pn-action:hover {
+    translate: 0 -2px;
+    border-color: var(--border-hover);
+  }
   .pn-avatar {
     @apply grid shrink-0 place-items-center rounded-xl bg-accent-soft font-semibold text-accent;
   }
