@@ -5,6 +5,7 @@ import {
   hasPermission,
   readPath,
   checkOrigin,
+  resourcePermissions,
   ApiError,
 } from "./access-policy";
 import { sessionSchema, paymentSchema, type Session } from "./live-contracts";
@@ -220,4 +221,35 @@ test("report, counter and search reads map to fixed backend paths with validated
       () => readPath(resource, operator, new URLSearchParams(params)),
       `${resource}?${params}`,
     );
+});
+test("report, counter and search resources need the same permission as the backend route", () => {
+  // Khớp @Perm của API; quyền con (booking.read cho nhóm vé, payment.read cho số tiền) do backend lọc.
+  assert.deepEqual(
+    {
+      revenue: resourcePermissions["revenue-report"],
+      bookings: resourcePermissions["bookings-report"],
+      counters: resourcePermissions.counters,
+      search: resourcePermissions.search,
+    },
+    {
+      revenue: "payment.read",
+      bookings: "booking.read",
+      counters: "trip.read",
+      search: "trip.read",
+    },
+  );
+  const staff = { ...session, permissions: ["trip.read"] };
+  assert.equal(hasPermission(staff, resourcePermissions.counters), true);
+  assert.equal(
+    hasPermission(staff, resourcePermissions["revenue-report"]),
+    false,
+  );
+  assert.equal(
+    hasPermission(staff, resourcePermissions["bookings-report"]),
+    false,
+  );
+  assert.equal(
+    hasPermission({ ...staff, scope: "mfa_setup" }, resourcePermissions.search),
+    false,
+  );
 });
