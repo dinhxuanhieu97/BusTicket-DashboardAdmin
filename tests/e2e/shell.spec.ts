@@ -100,7 +100,9 @@ test("phones get a bottom bar that never covers the page and a Thêm drawer", as
   expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
     true,
   );
-  await expect(page.getByRole("img", { name: /Test OWNER/ })).toBeHidden();
+  await expect(
+    page.getByRole("button", { name: /^Tài khoản: Test OWNER/ }),
+  ).toBeHidden();
   await expect(bar.getByRole("link", { name: "Tổng quan" })).toHaveAttribute(
     "aria-current",
     "page",
@@ -149,4 +151,80 @@ test("the chosen theme survives a reload", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Đổi giao diện", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
+});
+
+test("the avatar opens an account menu that works by mouse and keyboard", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin");
+  const avatar = page.getByRole("button", { name: /^Tài khoản: Test OWNER/ });
+  await expect(avatar).toHaveAttribute("aria-haspopup", "menu");
+  await expect(avatar).toHaveAttribute("aria-expanded", "false");
+
+  await avatar.click();
+  const menu = page.getByRole("menu", { name: "Tài khoản" });
+  await expect(menu).toBeVisible();
+  await expect(avatar).toHaveAttribute("aria-expanded", "true");
+  await expect(menu).toContainText("Test OWNER");
+  await expect(menu).toContainText("Chủ nhà xe");
+  await expect(menu.getByRole("menuitem")).toHaveText([
+    "Thông tin tài khoản",
+    "Đổi mật khẩu",
+    "Trợ giúp & phím tắt",
+    "Đăng xuất",
+  ]);
+  // Mở bằng chuột cũng đưa focus vào mục đầu để dùng phím mũi tên ngay.
+  await expect(
+    menu.getByRole("menuitem", { name: "Thông tin tài khoản" }),
+  ).toBeFocused();
+  // Menu nằm dưới avatar, căn phải, không tràn khỏi màn hình.
+  const a = (await avatar.boundingBox())!;
+  const m = (await menu.boundingBox())!;
+  expect(m.y).toBeGreaterThan(a.y + a.height);
+  expect(m.x + m.width).toBeLessThanOrEqual(1440);
+  expect(Math.abs(m.x + m.width - (a.x + a.width))).toBeLessThan(2);
+
+  // Bấm ra ngoài thì đóng.
+  await page.mouse.click(700, 500);
+  await expect(menu).toHaveCount(0);
+
+  // Bàn phím: ↓ mở ở mục đầu, ↑ vòng về mục cuối, End/Home, Esc trả focus.
+  await avatar.focus();
+  await page.keyboard.press("ArrowDown");
+  const theme = menu.getByRole("menuitemcheckbox", { name: "Giao diện tối" });
+  await expect(
+    menu.getByRole("menuitem", { name: "Thông tin tài khoản" }),
+  ).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(menu.getByRole("menuitem", { name: "Đăng xuất" })).toBeFocused();
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await expect(theme).toBeFocused();
+  await expect(theme).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(theme).toHaveAttribute("aria-checked", "false");
+  // Nút đổi giao diện trên topbar cũng cập nhật theo.
+  await expect(
+    page.getByRole("button", { name: "Đổi giao diện", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(avatar).toBeFocused();
+
+  // "Đổi mật khẩu" mở trang Cài đặt ở đúng mục.
+  await avatar.click();
+  await menu.getByRole("menuitem", { name: "Đổi mật khẩu" }).click();
+  await expect(page).toHaveURL(/\/admin\/settings#change-password$/);
+  await expect(
+    page.getByRole("heading", { name: "Đổi mật khẩu" }),
+  ).toBeInViewport();
+  await expect(menu).toHaveCount(0);
+
+  // Đăng xuất từ menu đưa về trang đăng nhập.
+  await avatar.click();
+  await menu.getByRole("menuitem", { name: "Đăng xuất" }).click();
+  await expect(page).toHaveURL(/\/login$/);
 });

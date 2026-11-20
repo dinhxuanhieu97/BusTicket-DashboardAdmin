@@ -700,6 +700,99 @@ html[data-sidebar="collapsed"] .pn-sidebar .btn-ghost span {
   background: linear-gradient(135deg, #f3d9a8, #e8b77a);
   color: #3a2a12;
 }
+/* Menu tài khoản ở topbar. Topbar không có overflow nên menu absolute không bị cắt. */
+.pn-avatar-btn {
+  @apply grid size-11 place-items-center rounded-full;
+  transition: scale 160ms ease;
+}
+.pn-avatar-btn > .pn-avatar-round {
+  transition: box-shadow 160ms ease;
+}
+.pn-avatar-btn:hover > .pn-avatar-round,
+.pn-avatar-btn[aria-expanded="true"] > .pn-avatar-round {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.pn-avatar-btn:active {
+  scale: 0.95;
+}
+.pn-avatar-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.pn-account-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 40;
+  width: 17rem;
+  padding: 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  animation: pn-menu-in 140ms ease-out;
+  transform-origin: top right;
+}
+@keyframes pn-menu-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+    translate: 0 -4px;
+  }
+}
+.pn-account-head {
+  @apply flex items-center gap-3 px-2.5 py-2;
+}
+.pn-account-sep {
+  @apply my-1 h-px;
+  background: var(--border);
+}
+.pn-account-item {
+  @apply flex min-h-11 w-full items-center gap-3 rounded-[0.625rem] px-2.5 text-left text-sm;
+  color: var(--text);
+}
+.pn-account-item > svg {
+  color: var(--muted);
+}
+.pn-account-item:hover,
+.pn-account-item:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+.pn-account-item:disabled {
+  @apply cursor-wait opacity-60;
+}
+.pn-account-danger,
+.pn-account-danger > svg {
+  color: var(--danger);
+}
+.pn-mini-switch {
+  @apply relative ml-auto block h-5 w-9 shrink-0 rounded-full;
+  background: var(--border);
+  transition: background-color 160ms ease;
+}
+.pn-mini-switch::after {
+  content: "";
+  @apply absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow;
+  transition: translate 160ms ease;
+}
+[aria-checked="true"] > .pn-mini-switch {
+  background: var(--accent);
+}
+[aria-checked="true"] > .pn-mini-switch::after {
+  translate: 16px 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pn-account-menu {
+    animation: none;
+  }
+  .pn-avatar-btn,
+  .pn-avatar-btn > .pn-avatar-round,
+  .pn-mini-switch,
+  .pn-mini-switch::after {
+    transition: none;
+  }
+}
 .pn-bottom-nav {
   position: fixed;
   left: 0.75rem;

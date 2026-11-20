@@ -33,6 +33,7 @@ import { roleLabels, type AppUser } from "@/lib/live-contracts";
 import { groupNav, mobileNav, visibleNav, type NavKey } from "@/lib/nav";
 import { subscribeSessionEvents } from "@/lib/session-sync";
 import { LogoutButton } from "./auth-forms";
+import { AccountMenu } from "./account-menu";
 import { Modal } from "../modal";
 import { LoadState } from "./shared";
 import { CommandPalette } from "./command-palette";
@@ -498,16 +499,13 @@ export function LiveShell({
             <span className="hidden sm:inline">Tạo chuyến</span>
           </Link>
         )}
-        <span className="max-sm:hidden">
-          <span
-            className="pn-avatar-round"
-            role="img"
-            aria-label={`${accountName} · ${roleLabels[user.role]}`}
-            title={`${accountName} · ${roleLabels[user.role]}`}
-          >
-            {accountName.charAt(0).toUpperCase()}
-          </span>
-        </span>
+        <AccountMenu
+          name={accountName}
+          role={roleLabels[user.role]}
+          phone={user.phone}
+          dark={dark}
+          toggleTheme={toggleTheme}
+        />
       </header>
       <main
         id="main"
