@@ -158,6 +158,24 @@ export function groupNav<T extends { key: NavKey }>(items: readonly T[]) {
   })).filter((group) => group.items.length > 0);
 }
 
+/**
+ * Mục không đặt trong danh sách thanh bên mà mở từ menu tài khoản (avatar) — vẫn tìm được bằng ⌘K.
+ * Giữ thanh bên ngắn để màn thấp không phải cuộn (GF18).
+ */
+export const ACCOUNT_MENU_KEYS: readonly NavKey[] = ["help"];
+
+/** Nhóm cho danh sách thanh bên: bỏ các mục đã chuyển vào menu tài khoản. */
+export function sidebarGroups<T extends { key: NavKey }>(
+  groups: readonly { id: string; title: string; items: T[] }[],
+) {
+  return groups
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((i) => !ACCOUNT_MENU_KEYS.includes(i.key)),
+    }))
+    .filter((g) => g.items.length > 0);
+}
+
 /** Thứ tự ưu tiên cho thanh điều hướng dưới trên điện thoại; mục còn lại nằm trong "Thêm". */
 const MOBILE_PRIORITY: NavKey[] = [
   "overview",

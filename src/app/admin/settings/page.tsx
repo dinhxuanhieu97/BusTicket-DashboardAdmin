@@ -9,6 +9,7 @@ import { operatorSession } from "@/lib/server/session";
 import { ApiError, hasPermission } from "@/lib/access-policy";
 import { roleLabels } from "@/lib/live-contracts";
 import { AccessFailure } from "@/components/live/auth-forms";
+import { PageHero } from "@/components/ui/page-hero";
 import {
   ShieldCheck,
   User,
@@ -132,6 +133,14 @@ export default async function Page({
   );
   return (
     <div className="pn-page-stack">
+      <PageHero
+        title="Tài khoản & nhà xe"
+        description={
+          canReadGeneral
+            ? "Hồ sơ, bảo mật đăng nhập và thông tin chung của nhà xe."
+            : "Hồ sơ và bảo mật đăng nhập của bạn."
+        }
+      />
       <nav
         aria-label="Mục cài đặt"
         className="flex gap-1 overflow-x-auto border-b border-line"

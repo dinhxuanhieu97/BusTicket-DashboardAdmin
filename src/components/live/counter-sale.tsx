@@ -45,13 +45,28 @@ const asFailure = (e: unknown): Failure =>
 export function CounterSale({
   detail,
   onSold,
+  initialSeats = [],
 }: {
   detail: TripDetail;
   onSold: () => void;
+  /** Chỗ chọn sẵn (vd. chỗ vừa bấm ở Sơ đồ chỗ). Chỉ nhận chỗ còn bán được. */
+  initialSeats?: string[];
 }) {
   const tripId = detail.trip.id;
   const unit = detail.layout.unit;
-  const [picked, setPicked] = useState<Record<string, Picked>>({});
+  const [picked, setPicked] = useState<Record<string, Picked>>(() => {
+    const open = new Set(
+      detail.seats
+        .filter((s) => s.sellable && s.status === "AVAILABLE")
+        .map((s) => s.code),
+    );
+    return Object.fromEntries(
+      initialSeats
+        .filter((code) => open.has(code))
+        .slice(0, MAX_COUNTER_SEATS)
+        .map((code) => [code, { occupancy: 1, infantCount: 0 }]),
+    );
+  });
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [pickup, setPickup] = useState("");

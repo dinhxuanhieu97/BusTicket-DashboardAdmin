@@ -129,7 +129,7 @@ function TripSeats({
 }) {
   const { data, error, loading, reload } = useTripDetail(trip.id);
   const [code, setCode] = useState<string | null>(null);
-  const [selling, setSelling] = useState(false);
+  const [selling, setSelling] = useState<string | null>(null);
 
   if (error) return <LoadState error={error} reload={reload} />;
   if (!data) return <LoadState loading reload={reload} />;
@@ -281,7 +281,7 @@ function TripSeats({
                 <button
                   type="button"
                   className="btn btn-primary w-full"
-                  onClick={() => setSelling(true)}
+                  onClick={() => setSelling(seat.code)}
                 >
                   <ShoppingCart size={16} aria-hidden="true" />
                   Bán tại quầy
@@ -318,9 +318,10 @@ function TripSeats({
       </aside>
 
       {selling && (
-        <Modal wide title="Bán tại quầy" onClose={() => setSelling(false)}>
+        <Modal wide title="Bán tại quầy" onClose={() => setSelling(null)}>
           <CounterSale
             detail={data}
+            initialSeats={[selling]}
             onSold={() => {
               reload();
             }}
