@@ -1,4 +1,9 @@
-import { vnDateOf, type Payment, type Trip } from "./live-contracts";
+import {
+  vnDateOf,
+  type BookingsReport,
+  type Payment,
+  type Trip,
+} from "./live-contracts";
 
 export const tripStates = {
   OPEN: { label: "Đang mở bán", tone: "success", color: "var(--success)" },
@@ -119,6 +124,28 @@ export function paymentStats(
     needsReview: payments.filter((p) => p.review.status === "NEEDS_REVIEW")
       .length,
     complete: payments.length < limit || (oldest !== null && oldest < first),
+  };
+}
+
+/**
+ * Vé bán (số chỗ của đơn đã xác nhận) hôm nay so với hôm qua và tỷ lệ hủy của kỳ, từ `reports/bookings`
+ * (ngày theo ngày tạo đơn, giờ VN). `change` = `null` khi hôm qua không bán chỗ nào.
+ */
+export function salesStats(report: BookingsReport, today: string) {
+  const seatsOn = (date: string) =>
+    report.byDay.find((d) => d.date === date)?.seats ?? 0;
+  const seatsToday = seatsOn(today);
+  const seatsYesterday = seatsOn(addDays(today, -1));
+  return {
+    seatsToday,
+    seatsYesterday,
+    change: seatsYesterday
+      ? Math.round(((seatsToday - seatsYesterday) / seatsYesterday) * 100)
+      : null,
+    series: report.byDay.map((d) => d.seats),
+    cancelRate: report.totals.cancelRate,
+    cancelled: report.totals.cancelled,
+    bookings: report.totals.bookings,
   };
 }
 

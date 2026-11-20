@@ -1,7 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { revenueReport, shares } from "./revenue";
-import type { Payment } from "./live-contracts";
+import {
+  revenueFromReports,
+  revenuePeriods,
+  revenueReport,
+  shares,
+} from "./revenue";
+import type { Payment, RevenueReport } from "./live-contracts";
 
 const pay = (
   receivedAt: string,
@@ -72,4 +77,85 @@ test("empty periods have no peak hour, no change and zero average", () => {
 test("shares round each part and survive a zero total", () => {
   assert.deepEqual(shares({ a: 1, b: 3 }), { a: 25, b: 75 });
   assert.deepEqual(shares({ a: 0, b: 0 }), { a: 0, b: 0 });
+});
+
+const day = (date: string, received: number, refunded = 0) => ({
+  date,
+  received,
+  refunded,
+  net: received - refunded,
+  payments: received ? 1 : 0,
+  refunds: refunded ? 1 : 0,
+});
+const report = (days: ReturnType<typeof day>[]): RevenueReport => {
+  const sum = (k: "received" | "refunded" | "net" | "payments" | "refunds") =>
+    days.reduce((t, d) => t + d[k], 0);
+  return {
+    from: days[0].date,
+    to: days.at(-1)!.date,
+    totals: {
+      received: sum("received"),
+      refunded: sum("refunded"),
+      net: sum("net"),
+      payments: sum("payments"),
+      refunds: sum("refunds"),
+    },
+    byDay: days,
+    byMethod: [{ method: "CASH", amount: sum("received"), count: 2 }],
+    byHour: [
+      { hour: 9, amount: 10_000, count: 1 },
+      { hour: 17, amount: 90_000, count: 1 },
+    ],
+    byRoute: [
+      {
+        code: "HCM-DL",
+        origin: "HCM",
+        destination: "Đà Lạt",
+        received: 80_000,
+        refunded: 20_000,
+        net: 60_000,
+        bookings: 2,
+      },
+    ],
+    unallocated: 20_000,
+  };
+};
+
+test("report periods end today and the previous period ends where the current starts", () => {
+  assert.deepEqual(revenuePeriods("2026-11-21", 7), {
+    current: { from: "2026-11-15", to: "2026-11-22" },
+    previous: { from: "2026-11-08", to: "2026-11-15" },
+  });
+});
+
+test("API reports give net revenue, routes and a complete comparison", () => {
+  const r = revenueFromReports(
+    report([day("2026-11-20", 60_000), day("2026-11-21", 40_000, 20_000)]),
+    report([day("2026-11-18", 40_000), day("2026-11-19", 0)]),
+  );
+  assert.equal(r.total, 80_000);
+  assert.deepEqual(
+    r.current.map((p) => p.amount),
+    [60_000, 20_000],
+  );
+  assert.equal(r.change, 100);
+  assert.equal(r.average, 50_000);
+  assert.equal(r.peakHour, 17);
+  assert.equal(r.methods.CASH, 100_000);
+  assert.equal(r.completeCurrent && r.completePrevious, true);
+  assert.deepEqual(
+    { ...r.net, routes: r.net?.routes.length },
+    {
+      received: 100_000,
+      refunded: 20_000,
+      refunds: 1,
+      unallocated: 20_000,
+      routes: 1,
+    },
+  );
+  const flat = revenueFromReports(
+    report([day("2026-11-21", 0)]),
+    report([day("2026-11-20", 0)]),
+  );
+  assert.equal(flat.change, null);
 });

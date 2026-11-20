@@ -1,4 +1,4 @@
-import { vnDateOf, type Payment } from "./live-contracts";
+import { vnDateOf, type Payment, type RevenueReport } from "./live-contracts";
 import { addDays } from "./overview";
 
 export type RevenueDays = 7 | 30;
@@ -87,6 +87,72 @@ export function revenueReport(
     peakHour: peak > 0 ? hours.indexOf(peak) : null,
     completeCurrent,
     completePrevious,
+    /** Chỉ có khi đọc từ API báo cáo (`revenueFromReports`). */
+    net: null as null | {
+      received: number;
+      refunded: number;
+      refunds: number;
+      unallocated: number;
+      routes: RevenueReport["byRoute"];
+    },
+  };
+}
+
+/** Khoảng `[from, to)` của kỳ `days` ngày kết thúc hôm nay, và kỳ liền trước. */
+export function revenuePeriods(today: string, days: RevenueDays) {
+  const first = addDays(today, -(days - 1));
+  return {
+    current: { from: first, to: addDays(today, 1) },
+    previous: { from: addDays(first, -days), to: first },
+  };
+}
+
+/**
+ * Cùng dạng với `revenueReport` nhưng lấy từ API báo cáo: số là **thu thuần** (đã nhận − đã hoàn trong kỳ),
+ * đủ dữ liệu (không giới hạn 200 khoản), có thêm phần theo tuyến.
+ */
+export function revenueFromReports(
+  current: RevenueReport,
+  previous: RevenueReport,
+): ReturnType<typeof revenueReport> {
+  const series = (r: RevenueReport) =>
+    r.byDay.map((d) => ({ date: d.date, amount: d.net }));
+  const methods: Record<PaymentMethod, number> = {
+    BANK_TRANSFER: 0,
+    MANUAL_BANK: 0,
+    CASH: 0,
+  };
+  for (const m of current.byMethod) methods[m.method] = m.amount;
+  const peak = current.byHour.reduce<{ hour: number; amount: number } | null>(
+    (best, h) => (h.amount > (best?.amount ?? 0) ? h : best),
+    null,
+  );
+  const total = current.totals.net;
+  const previousTotal = previous.totals.net;
+  const count = current.totals.payments;
+  return {
+    first: current.from,
+    current: series(current),
+    previous: series(previous),
+    total,
+    previousTotal,
+    change:
+      previousTotal > 0
+        ? Math.round(((total - previousTotal) / previousTotal) * 1000) / 10
+        : null,
+    count,
+    average: count ? Math.round(current.totals.received / count) : 0,
+    methods,
+    peakHour: peak ? peak.hour : null,
+    completeCurrent: true,
+    completePrevious: true,
+    net: {
+      received: current.totals.received,
+      refunded: current.totals.refunded,
+      refunds: current.totals.refunds,
+      unallocated: current.unallocated,
+      routes: current.byRoute,
+    },
   };
 }
 

@@ -681,6 +681,38 @@ html[data-sidebar="collapsed"] .pn-sidebar .btn-ghost span {
 .pn-nav-link[aria-current="page"] svg {
   color: var(--accent);
 }
+/* Số việc cần chú ý trên mục menu (GF2). Thanh bên thu gọn: thu thành chấm ở góc biểu tượng. */
+.pn-nav-badge,
+.pn-bell-badge {
+  @apply grid min-w-5 place-items-center rounded-full px-1.5 text-[11px] leading-5 font-semibold tabular-nums;
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.pn-nav-badge {
+  margin-left: auto;
+}
+.pn-nav-link {
+  position: relative;
+}
+html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  min-width: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  padding: 0;
+  font-size: 0;
+  background: var(--warning);
+}
+.pn-bell-badge {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  background: var(--warning);
+  color: var(--bg);
+  box-shadow: 0 0 0 2px var(--panel);
+}
 .pn-topbar {
   position: sticky;
   top: 0.75rem;

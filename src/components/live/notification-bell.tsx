@@ -1,0 +1,124 @@
+"use client";
+import Link from "next/link";
+import { useEffect, useId, useRef, useState } from "react";
+import { AlertTriangle, Bell, Clock, Undo2 } from "lucide-react";
+import type { Counters } from "@/lib/live-contracts";
+
+/** Các việc cần chú ý từ `GET counters`; mục 0 không hiện. */
+export function attentionItems(c: Counters) {
+  return [
+    {
+      key: "review",
+      count: c.payments?.NEEDS_REVIEW ?? 0,
+      label: "khoản thu cần đối soát",
+      href: "/admin/payments",
+      icon: AlertTriangle,
+    },
+    {
+      key: "refunds",
+      count: c.refundsOpen ?? 0,
+      label: "khoản cần hoàn cho khách",
+      href: "/admin/payments",
+      icon: Undo2,
+    },
+    {
+      key: "closing",
+      count: c.tripsClosingSoon,
+      label: "chuyến đóng bán trong 2 giờ",
+      href: "/admin/trips",
+      icon: Clock,
+    },
+  ].filter((i) => i.count > 0);
+}
+
+/** Chuông thông báo ở topbar: số việc cần chú ý, bấm mở danh sách liên kết tới trang xử lý. */
+export function NotificationBell({ counters }: { counters: Counters }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
+  const items = attentionItems(counters);
+  const total = items.reduce((t, i) => t + i.count, 0);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [open]);
+
+  return (
+    <div
+      ref={wrap}
+      // Điện thoại: topbar không đủ chỗ (tiêu đề bị cắt ở 320px); số việc vẫn hiện trên menu trong ngăn "Thêm".
+      className="relative shrink-0 max-sm:hidden"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.preventDefault();
+          setOpen(false);
+          button.current?.focus();
+        }
+      }}
+    >
+      <button
+        ref={button}
+        type="button"
+        className="icon-btn relative"
+        aria-label={
+          total
+            ? `Thông báo: ${total.toLocaleString("vi-VN")} việc cần chú ý`
+            : "Thông báo: không có việc cần chú ý"
+        }
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Bell size={17} aria-hidden="true" />
+        {total > 0 && (
+          <span className="pn-bell-badge" aria-hidden="true">
+            {total > 99 ? "99+" : total}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div
+          id={panelId}
+          className="pn-account-menu"
+          role="region"
+          aria-label="Thông báo"
+        >
+          <p className="px-3 pt-2 pb-1 text-xs font-semibold tracking-[0.1em] text-faint uppercase">
+            Cần chú ý
+          </p>
+          {items.length === 0 ? (
+            <p className="px-3 pb-3 text-sm text-muted">
+              Không có việc nào cần xử lý.
+            </p>
+          ) : (
+            <ul>
+              {items.map(({ key, count, label, href, icon: Icon }) => (
+                <li key={key}>
+                  <Link
+                    href={href}
+                    className="pn-account-item"
+                    onClick={() => setOpen(false)}
+                  >
+                    <Icon size={16} aria-hidden="true" />
+                    <span>
+                      <b className="tabular-nums">
+                        {count.toLocaleString("vi-VN")}
+                      </b>{" "}
+                      {label}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

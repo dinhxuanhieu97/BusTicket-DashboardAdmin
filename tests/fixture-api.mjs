@@ -156,6 +156,8 @@ let bookingEdits = new Map();
 let manualPaid = new Map();
 let manualKeys = new Map();
 let refunds = [];
+// Giả backend cũ chưa có API báo cáo/đếm/tìm (trả 404) để kiểm tra đường dự phòng.
+let reportsOff = false;
 const TRIP_STOPS = {
   pickup: [
     { name: "Bến xe Miền Đông", time: "17:30", day: 0 },
@@ -299,6 +301,7 @@ http
       manualPaid = new Map();
       manualKeys = new Map();
       refunds = [];
+      reportsOff = false;
       statusOverrides = {};
       down = false;
       malformed = false;
@@ -325,6 +328,7 @@ http
         refreshDown = body.refreshDown ?? refreshDown;
         refreshMalformed = body.refreshMalformed ?? refreshMalformed;
         brandMissing = body.brandMissing ?? brandMissing;
+        reportsOff = body.reportsOff ?? reportsOff;
         requireMfa = body.requireMfa ?? requireMfa;
         if (body.revokeSessions)
           for (const sess of sessions.values()) sess.revoked = true;
@@ -1874,6 +1878,163 @@ http
     if (malformed) return send(res, 200, { wrong: true });
     const resource = path.slice(prefix.length);
     const when = new Date().toISOString();
+    if (
+      reportsOff &&
+      ["reports/revenue", "reports/bookings", "counters", "search"].includes(
+        resource,
+      )
+    )
+      return fail(res, 404, "NOT_FOUND", "Cannot GET");
+    // Ngày theo giờ VN: khớp apps/api/src/reports (ngày nghiệp vụ Asia/Ho_Chi_Minh).
+    const vnDay = (d) =>
+      new Date(d.getTime() + 7 * 3600000).toISOString().slice(0, 10);
+    const today = vnDay(new Date());
+    const yesterday = vnDay(new Date(Date.now() - 86400000));
+    const daysOf = (from, to) => {
+      const out = [];
+      for (let t = Date.parse(from); t < Date.parse(to); t += 86400000)
+        out.push(new Date(t).toISOString().slice(0, 10));
+      return out;
+    };
+    if (resource === "reports/revenue") {
+      const from = url.searchParams.get("from"),
+        to = url.searchParams.get("to");
+      // Hôm nay: nhận 630.000 (2 chuyển khoản), hoàn 100.000. Hôm qua: nhận 200.000 tiền mặt.
+      const byDay = daysOf(from, to).map((date) => {
+        const received =
+          date === today ? 630000 : date === yesterday ? 200000 : 0;
+        const refunded = date === today ? 100000 : 0;
+        return {
+          date,
+          received,
+          refunded,
+          net: received - refunded,
+          payments: date === today ? 2 : date === yesterday ? 1 : 0,
+          refunds: refunded ? 1 : 0,
+        };
+      });
+      const sum = (k) => byDay.reduce((t, d) => t + d[k], 0);
+      const hasToday = byDay.some((d) => d.date === today);
+      const hasYesterday = byDay.some((d) => d.date === yesterday);
+      return send(res, 200, {
+        from,
+        to,
+        totals: {
+          received: sum("received"),
+          refunded: sum("refunded"),
+          net: sum("net"),
+          payments: sum("payments"),
+          refunds: sum("refunds"),
+        },
+        byDay,
+        byMethod: [
+          ...(hasToday
+            ? [{ method: "BANK_TRANSFER", amount: 630000, count: 2 }]
+            : []),
+          ...(hasYesterday
+            ? [{ method: "CASH", amount: 200000, count: 1 }]
+            : []),
+        ],
+        byHour: hasToday ? [{ hour: 9, amount: 630000, count: 2 }] : [],
+        byRoute: hasToday
+          ? [
+              {
+                code: "TEST",
+                origin: "TP. Hồ Chí Minh",
+                destination: "Đà Lạt",
+                received: 530000,
+                refunded: 100000,
+                net: 430000,
+                bookings: 2,
+              },
+            ]
+          : [],
+        unallocated: hasToday ? 100000 : 0,
+      });
+    }
+    if (resource === "reports/bookings") {
+      const from = url.searchParams.get("from"),
+        to = url.searchParams.get("to");
+      // Hôm nay 6 chỗ (4 đơn, 1 hủy); hôm qua 4 chỗ (2 đơn).
+      const byDay = daysOf(from, to).map((date) => ({
+        date,
+        bookings: date === today ? 4 : date === yesterday ? 2 : 0,
+        cancelled: date === today ? 1 : 0,
+        abandoned: 0,
+        holding: 0,
+        seats: date === today ? 6 : date === yesterday ? 4 : 0,
+      }));
+      const sum = (k) => byDay.reduce((t, d) => t + d[k], 0);
+      return send(res, 200, {
+        from,
+        to,
+        totals: {
+          bookings: sum("bookings"),
+          cancelled: sum("cancelled"),
+          abandoned: 0,
+          holding: 0,
+          seats: sum("seats"),
+          cancelRate: sum("bookings")
+            ? sum("cancelled") / sum("bookings")
+            : null,
+        },
+        byDay,
+      });
+    }
+    if (resource === "counters") {
+      const money = (permissions ?? OWNER_PERMISSIONS).includes("payment.read");
+      return send(res, 200, {
+        tripsClosingSoon: 1,
+        payments: money
+          ? { total: 412, NONE: 405, NEEDS_REVIEW: 5, RESOLVED: 2 }
+          : null,
+        refundsOpen: money
+          ? refunds.filter((r) => r.status === "OPEN").length + 1
+          : null,
+      });
+    }
+    if (resource === "search") {
+      const q = (url.searchParams.get("q") ?? "").toLowerCase();
+      const trip = {
+        id: "44444444-4444-4444-8444-444444444444",
+        code: "PN050227-TEST",
+        name: "Chuyến kiểm thử",
+        status: "OPEN",
+        departAt: "2027-02-05T10:30:00.000Z",
+        routeCode: "TEST",
+      };
+      const booking = {
+        code: "TEST123",
+        status: "CONFIRMED",
+        contactName: "Nguyễn Văn Khách",
+        contactPhone: "+84912345678",
+        totalAmount: 450000,
+        trip: {
+          id: trip.id,
+          code: trip.code,
+          name: trip.name,
+          departAt: trip.departAt,
+        },
+      };
+      const digits = q.replace(/\D/g, "").replace(/^0/, "");
+      const bookingHit =
+        booking.code.toLowerCase().startsWith(q.replace(/\s/g, "")) ||
+        booking.contactName.toLowerCase().includes(q) ||
+        (digits.length >= 4 && booking.contactPhone.includes(digits));
+      return send(res, 200, {
+        q,
+        trips:
+          trip.code.toLowerCase().startsWith(q) ||
+          trip.name.toLowerCase().includes(q)
+            ? [trip]
+            : [],
+        bookings: (permissions ?? OWNER_PERMISSIONS).includes("booking.read")
+          ? bookingHit
+            ? [booking]
+            : []
+          : null,
+      });
+    }
     if (resource === "payments")
       return send(res, 200, {
         payments: [
@@ -1990,6 +2151,9 @@ http
     // Ngày cố định không có chuyến, để kiểm thử trạng thái rỗng.
     if (resource === "trips" && url.searchParams.get("date") === "2027-03-09")
       return send(res, 200, { trips: [] });
+    // Backend cũ (`reportsOff`) chưa biết tham số `route` → 400 như schema strict thật.
+    if (resource === "trips" && url.searchParams.has("route") && reportsOff)
+      return fail(res, 400, "VALIDATION_FAILED", "Unrecognized key: route");
     if (resource === "trips")
       return send(res, 200, {
         trips: [

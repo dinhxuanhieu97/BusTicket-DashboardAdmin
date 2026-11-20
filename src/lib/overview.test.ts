@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  salesStats,
   addDays,
   greeting,
   nextDeparture,
@@ -150,4 +151,62 @@ test("short money keeps Vietnamese separators", () => {
   assert.deepEqual(shortVnd(1_250_000), { value: "1,25", unit: "tr ₫" });
   assert.deepEqual(shortVnd(12_850_000), { value: "12,9", unit: "tr ₫" });
   assert.deepEqual(shortVnd(1_940_000_000), { value: "1,94", unit: "tỷ ₫" });
+});
+
+test("sales stats compare today's seats with yesterday and keep the period cancel rate", () => {
+  const day = (date: string, seats: number) => ({
+    date,
+    bookings: seats,
+    cancelled: 0,
+    abandoned: 0,
+    holding: 0,
+    seats,
+  });
+  const r = salesStats(
+    {
+      from: "2026-11-15",
+      to: "2026-11-22",
+      totals: {
+        bookings: 20,
+        cancelled: 2,
+        abandoned: 1,
+        holding: 0,
+        seats: 18,
+        cancelRate: 0.1,
+      },
+      byDay: [day("2026-11-20", 8), day("2026-11-21", 10)],
+    },
+    "2026-11-21",
+  );
+  assert.deepEqual(
+    { ...r, series: r.series.length },
+    {
+      seatsToday: 10,
+      seatsYesterday: 8,
+      change: 25,
+      series: 2,
+      cancelRate: 0.1,
+      cancelled: 2,
+      bookings: 20,
+    },
+  );
+  assert.equal(
+    salesStats(
+      {
+        from: "2026-11-21",
+        to: "2026-11-22",
+        totals: {
+          bookings: 3,
+          cancelled: 0,
+          abandoned: 0,
+          holding: 0,
+          seats: 3,
+          cancelRate: null,
+        },
+        byDay: [day("2026-11-21", 3)],
+      },
+      "2026-11-21",
+    ).change,
+    null,
+  );
 });

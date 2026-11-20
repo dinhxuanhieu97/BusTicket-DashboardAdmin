@@ -32,7 +32,7 @@ test("sidebar groups pages by job and ⌘K jumps to a page", async ({ page }) =>
   await page.keyboard.press("ControlOrMeta+k");
   const palette = page.getByRole("dialog", { name: "Tìm nhanh" });
   await expect(palette).toBeVisible();
-  const input = palette.getByRole("combobox", { name: "Tìm trang" });
+  const input = palette.getByRole("combobox", { name: /^Tìm trang/ });
   await expect(input).toBeFocused();
   // Gõ không dấu vẫn tìm được.
   await input.fill("so thu");
@@ -49,7 +49,7 @@ test("sidebar groups pages by job and ⌘K jumps to a page", async ({ page }) =>
   // Không khớp: báo rõ, Enter không chuyển trang; Escape đóng và trả focus.
   await opener.click();
   await palette.getByRole("combobox").fill("không có trang này");
-  await expect(palette.getByText(/Không có trang nào khớp/)).toBeVisible();
+  await expect(palette.getByText(/Không có kết quả nào khớp/)).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/admin\/payments$/);
   await page.keyboard.press("Escape");
@@ -108,6 +108,8 @@ test("phones get a bottom bar that never covers the page and a Thêm drawer", as
         `nhãn ở ${width}px`,
       ).toBeGreaterThanOrEqual(slack);
   }
+  // Chuông ẩn ở điện thoại để tiêu đề đủ chỗ.
+  await expect(page.getByRole("button", { name: /^Thông báo/ })).toBeHidden();
   // Tiêu đề trang không bị cắt ở điện thoại.
   const title = page.getByRole("heading", { level: 1 });
   expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
@@ -258,4 +260,85 @@ test("the avatar opens an account menu that works by mouse and keyboard", async 
   await avatar.click();
   await menu.getByRole("menuitem", { name: "Đăng xuất" }).click();
   await expect(page).toHaveURL(/\/login$/);
+});
+
+test("the bell and menu badges show what needs attention (GF2)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/audit-logs");
+  // Fixture `counters`: 5 khoản cần đối soát, 1 khoản cần hoàn, 1 chuyến sắp đóng bán.
+  const bell = page.getByRole("button", { name: /^Thông báo/ });
+  await expect(bell).toHaveAccessibleName("Thông báo: 7 việc cần chú ý");
+  const nav = page.getByRole("navigation", { name: "Điều hướng quản trị" });
+  await expect(nav.getByRole("link", { name: "Sổ thu" })).toHaveAttribute(
+    "data-badge",
+    "5",
+  );
+  await expect(nav.getByRole("link", { name: "Chuyến xe" })).toHaveAttribute(
+    "data-badge",
+    "1",
+  );
+  await bell.click();
+  const panel = page.getByRole("region", { name: "Thông báo" });
+  await expect(panel.getByRole("link")).toHaveText([
+    "5 khoản thu cần đối soát",
+    "1 khoản cần hoàn cho khách",
+    "1 chuyến đóng bán trong 2 giờ",
+  ]);
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await expect(bell).toBeFocused();
+  await bell.click();
+  await panel.getByRole("link", { name: /cần đối soát/ }).click();
+  await expect(page).toHaveURL(/\/admin\/payments$/);
+});
+
+test("the bell stays hidden on an API without counters", async ({
+  page,
+  request,
+}) => {
+  await request.post("http://127.0.0.1:3101/__test/state", {
+    data: { reportsOff: true },
+  });
+  await page.goto("/admin/audit-logs");
+  await expect(
+    page.getByRole("heading", { name: "Nhật ký", level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Thông báo/ })).toHaveCount(0);
+});
+
+test("⌘K finds tickets by code, phone or name and trips by code (GF1)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin");
+  await page.keyboard.press("ControlOrMeta+k");
+  const palette = page.getByRole("dialog", { name: "Tìm nhanh" });
+  const input = palette.getByRole("combobox", {
+    name: "Tìm trang, vé hoặc chuyến",
+  });
+  await input.fill("0912 345");
+  const ticket = palette.getByRole("option", {
+    name: /TEST123 · Nguyễn Văn Khách/,
+  });
+  await expect(ticket).toBeVisible();
+  await expect(ticket).toContainText("+84912345678");
+  await input.fill("văn khách");
+  await expect(ticket).toBeVisible();
+  await input.fill("pn050227");
+  const trip = palette.getByRole("option", { name: /Chuyến kiểm thử/ });
+  await expect(trip).toBeVisible();
+  await expect(palette.getByRole("option", { name: /TEST123/ })).toHaveCount(0);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(
+    /\/admin\/seats\?(.+&)?trip=44444444-4444-4444-8444-444444444444(&|$)/,
+  );
+
+  await page.keyboard.press("ControlOrMeta+k");
+  await palette.getByRole("combobox").fill("test123");
+  await palette.getByRole("option", { name: /TEST123/ }).click();
+  await expect(page).toHaveURL(
+    /\/admin\/passengers\?date=2027-02-05&trip=44444444-4444-4444-8444-444444444444$/,
+  );
 });

@@ -172,3 +172,52 @@ test("payment amounts must be safe integer VND and actual review states", () => 
     paymentSchema.parse({ ...p, review: { status: "completed" } }),
   );
 });
+test("report, counter and search reads map to fixed backend paths with validated params", () => {
+  const base = `/api/v1/admin/operators/${operator}`;
+  assert.equal(
+    readPath(
+      "revenue-report",
+      operator,
+      new URLSearchParams("from=2026-11-15&to=2026-11-22"),
+    ),
+    `${base}/reports/revenue?from=2026-11-15&to=2026-11-22`,
+  );
+  assert.equal(
+    readPath(
+      "bookings-report",
+      operator,
+      new URLSearchParams("from=2026-11-21&to=2026-11-22"),
+    ),
+    `${base}/reports/bookings?from=2026-11-21&to=2026-11-22`,
+  );
+  assert.equal(
+    readPath("counters", operator, new URLSearchParams()),
+    `${base}/counters`,
+  );
+  assert.equal(
+    readPath("search", operator, new URLSearchParams("q=+0912 345+")),
+    `${base}/search?q=0912+345`,
+  );
+  const tripPath = readPath(
+    "trips",
+    operator,
+    new URLSearchParams("from=2026-11-21&to=2026-11-22&route=HCM-DL"),
+  );
+  assert.equal(
+    new URLSearchParams(tripPath.split("?")[1]).get("route"),
+    "HCM-DL",
+  );
+  for (const [resource, params] of [
+    ["revenue-report", "from=2026-11-22&to=2026-11-22"],
+    ["revenue-report", "from=2026-01-01&to=2027-02-01"],
+    ["bookings-report", "from=2026-11-21"],
+    ["counters", "operatorId=other"],
+    ["search", "q=a"],
+    ["search", `q=${"x".repeat(65)}`],
+    ["trips", "from=2026-11-21&to=2026-11-22&route=hcm dl"],
+  ] as const)
+    assert.throws(
+      () => readPath(resource, operator, new URLSearchParams(params)),
+      `${resource}?${params}`,
+    );
+});

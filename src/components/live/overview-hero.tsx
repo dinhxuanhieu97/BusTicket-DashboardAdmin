@@ -12,18 +12,29 @@ import {
   ReceiptText,
   Route,
   Activity,
+  Ticket,
+  XCircle,
   type LucideIcon,
 } from "lucide-react";
-import { vnTime, vnToday, type Payment, type Trip } from "@/lib/live-contracts";
+import {
+  vnTime,
+  vnToday,
+  type BookingsReport,
+  type Counters,
+  type Payment,
+  type RevenueReport,
+  type Trip,
+} from "@/lib/live-contracts";
 import {
   addDays,
   greeting,
   nextDeparture,
   paymentStats,
+  salesStats,
   seatFill,
   shortVnd,
 } from "@/lib/overview";
-import { useResource } from "./use-resource";
+import { useAllTrips, useResource } from "./use-resource";
 import { LoadState } from "./shared";
 import { Gauge } from "../ui/gauge";
 import { LiveDot, StatCard } from "../ui/stat-card";
@@ -70,25 +81,48 @@ export function OverviewHero({
   }, []);
   const [range, setRange] = useState<Range>("today");
 
-  const todayTrips = useResource<TripsPage>(tripsPath(today, 1));
-  const rangeTrips = useResource<TripsPage>(
+  const todayTrips = useAllTrips<TripsPage>(tripsPath(today, 1));
+  const rangeTrips = useAllTrips<TripsPage>(
     range === "today"
       ? tripsPath(today, 1)
       : range === "tomorrow"
         ? tripsPath(addDays(today, 1), 1)
         : tripsPath(today, 7),
   );
-  const payments = useResource<{ payments: Payment[] }>(
-    access.payments ? "payments" : null,
+  const week = `from=${addDays(today, -6)}&to=${addDays(today, 1)}`;
+  // Số tiền và số đếm từ API báo cáo; backend cũ chưa có thì tính tạm từ 200 khoản thu gần nhất.
+  const revenue = useResource<RevenueReport>(
+    access.payments ? `revenue-report?${week}` : null,
   );
+  const counters = useResource<Counters>(access.payments ? "counters" : null);
+  const fallback = Boolean(revenue.error || counters.error);
+  const payments = useResource<{ payments: Payment[] }>(
+    access.payments && fallback ? "payments" : null,
+  );
+  const bookings = useResource<BookingsReport>(
+    access.passengers ? `bookings-report?${week}` : null,
+  );
+  const sales = bookings.data ? salesStats(bookings.data, today) : null;
 
   const trips = todayTrips.data?.trips ?? [];
   const partialTrips = Boolean(todayTrips.data?.nextCursor);
   const fill = seatFill(trips);
   const next = now ? nextDeparture(trips, now) : null;
-  const money = payments.data
-    ? paymentStats(payments.data.payments, today)
-    : null;
+  const money =
+    revenue.data && counters.data?.payments
+      ? {
+          today: revenue.data.byDay.at(-1)?.net ?? 0,
+          series: revenue.data.byDay.map((d) => ({
+            date: d.date,
+            amount: d.net,
+          })),
+          needsReview: counters.data.payments.NEEDS_REVIEW,
+          complete: true,
+          net: true,
+        }
+      : payments.data
+        ? { ...paymentStats(payments.data.payments, today), net: false }
+        : null;
   const rangeFill = rangeTrips.data ? seatFill(rangeTrips.data.trips) : null;
   const atLeast = (partial: boolean) => (partial ? "ít nhất " : "");
 
@@ -185,7 +219,8 @@ export function OverviewHero({
             {money && (
               <li className="pn-chip">
                 <Coins size={15} aria-hidden="true" />
-                Thu hôm nay {money.today.toLocaleString("vi-VN")} ₫
+                {money.net ? "Thu thuần hôm nay" : "Thu hôm nay"}{" "}
+                {money.today.toLocaleString("vi-VN")} ₫
               </li>
             )}
             {money && money.needsReview > 0 && (
@@ -320,17 +355,23 @@ export function OverviewHero({
         </section>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
+      <div
+        className={`grid grid-cols-2 gap-3 md:gap-4 ${sales && money ? "xl:grid-cols-3" : "xl:grid-cols-4"}`}
+      >
         {money && (
           <StatCard
             icon={Coins}
-            label="Thu hôm nay"
+            label={money.net ? "Thu thuần hôm nay" : "Thu hôm nay"}
             value={shortVnd(money.today).value}
             unit={shortVnd(money.today).unit}
             foot={
               <>
                 <LiveDot />
-                {money.complete ? "theo sổ thu" : "200 khoản gần nhất"}
+                {money.net
+                  ? "đã trừ tiền hoàn"
+                  : money.complete
+                    ? "theo sổ thu"
+                    : "200 khoản gần nhất"}
               </>
             }
             spark={money.series.map((p) => p.amount)}
@@ -371,17 +412,56 @@ export function OverviewHero({
         {money && (
           <StatCard
             icon={Activity}
-            label="Thu 7 ngày"
+            label={money.net ? "Thu thuần 7 ngày" : "Thu 7 ngày"}
             value={
               shortVnd(money.series.reduce((sum, p) => sum + p.amount, 0)).value
             }
             unit={
               shortVnd(money.series.reduce((sum, p) => sum + p.amount, 0)).unit
             }
-            foot={money.complete ? "Từ sổ thu" : "Ít nhất (200 khoản gần nhất)"}
+            foot={
+              money.net
+                ? "Thu thuần, đã trừ tiền hoàn"
+                : money.complete
+                  ? "Từ sổ thu"
+                  : "Ít nhất (200 khoản gần nhất)"
+            }
             spark={money.series.map((p) => p.amount)}
             sparkColor="var(--info)"
             fillSpark={false}
+          />
+        )}
+        {sales && (
+          <StatCard
+            icon={Ticket}
+            label="Vé bán hôm nay"
+            value={sales.seatsToday}
+            unit="chỗ"
+            foot={
+              <span data-testid="sales-vs-yesterday">
+                {sales.change === null
+                  ? `Hôm qua ${sales.seatsYesterday} chỗ`
+                  : `${sales.change >= 0 ? "↑" : "↓"} ${Math.abs(sales.change)}% so với hôm qua (${sales.seatsYesterday})`}
+              </span>
+            }
+            spark={sales.series}
+            sparkColor="var(--success)"
+          />
+        )}
+        {sales && (
+          <StatCard
+            icon={XCircle}
+            label="Tỷ lệ hủy 7 ngày"
+            value={
+              sales.cancelRate === null
+                ? "—"
+                : (Math.round(sales.cancelRate * 1000) / 10).toLocaleString(
+                    "vi-VN",
+                  )
+            }
+            unit={sales.cancelRate === null ? undefined : "%"}
+            tone={(sales.cancelRate ?? 0) >= 0.1 ? "warning" : undefined}
+            foot={`${sales.cancelled}/${sales.bookings} đơn tạo trong 7 ngày bị hủy`}
           />
         )}
       </div>

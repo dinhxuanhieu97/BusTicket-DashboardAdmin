@@ -2,6 +2,7 @@
 import { useState, type ReactNode } from "react";
 import {
   Payment,
+  type Counters,
   methodLabels,
   reviewLabels,
   reasonLabels,
@@ -48,17 +49,24 @@ export function Payments({
     payments: Payment[];
     meta: { fetchedAt: string; limit: number };
   }>("payments" + (review ? "?review=" + review : ""));
-  // Số đếm của tab lấy từ tập không lọc (200 khoản gần nhất); khi đang ở "Tất cả" dùng luôn dữ liệu chính.
+  // Số đếm của tab: đủ từ API `counters`; backend cũ chưa có thì đếm trong tập không lọc (200 khoản gần nhất).
+  const counters = useResource<Counters>("counters");
+  const exact = counters.data?.payments ?? null;
   const unfiltered = useResource<{
     payments: Payment[];
     meta: { fetchedAt: string; limit: number };
-  }>(review ? "payments" : null);
-  const all = review ? unfiltered.data : data;
+  }>(review && counters.error ? "payments" : null);
+  const all = exact ? null : review ? unfiltered.data : data;
   const partial = !!all && all.payments.length >= all.meta.limit;
-  const countOf = (status?: string) =>
-    all
-      ? all.payments.filter((p) => !status || p.review.status === status).length
-      : undefined;
+  const countOf = (status?: keyof typeof reviewLabels) =>
+    exact
+      ? status
+        ? exact[status]
+        : exact.total
+      : all
+        ? all.payments.filter((p) => !status || p.review.status === status)
+            .length
+        : undefined;
 
   const rows = (data?.payments || []).filter((p) =>
     `${p.id} ${p.matchedBookingCode || ""} ${p.bankReference || ""} ${p.content || ""}`
@@ -71,6 +79,7 @@ export function Payments({
   const refresh = () => {
     setSelected(null);
     reload();
+    counters.reload();
     if (review) unfiltered.reload();
   };
 
@@ -79,7 +88,11 @@ export function Payments({
       <PageHero
         title="Sổ thu tài chính"
         description="Các khoản thu thực tế · Đơn vị VND"
-        note="API trả tối đa 200 khoản gần nhất theo bộ lọc. Số trên tab, tìm kiếm và phân trang chỉ tính trong tập đã tải."
+        note={
+          exact
+            ? "Danh sách hiện tối đa 200 khoản gần nhất theo bộ lọc; số trên tab là tổng của cả sổ thu. Tìm kiếm và phân trang tính trong danh sách đã tải."
+            : "API trả tối đa 200 khoản gần nhất theo bộ lọc. Số trên tab, tìm kiếm và phân trang chỉ tính trong tập đã tải."
+        }
         actions={<RefreshButton reload={refresh} loading={loading} />}
       />
       {afterHero}
