@@ -6,14 +6,14 @@ export default async function Page() {
   const session = await requirePagePermission("payment.read");
   if (!session) return null;
   return (
-    <div className="pn-page-stack">
-      <RefundsPanel canManage={hasPermission(session, "payment.manage")} />
-      <Payments
-        canReinstate={
-          hasPermission(session, "payment.manage") &&
-          hasPermission(session, "trip.read")
-        }
-      />
-    </div>
+    <Payments
+      canReinstate={
+        hasPermission(session, "payment.manage") &&
+        hasPermission(session, "trip.read")
+      }
+      afterHero={
+        <RefundsPanel canManage={hasPermission(session, "payment.manage")} />
+      }
+    />
   );
 }

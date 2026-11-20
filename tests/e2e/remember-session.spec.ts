@@ -82,7 +82,7 @@ test("an expired access token is renewed silently and the refresh token rotates"
   await context.clearCookies({ name: ACCESS }); // như access token đã hết hạn
   await page.goto("/admin/trips");
   await expect(
-    page.getByRole("heading", { name: "Chuyến xe", exact: true }),
+    page.getByRole("heading", { name: "Chuyến xe", exact: true, level: 1 }),
   ).toBeVisible();
   const after = await cookie(context, REFRESH);
   expect(after!.value).not.toBe(before);
@@ -213,7 +213,7 @@ test("a refresh outage keeps the session: 503 instead of logging out, then recov
   });
   await page.goto("/admin/trips");
   await expect(
-    page.getByRole("heading", { name: "Chuyến xe", exact: true }),
+    page.getByRole("heading", { name: "Chuyến xe", exact: true, level: 1 }),
   ).toBeVisible();
 });
 

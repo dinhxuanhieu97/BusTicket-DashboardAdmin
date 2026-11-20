@@ -1,4 +1,5 @@
 "use client";
+import { PageHero } from "../ui/page-hero";
 import { useEffect, useState } from "react";
 import { Bus, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { type Trip, vnDateTime, vnTime, vnToday } from "@/lib/live-contracts";
@@ -75,6 +76,10 @@ export function Passengers({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
+      <PageHero
+        title="Hành khách"
+        description="Chọn chuyến để xem khách, soát vé, bán tại quầy và xuất danh sách."
+      />
       <section
         aria-labelledby="passenger-trips-heading"
         className="card pn-panel-inset flex flex-col gap-4"

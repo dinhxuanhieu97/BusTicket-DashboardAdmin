@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { Modal } from "../modal";
+import { PageHero } from "../ui/page-hero";
 import { boardingTarget, type BoardingResult } from "@/lib/passenger-ops";
 import { vnDateTime, vnd } from "@/lib/live-contracts";
 import {
@@ -87,15 +88,11 @@ export function AssignedTrips({ canBoard = false }: { canBoard?: boolean }) {
 
   return (
     <div className="pn-page-stack">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="pn-section-label">Chuyến được giao</h2>
-          <p className="text-sm text-muted">
-            Chỉ hiển thị chuyến điều hành đã giao cho bạn, từ hôm qua trở đi.
-          </p>
-        </div>
-        <RefreshButton reload={list.reload} loading={list.loading} />
-      </div>
+      <PageHero
+        title="Chuyến được giao"
+        description="Chỉ hiển thị chuyến điều hành đã giao cho bạn, từ hôm qua trở đi."
+        actions={<RefreshButton reload={list.reload} loading={list.loading} />}
+      />
 
       {list.error && <LoadState error={list.error} reload={list.reload} />}
 

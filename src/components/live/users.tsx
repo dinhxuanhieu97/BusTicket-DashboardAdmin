@@ -203,8 +203,8 @@ export function Staff({ viewerId }: { viewerId: string }) {
 
   return (
     <div className="pn-page-stack">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 ref={heading} tabIndex={-1} className="pn-section-label">
+      <div className="pn-page-hero">
+        <h2 ref={heading} tabIndex={-1} className="pn-page-hero-title">
           Danh sách nhân viên
         </h2>
         <div className="flex flex-wrap gap-2">

@@ -61,8 +61,8 @@ export function RouteManager({ canWrite }: { canWrite: boolean }) {
 
   return (
     <div className="pn-page-stack">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="pn-section-label">Tuyến đường</h2>
+      <div className="pn-page-hero">
+        <h2 className="pn-page-hero-title">Tuyến đường</h2>
         <div className="flex flex-wrap gap-2">
           <RefreshButton reload={() => void load()} loading={loading} />
           {canWrite && (

@@ -144,6 +144,91 @@ fieldset:disabled button {
 }
 
 @layer components {
+  /* G3 — khối dùng chung cho các trang bảng (theo dash-board-copy). */
+  .pn-page-hero {
+    @apply flex flex-wrap items-end justify-between gap-4;
+  }
+  .pn-page-hero-title {
+    @apply mb-1 text-[clamp(1.5rem,2.4vw,2rem)] leading-tight font-semibold tracking-tight text-ink;
+  }
+  .pn-page-hero-actions {
+    @apply flex flex-wrap items-center gap-2.5;
+  }
+  .pn-tabs {
+    @apply inline-flex max-w-full flex-wrap gap-1 rounded-2xl border border-line p-1;
+    background: var(--glass);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+  }
+  .pn-tabs > button {
+    @apply inline-flex min-h-10 items-center gap-2 rounded-xl px-3.5 text-sm font-medium whitespace-nowrap text-muted;
+  }
+  .pn-tabs > button:hover {
+    color: var(--text);
+  }
+  .pn-tabs > button[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--on-primary);
+  }
+  .pn-tabs-count {
+    @apply inline-grid min-w-5 place-items-center rounded-md px-1.5 text-xs font-semibold tabular-nums;
+    background: var(--surface);
+  }
+  .pn-tabs > button[aria-pressed="true"] .pn-tabs-count {
+    background: rgb(0 0 0 / 0.18);
+    color: inherit;
+  }
+  .pn-filter-chips {
+    @apply flex flex-wrap gap-2 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:pb-1;
+    scrollbar-width: none;
+  }
+  .pn-filter-chip {
+    @apply inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-line px-3 text-sm whitespace-nowrap text-ink;
+    background: var(--surface);
+  }
+  .pn-filter-chip[aria-pressed="true"] {
+    border-color: transparent;
+    background: var(--accent-glow);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .pn-switch {
+    @apply relative inline-grid size-11 shrink-0 place-items-center rounded-full;
+  }
+  .pn-switch > span {
+    @apply relative block h-7 w-[2.875rem] rounded-full transition-colors;
+    background: var(--border);
+  }
+  .pn-switch > span::after {
+    content: "";
+    @apply absolute top-[3px] left-[3px] size-[22px] rounded-full bg-white shadow transition-[translate];
+  }
+  .pn-switch[aria-checked="true"] > span {
+    background: var(--accent);
+  }
+  .pn-switch[aria-checked="true"] > span::after {
+    translate: 18px 0;
+  }
+  .pn-switch:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+  .pn-trip-card {
+    @apply flex min-w-0 flex-col gap-1.5 rounded-[1.125rem] border border-line p-4;
+    background: var(--surface);
+  }
+  .pn-trip-card[data-on="true"] {
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    background:
+      linear-gradient(180deg, var(--accent-glow), transparent 70%),
+      var(--surface);
+  }
+  .pn-list-row {
+    @apply flex items-center gap-3 border-t border-line py-3 first:border-t-0;
+  }
+  .pn-list-icon {
+    @apply grid size-9 shrink-0 place-items-center rounded-[0.6875rem] border border-line text-accent;
+    background: var(--surface);
+  }
   .pn-page-inline {
     padding-inline: var(--page-padding);
   }
@@ -353,7 +438,7 @@ fieldset:disabled button {
     --tone-bg: var(--accent-glow);
   }
   .pn-badge {
-    @apply inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold leading-none;
+    @apply inline-flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold leading-none;
   }
   .pn-notice {
     @apply flex items-start gap-2.5 rounded-xl border border-line px-4 py-3 text-sm;

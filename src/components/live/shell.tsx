@@ -428,7 +428,8 @@ export function LiveShell({
             <Moon size={17} aria-hidden="true" />
           )}
         </button>
-        {tripWrite && (
+        {/* Trang Chuyến xe đã có nút "+ Thêm chuyến" ở đầu trang (GF6). */}
+        {tripWrite && path !== "/admin/trips" && (
           <Link
             href="/admin/trips?create=1"
             className="btn btn-primary max-sm:w-[var(--control-height)] max-sm:px-0"
