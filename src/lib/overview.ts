@@ -149,6 +149,26 @@ export function salesStats(report: BookingsReport, today: string) {
   };
 }
 
+/** Tỷ lệ hủy (0–1) → "12,5" (một chữ số thập phân, dấu phẩy VN); chưa có đơn → `null`. */
+export function cancelPercent(rate: number | null) {
+  return rate === null
+    ? null
+    : (Math.round(rate * 1000) / 10).toLocaleString("vi-VN");
+}
+
+/** Ngưỡng cảnh báo tỷ lệ hủy (từ 10%). */
+export const CANCEL_WARN = 0.1;
+
+/** Dòng so sánh với hôm qua của thẻ "Vé bán hôm nay". */
+export function salesChangeText(s: {
+  change: number | null;
+  seatsYesterday: number;
+}) {
+  if (s.change === null) return `Hôm qua ${s.seatsYesterday} chỗ`;
+  if (s.change === 0) return `Bằng hôm qua (${s.seatsYesterday})`;
+  return `${s.change > 0 ? "↑" : "↓"} ${Math.abs(s.change)}% so với hôm qua (${s.seatsYesterday})`;
+}
+
 /** Số tiền gọn cho thẻ: 1,25 tr / 1,94 tỷ / 850.000. */
 export function shortVnd(value: number) {
   const f = (n: number) =>

@@ -2,6 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   salesStats,
+  salesChangeText,
+  cancelPercent,
+  CANCEL_WARN,
   addDays,
   greeting,
   nextDeparture,
@@ -209,4 +212,85 @@ test("sales stats compare today's seats with yesterday and keep the period cance
     ).change,
     null,
   );
+});
+
+const report = (
+  byDay: [string, number][],
+  totals: { bookings: number; cancelled: number; cancelRate: number | null },
+) => ({
+  from: "2026-11-15",
+  to: "2026-11-22",
+  totals: { ...totals, abandoned: 0, holding: 0, seats: 0 },
+  byDay: byDay.map(([date, seats]) => ({
+    date,
+    bookings: seats,
+    cancelled: 0,
+    abandoned: 0,
+    holding: 0,
+    seats,
+  })),
+});
+
+test("GF7: no seats yesterday gives no percentage instead of dividing by zero", () => {
+  const r = salesStats(
+    report([["2026-11-21", 4]], { bookings: 4, cancelled: 0, cancelRate: 0 }),
+    "2026-11-21",
+  );
+  assert.equal(r.seatsToday, 4);
+  assert.equal(r.seatsYesterday, 0);
+  assert.equal(r.change, null);
+  assert.equal(salesChangeText(r), "Hôm qua 0 chỗ");
+});
+
+test("GF7: a day missing from the report counts as zero seats and a drop shows ↓", () => {
+  const r = salesStats(
+    report([["2026-11-20", 8]], { bookings: 8, cancelled: 0, cancelRate: 0 }),
+    "2026-11-21",
+  );
+  assert.equal(r.seatsToday, 0);
+  assert.equal(r.change, -100);
+  assert.equal(salesChangeText(r), "↓ 100% so với hôm qua (8)");
+  const up = salesStats(
+    report(
+      [
+        ["2026-11-20", 3],
+        ["2026-11-21", 4],
+      ],
+      { bookings: 7, cancelled: 0, cancelRate: 0 },
+    ),
+    "2026-11-21",
+  );
+  assert.equal(up.change, 33);
+  assert.equal(salesChangeText(up), "↑ 33% so với hôm qua (3)");
+});
+
+test("GF7: yesterday crosses a month boundary", () => {
+  const r = salesStats(
+    report(
+      [
+        ["2026-11-30", 5],
+        ["2026-12-01", 5],
+      ],
+      { bookings: 10, cancelled: 0, cancelRate: 0 },
+    ),
+    "2026-12-01",
+  );
+  assert.equal(r.seatsYesterday, 5);
+  assert.equal(r.change, 0);
+  assert.equal(salesChangeText(r), "Bằng hôm qua (5)");
+});
+
+test("GF7: cancel rate is shown with one decimal and warns from 10%", () => {
+  assert.equal(cancelPercent(null), null);
+  assert.equal(cancelPercent(0), "0");
+  assert.equal(cancelPercent(0.125), "12,5");
+  assert.equal(cancelPercent(1 / 3), "33,3");
+  assert.equal(cancelPercent(1), "100");
+  assert.equal(CANCEL_WARN, 0.1);
+  const none = salesStats(
+    report([], { bookings: 0, cancelled: 0, cancelRate: null }),
+    "2026-11-21",
+  );
+  assert.equal(none.cancelRate, null);
+  assert.equal(none.bookings, 0);
 });

@@ -31,6 +31,9 @@ import {
   nextDeparture,
   paymentStats,
   salesStats,
+  salesChangeText,
+  cancelPercent,
+  CANCEL_WARN,
   seatFill,
   shortVnd,
 } from "@/lib/overview";
@@ -439,9 +442,7 @@ export function OverviewHero({
             unit="chỗ"
             foot={
               <span data-testid="sales-vs-yesterday">
-                {sales.change === null
-                  ? `Hôm qua ${sales.seatsYesterday} chỗ`
-                  : `${sales.change >= 0 ? "↑" : "↓"} ${Math.abs(sales.change)}% so với hôm qua (${sales.seatsYesterday})`}
+                {salesChangeText(sales)}
               </span>
             }
             spark={sales.series}
@@ -452,15 +453,11 @@ export function OverviewHero({
           <StatCard
             icon={XCircle}
             label="Tỷ lệ hủy 7 ngày"
-            value={
-              sales.cancelRate === null
-                ? "—"
-                : (Math.round(sales.cancelRate * 1000) / 10).toLocaleString(
-                    "vi-VN",
-                  )
-            }
+            value={cancelPercent(sales.cancelRate) ?? "—"}
             unit={sales.cancelRate === null ? undefined : "%"}
-            tone={(sales.cancelRate ?? 0) >= 0.1 ? "warning" : undefined}
+            tone={
+              (sales.cancelRate ?? 0) >= CANCEL_WARN ? "warning" : undefined
+            }
             foot={`${sales.cancelled}/${sales.bookings} đơn tạo trong 7 ngày bị hủy`}
           />
         )}
