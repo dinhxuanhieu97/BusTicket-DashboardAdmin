@@ -6,7 +6,11 @@ import {
   revenueReport,
   shares,
 } from "./revenue";
-import type { Payment, RevenueReport } from "./live-contracts";
+import {
+  revenueReportSchema,
+  type Payment,
+  type RevenueReport,
+} from "./live-contracts";
 
 const pay = (
   receivedAt: string,
@@ -185,4 +189,56 @@ test("GF8: an empty period has zero average and no peak hour", () => {
   assert.equal(r.average, 0);
   assert.equal(r.peakHour, null);
   assert.equal(r.total, 0);
+});
+
+const route = (
+  code: string,
+  received: number,
+  refunded: number,
+  bookings = 1,
+) => ({
+  code,
+  origin: "TP.HCM",
+  destination: code,
+  received,
+  refunded,
+  net: received - refunded,
+  bookings,
+});
+
+test("GF16: routes and the unallocated amount pass through in API order", () => {
+  const cur = {
+    ...report([day("2026-11-21", 300_000, 60_000)]),
+    byRoute: [route("HCM-DL", 200_000, 0, 2), route("HCM-QN", 40_000, 60_000)],
+    unallocated: 60_000,
+  };
+  const r = revenueFromReports(cur, cur);
+  assert.deepEqual(
+    r.net!.routes.map((x) => [x.code, x.net, x.bookings]),
+    [
+      ["HCM-DL", 200_000, 2],
+      ["HCM-QN", -20_000, 1],
+    ],
+  );
+  assert.equal(r.net!.unallocated, 60_000);
+});
+
+test("GF16: the report contract accepts a refund-only route and rejects malformed rows", () => {
+  const base = report([day("2026-11-21", 0, 50_000)]);
+  assert.equal(
+    revenueReportSchema.safeParse({
+      ...base,
+      byRoute: [route("HCM-QN", 0, 50_000, 0)],
+    }).success,
+    true,
+  );
+  for (const bad of [
+    { ...route("A", 1, 0), received: -1 },
+    { ...route("A", 1, 0), net: 0.5 },
+    { ...route("A", 1, 0), bookings: undefined },
+  ])
+    assert.equal(
+      revenueReportSchema.safeParse({ ...base, byRoute: [bad] }).success,
+      false,
+    );
 });
