@@ -3,33 +3,9 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { AlertTriangle, Bell, Clock, Undo2 } from "lucide-react";
 import type { Counters } from "@/lib/live-contracts";
+import { attentionItems, badgeText } from "@/lib/attention";
 
-/** Các việc cần chú ý từ `GET counters`; mục 0 không hiện. */
-export function attentionItems(c: Counters) {
-  return [
-    {
-      key: "review",
-      count: c.payments?.NEEDS_REVIEW ?? 0,
-      label: "khoản thu cần đối soát",
-      href: "/admin/payments",
-      icon: AlertTriangle,
-    },
-    {
-      key: "refunds",
-      count: c.refundsOpen ?? 0,
-      label: "khoản cần hoàn cho khách",
-      href: "/admin/payments",
-      icon: Undo2,
-    },
-    {
-      key: "closing",
-      count: c.tripsClosingSoon,
-      label: "chuyến đóng bán trong 2 giờ",
-      href: "/admin/trips",
-      icon: Clock,
-    },
-  ].filter((i) => i.count > 0);
-}
+const icons = { review: AlertTriangle, refunds: Undo2, closing: Clock };
 
 /** Chuông thông báo ở topbar: số việc cần chú ý, bấm mở danh sách liên kết tới trang xử lý. */
 export function NotificationBell({ counters }: { counters: Counters }) {
@@ -78,7 +54,7 @@ export function NotificationBell({ counters }: { counters: Counters }) {
         <Bell size={17} aria-hidden="true" />
         {total > 0 && (
           <span className="pn-bell-badge" aria-hidden="true">
-            {total > 99 ? "99+" : total}
+            {badgeText(total)}
           </span>
         )}
       </button>
@@ -98,23 +74,26 @@ export function NotificationBell({ counters }: { counters: Counters }) {
             </p>
           ) : (
             <ul>
-              {items.map(({ key, count, label, href, icon: Icon }) => (
-                <li key={key}>
-                  <Link
-                    href={href}
-                    className="pn-account-item"
-                    onClick={() => setOpen(false)}
-                  >
-                    <Icon size={16} aria-hidden="true" />
-                    <span>
-                      <b className="tabular-nums">
-                        {count.toLocaleString("vi-VN")}
-                      </b>{" "}
-                      {label}
-                    </span>
-                  </Link>
-                </li>
-              ))}
+              {items.map(({ key, count, label, href }) => {
+                const Icon = icons[key];
+                return (
+                  <li key={key}>
+                    <Link
+                      href={href}
+                      className="pn-account-item"
+                      onClick={() => setOpen(false)}
+                    >
+                      <Icon size={16} aria-hidden="true" />
+                      <span>
+                        <b className="tabular-nums">
+                          {count.toLocaleString("vi-VN")}
+                        </b>{" "}
+                        {label}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

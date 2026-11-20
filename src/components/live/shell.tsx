@@ -45,6 +45,7 @@ import { LoadState } from "./shared";
 import { CommandPalette } from "./command-palette";
 import { NotificationBell } from "./notification-bell";
 import { useResource } from "./use-resource";
+import { badgeText, navBadges } from "@/lib/attention";
 
 const icons: Record<NavKey, typeof LayoutDashboard> = {
   assigned: ClipboardList,
@@ -97,12 +98,7 @@ export function LiveShell({
     // Tải lại khi đổi trang (vd. vừa xử lý xong khoản thu); `reload` đổi mỗi lần render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
-  const navBadges: Partial<Record<string, number>> = counters.data
-    ? {
-        payments: counters.data.payments?.NEEDS_REVIEW ?? 0,
-        trips: counters.data.tripsClosingSoon,
-      }
-    : {};
+  const badges = navBadges(counters.data);
   const permissionKey = JSON.stringify(permissions ?? null);
   const [operatorName, setOperatorName] = useState("Nhà xe");
   const [operatorLogo, setOperatorLogo] = useState<string | null>(null);
@@ -357,7 +353,7 @@ export function LiveShell({
           <div key={id} className="space-y-1">
             <p className="pn-nav-group">{title}</p>
             {group.map(({ key, href, label, icon: Icon }) => {
-              const badge = navBadges[key] ?? 0;
+              const badge = badges[key] ?? 0;
               return (
                 <Link
                   key={href}
@@ -377,7 +373,7 @@ export function LiveShell({
                   <span className="pn-sidebar-text">{label}</span>
                   {badge > 0 && (
                     <span className="pn-nav-badge" aria-hidden="true">
-                      {badge > 99 ? "99+" : badge}
+                      {badgeText(badge)}
                     </span>
                   )}
                 </Link>
