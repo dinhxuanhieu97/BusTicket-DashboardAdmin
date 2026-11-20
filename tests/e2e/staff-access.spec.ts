@@ -39,11 +39,13 @@ const cases = [
     menu: [
       "Tổng quan",
       "Chuyến xe",
+      "Sơ đồ chỗ",
       "Hành khách",
       "Lịch tự động",
       "Đội xe",
       "Tuyến đường",
       "Cài đặt",
+      "Trợ giúp",
     ],
     readable: [tripQuery, "/api/trip-management/options"],
     forbidden: ["/api/live/payments", "/api/live/audit-logs"],
@@ -55,13 +57,16 @@ const cases = [
     menu: [
       "Tổng quan",
       "Chuyến xe",
+      "Sơ đồ chỗ",
       "Hành khách",
       "Đội xe",
       "Tuyến đường",
       // Nhóm Tài chính nằm sau nhóm Vận hành.
       "Sổ thu",
+      "Doanh thu",
       "Nhật ký",
       "Cài đặt",
+      "Trợ giúp",
     ],
     readable: [tripQuery, "/api/live/payments", "/api/live/audit-logs"],
     forbidden: ["/api/trip-management/options"],
@@ -73,12 +78,15 @@ const cases = [
     menu: [
       "Tổng quan",
       "Chuyến xe",
+      "Sơ đồ chỗ",
       "Hành khách",
       "Đội xe",
       "Tuyến đường",
       // Nhóm Tài chính nằm sau nhóm Vận hành.
       "Sổ thu",
+      "Doanh thu",
       "Cài đặt",
+      "Trợ giúp",
     ],
     readable: [tripQuery, "/api/live/payments"],
     forbidden: [
@@ -91,7 +99,7 @@ const cases = [
   {
     role: "ASSISTANT",
     label: "Phụ xe",
-    menu: ["Chuyến được giao", "Cài đặt"],
+    menu: ["Chuyến được giao", "Cài đặt", "Trợ giúp"],
     readable: ["/api/assigned-trips"],
     forbidden: [
       tripQuery,

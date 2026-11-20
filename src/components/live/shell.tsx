@@ -25,6 +25,9 @@ import {
   ClipboardList,
   Contact,
   BusFront,
+  LayoutGrid,
+  LifeBuoy,
+  TrendingUp,
 } from "lucide-react";
 import { roleLabels, type AppUser } from "@/lib/live-contracts";
 import { groupNav, mobileNav, visibleNav, type NavKey } from "@/lib/nav";
@@ -46,6 +49,9 @@ const icons: Record<NavKey, typeof LayoutDashboard> = {
   passengers: Contact,
   audit: History,
   settings: Settings,
+  revenue: TrendingUp,
+  seats: LayoutGrid,
+  help: LifeBuoy,
 };
 
 export function LiveShell({

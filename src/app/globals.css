@@ -222,6 +222,10 @@ fieldset:disabled button {
       linear-gradient(180deg, var(--accent-glow), transparent 70%),
       var(--surface);
   }
+  .pn-seat[aria-pressed="true"] {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
   .pn-list-row {
     @apply flex items-center gap-3 border-t border-line py-3 first:border-t-0;
   }

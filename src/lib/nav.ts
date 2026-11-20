@@ -10,7 +10,10 @@ export type NavKey =
   | "trips"
   | "passengers"
   | "audit"
-  | "settings";
+  | "settings"
+  | "revenue"
+  | "seats"
+  | "help";
 
 export const NAV: {
   key: NavKey;
@@ -89,6 +92,22 @@ export const NAV: {
     perm: "audit.read",
   },
   { key: "settings", href: "/admin/settings", label: "Cài đặt" },
+  // Báo cáo tính từ sổ thu nên dùng chung quyền xem sổ thu.
+  {
+    key: "revenue",
+    href: "/admin/revenue",
+    label: "Doanh thu",
+    perm: "payment.read",
+  },
+  // Sơ đồ chỗ theo chuyến; bán tại quầy còn cần booking.create.
+  {
+    key: "seats",
+    href: "/admin/seats",
+    label: "Sơ đồ chỗ",
+    short: "Chỗ",
+    perm: "trip.read",
+  },
+  { key: "help", href: "/admin/help", label: "Trợ giúp" },
 ];
 
 /**
@@ -116,14 +135,19 @@ export const NAV_GROUPS: { id: string; title: string; keys: NavKey[] }[] = [
       "assigned",
       "overview",
       "trips",
+      "seats",
       "passengers",
       "schedules",
       "fleet",
       "routes",
     ],
   },
-  { id: "finance", title: "Tài chính", keys: ["payments"] },
-  { id: "manage", title: "Quản lý", keys: ["users", "audit", "settings"] },
+  { id: "finance", title: "Tài chính", keys: ["payments", "revenue"] },
+  {
+    id: "manage",
+    title: "Quản lý",
+    keys: ["users", "audit", "settings", "help"],
+  },
 ];
 
 /** Xếp các mục đã lọc theo quyền vào nhóm; bỏ nhóm không còn mục nào. */
