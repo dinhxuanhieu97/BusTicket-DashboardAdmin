@@ -364,6 +364,25 @@ fieldset:disabled button {
     padding-inline: var(--panel-padding);
     @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line py-3 text-xs text-muted;
   }
+  /* Tiêu đề cột sắp xếp được (T1): cả ô là nút, mũi tên mờ khi chưa sắp xếp. */
+  .pn-sort {
+    @apply -mx-1 inline-flex items-center gap-1 rounded-md px-1 py-0.5 font-semibold whitespace-nowrap;
+    color: inherit;
+  }
+  .pn-sort > svg {
+    opacity: 0.45;
+  }
+  .pn-sort[data-active] {
+    color: var(--text);
+  }
+  .pn-sort[data-active] > svg,
+  .pn-sort:hover > svg {
+    opacity: 1;
+  }
+  .pn-sort:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
   .pn-table tbody tr:last-child td {
     border-bottom: 0;
   }

@@ -136,6 +136,8 @@ let paymentAccount = null;
 // Logo nhà xe (khớp operators.service.ts) và công tắc "chưa cấu hình thương hiệu".
 let logo = null; // { data: Buffer, mime, version }
 let brandMissing = false;
+/** T1: thêm N khoản thu đã khớp để thử phân trang/sắp xếp Sổ thu. */
+let extraPayments = 0;
 let staff = [];
 const staffPasswords = new Map();
 let idempotent = {};
@@ -288,6 +290,7 @@ http
       paymentAccount = null;
       logo = null;
       brandMissing = false;
+      extraPayments = 0;
       staff = [];
       tripAssistants = new Map();
       mustChange = new Set();
@@ -329,6 +332,7 @@ http
         refreshMalformed = body.refreshMalformed ?? refreshMalformed;
         brandMissing = body.brandMissing ?? brandMissing;
         reportsOff = body.reportsOff ?? reportsOff;
+        extraPayments = body.extraPayments ?? extraPayments;
         requireMfa = body.requireMfa ?? requireMfa;
         if (body.revokeSessions)
           for (const sess of sessions.values()) sess.revoked = true;
@@ -2081,6 +2085,25 @@ http
             recordedBy: null,
             allocations: [],
           },
+          ...Array.from({ length: extraPayments }, (_, i) => {
+            const n = i + 1;
+            const at = new Date(Date.parse(when) - n * 3_600_000).toISOString();
+            return {
+              id: `66666666-6666-4666-8666-${String(n).padStart(12, "0")}`,
+              method: n % 3 ? "BANK_TRANSFER" : "CASH",
+              amount: 100_000 + ((n * 37) % 30) * 10_000,
+              allocatedAmount: 100_000 + ((n * 37) % 30) * 10_000,
+              unallocatedAmount: 0,
+              content: `TESTP${n}`,
+              bankReference: `TEST-P${n}`,
+              transactionAt: at,
+              receivedAt: at,
+              matchedBookingCode: `TESTP${String(n).padStart(2, "0")}`,
+              review: { status: "NONE", reason: null, note: null },
+              recordedBy: null,
+              allocations: [],
+            };
+          }),
         ],
       });
     const detailMatch = /^trips\/([0-9a-f-]{36})$/.exec(resource);
