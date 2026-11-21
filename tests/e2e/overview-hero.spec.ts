@@ -29,13 +29,14 @@ test("overview hero shows today's real figures, fill gauge and quick actions", a
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/admin");
 
-  // Fixture: 1 chuyến mở bán 8/24 chỗ trống; 2 khoản thu hôm nay (250.000 + 380.000), cả hai cần đối soát.
+  // Fixture: 1 chuyến mở bán 8/24 chỗ trống. API báo cáo: hôm nay nhận 630.000, hoàn 100.000;
+  // `counters` có 5 khoản cần đối soát (cả sổ thu, không chỉ 200 khoản gần nhất).
   const today = page.getByRole("list", { name: "Tình hình hôm nay" });
   await expect(today.getByRole("listitem")).toHaveText([
     "1 chuyến hôm nay",
     "16/24 chỗ đã bán",
-    "Thu hôm nay 630.000 ₫",
-    "2 khoản cần đối soát",
+    "Thu thuần hôm nay 530.000 ₫",
+    "5 khoản cần đối soát",
   ]);
   await expect(
     page.getByText(/^Chuyến kế tiếp: .*còn 8\/24 chỗ\.$/),
@@ -50,7 +51,7 @@ test("overview hero shows today's real figures, fill gauge and quick actions", a
   await expect(page.getByTestId("fill-percent")).not.toHaveText("…");
 
   const due = page.getByRole("region", { name: "Cần đối soát" });
-  await expect(due).toContainText("2khoản");
+  await expect(due).toContainText("5khoản");
   await due.getByRole("link", { name: "Mở sổ thu" }).click();
   await expect(page).toHaveURL(/\/admin\/payments$/);
   await page.goBack();
@@ -69,8 +70,8 @@ test("on a phone the sparkline never covers the number and actions scroll sidewa
   await ownerLogin(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/admin");
-  const card = page.getByRole("region", { name: "Thu hôm nay" });
-  await expect(card).toContainText("630.000");
+  const card = page.getByRole("region", { name: "Thu thuần hôm nay" });
+  await expect(card).toContainText("530.000");
   const value = (await card.locator("p").nth(1).boundingBox())!;
   const spark = (await card.locator("[data-sparkline]").boundingBox())!;
   expect(spark.y).toBeGreaterThanOrEqual(value.y + value.height);
@@ -127,13 +128,55 @@ test("staff without payment access see no money figures or payment shortcuts", a
   const today = page.getByRole("list", { name: "Tình hình hôm nay" });
   await expect(today).toContainText("16/24 chỗ đã bán");
   await expect(today).not.toContainText("Thu hôm nay");
-  await expect(page.getByRole("region", { name: "Thu hôm nay" })).toHaveCount(
-    0,
-  );
+  await expect(today).not.toContainText("Thu thuần");
+  await expect(page.getByRole("region", { name: /^Thu/ })).toHaveCount(0);
+  // Điều hành có `booking.read`: thấy vé bán và tỷ lệ hủy, không thấy tiền.
+  await expect(
+    page.getByRole("region", { name: "Vé bán hôm nay" }),
+  ).toContainText("6vé");
   await expect(page.getByRole("region", { name: "Cần đối soát" })).toHaveCount(
     0,
   );
   await expect(
     page.getByRole("link", { name: /^Đối soát thanh toán/ }),
   ).toHaveCount(0);
+});
+
+test("overview compares tickets with yesterday and shows the 7-day cancel rate (GF7)", async ({
+  page,
+}) => {
+  await ownerLogin(page);
+  await page.goto("/admin");
+  // Fixture `reports/bookings`: hôm nay 6 chỗ, hôm qua 4 chỗ; 7 ngày 6 đơn, 1 đơn bị hủy.
+  const sold = page.getByRole("region", { name: "Vé bán hôm nay" });
+  await expect(sold).toContainText("6vé");
+  await expect(page.getByTestId("sales-vs-yesterday")).toHaveText(
+    "↑ 50% so với hôm qua (4)",
+  );
+  const cancel = page.getByRole("region", { name: "Tỷ lệ hủy 7 ngày" });
+  await expect(cancel).toContainText("16,7%");
+  await expect(cancel).toContainText("1/6 đơn tạo trong 7 ngày bị hủy");
+  await expect(
+    page.getByRole("region", { name: "Thu thuần 7 ngày" }),
+  ).toContainText("730.000");
+});
+
+test("overview falls back to the payment list on an API without reports", async ({
+  page,
+  request,
+}) => {
+  await request.post(`${fixture}/state`, { data: { reportsOff: true } });
+  await ownerLogin(page);
+  await page.goto("/admin");
+  const today = page.getByRole("list", { name: "Tình hình hôm nay" });
+  await expect(today).toContainText("Thu hôm nay 630.000 ₫");
+  await expect(today).toContainText("2 khoản cần đối soát");
+  await expect(page.getByRole("region", { name: "Thu 7 ngày" })).toContainText(
+    "630.000",
+  );
+  // API báo cáo đơn cũng chưa có: không bịa thẻ vé/tỷ lệ hủy, không hiện lỗi đỏ.
+  await expect(
+    page.getByRole("region", { name: "Tỷ lệ hủy 7 ngày" }),
+  ).toHaveCount(0);
+  await expect(page.getByText("Cannot GET")).toHaveCount(0);
 });

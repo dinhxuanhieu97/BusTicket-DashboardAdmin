@@ -99,7 +99,33 @@ export const resourcePermissions: Record<Resource, string> = {
   payments: "payment.read",
   users: "user.manage",
   "audit-logs": "audit.read",
+  "revenue-report": "payment.read",
+  "bookings-report": "booking.read",
+  counters: "trip.read",
+  search: "trip.read",
 };
+/** Đường dẫn backend khác tên resource. */
+const backendSegments: Partial<Record<Resource, string>> = {
+  "revenue-report": "reports/revenue",
+  "bookings-report": "reports/bookings",
+};
+const validDate = (v: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(v) &&
+  !Number.isNaN(Date.parse(v)) &&
+  new Date(v).toISOString().slice(0, 10) === v;
+/** Khoảng `[from, to)` 1–366 ngày; ném lỗi 400 nếu sai. */
+function dateRange(params: URLSearchParams) {
+  const from = params.get("from") ?? "",
+    to = params.get("to") ?? "";
+  const span = Date.parse(to) - Date.parse(from);
+  if (!validDate(from) || !validDate(to) || span <= 0 || span > 366 * 86400000)
+    throw new ApiError(
+      400,
+      "VALIDATION_FAILED",
+      "Khoảng xem phải từ 1 đến 366 ngày.",
+    );
+  return { from, to };
+}
 export function readPath(
   resource: Resource,
   operatorId: string,
@@ -108,8 +134,12 @@ export function readPath(
   const allowed: Record<Resource, string[]> = {
     payments: ["review"],
     users: [],
-    trips: ["date", "from", "to", "limit", "cursor"],
+    trips: ["date", "from", "to", "limit", "cursor", "route"],
     "audit-logs": [],
+    "revenue-report": ["from", "to"],
+    "bookings-report": ["from", "to"],
+    counters: [],
+    search: ["q"],
   };
   if (!Object.hasOwn(allowed, resource))
     throw new ApiError(404, "NOT_FOUND", "Không tìm thấy dữ liệu.");
@@ -127,20 +157,29 @@ export function readPath(
       );
     query.set("review", review);
   }
-  if (resource === "trips" && !params.has("date")) {
-    const from = params.get("from") ?? "",
-      to = params.get("to") ?? "";
-    const valid = (v: string) =>
-      /^\d{4}-\d{2}-\d{2}$/.test(v) &&
-      !Number.isNaN(Date.parse(v)) &&
-      new Date(v).toISOString().slice(0, 10) === v;
-    const span = Date.parse(to) - Date.parse(from);
-    if (!valid(from) || !valid(to) || span <= 0 || span > 366 * 86400000)
+  if (resource === "revenue-report" || resource === "bookings-report") {
+    const { from, to } = dateRange(params);
+    query.set("from", from);
+    query.set("to", to);
+  }
+  if (resource === "search") {
+    const q = (params.get("q") ?? "").trim();
+    if (q.length < 2 || q.length > 64)
       throw new ApiError(
         400,
         "VALIDATION_FAILED",
-        "Khoảng xem phải từ 1 đến 366 ngày.",
+        "Nhập từ 2 đến 64 ký tự để tìm.",
       );
+    query.set("q", q);
+  }
+  if (resource === "trips" && !params.has("date")) {
+    const { from, to } = dateRange(params);
+    if (params.has("route")) {
+      const route = params.get("route")!;
+      if (!/^[A-Z0-9-]{2,32}$/.test(route))
+        throw new ApiError(400, "VALIDATION_FAILED", "Mã tuyến không hợp lệ.");
+      query.set("route", route);
+    }
     const limit = params.get("limit") ?? "25";
     if (!/^\d+$/.test(limit) || Number(limit) < 1 || Number(limit) > 100)
       throw new ApiError(
@@ -183,7 +222,8 @@ export function readPath(
       );
     query.set("date", date);
   }
-  return `/api/v1/admin/operators/${encodeURIComponent(operatorId)}/${resource}${query.size ? "?" + query.toString() : ""}`;
+  const segment = backendSegments[resource] ?? resource;
+  return `/api/v1/admin/operators/${encodeURIComponent(operatorId)}/${segment}${query.size ? "?" + query.toString() : ""}`;
 }
 /**
  * Chống CSRF: Origin phải là dashboard và thân phải là kiểu form HTML không gửi được (JSON, hoặc ảnh khi tải logo) —

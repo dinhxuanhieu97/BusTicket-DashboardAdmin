@@ -1,7 +1,9 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useId, useMemo, useState } from "react";
-import { CornerDownLeft, Search } from "lucide-react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { BusFront, CornerDownLeft, Search, Ticket } from "lucide-react";
+import type { SearchResult } from "@/lib/live-contracts";
+import { searchHits, searchQuery } from "@/lib/search-hits";
 import { Modal } from "../modal";
 
 export type PaletteItem = {
@@ -9,7 +11,17 @@ export type PaletteItem = {
   label: string;
   group: string;
   icon: React.ComponentType<{ size?: number; "aria-hidden"?: boolean }>;
+  /** Dòng phụ (vd. SĐT, giờ chạy) cho kết quả tìm dữ liệu. */
+  detail?: string;
 };
+
+/** Kết quả API `search` → mục trong hộp tìm (đơn mở Hành khách đúng chuyến, chuyến mở Sơ đồ chỗ). */
+export function searchItems(result: SearchResult): PaletteItem[] {
+  return searchHits(result).map(({ kind, ...hit }) => ({
+    ...hit,
+    icon: kind === "booking" ? Ticket : BusFront,
+  }));
+}
 
 /** Bỏ dấu để gõ "so thu" vẫn ra "Sổ thu". */
 export const fold = (value: string) =>
@@ -25,19 +37,63 @@ export const fold = (value: string) =>
 export function CommandPalette({
   items,
   onClose,
+  searchData = false,
 }: {
   items: PaletteItem[];
   onClose: () => void;
+  /** Có `trip.read`: tìm thêm chuyến và (theo quyền của máy chủ) vé qua API `search`. */
+  searchData?: boolean;
 }) {
   const router = useRouter();
   const listId = useId();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  const [found, setFound] = useState<{
+    q: string;
+    items: PaletteItem[];
+    limited?: boolean;
+  }>({
+    q: "",
+    items: [],
+  });
+  const [searching, setSearching] = useState(false);
+  const term = query.trim();
+  const wantData = searchData && searchQuery(query) !== null;
+  useEffect(() => {
+    if (!wantData) return;
+    const controller = new AbortController();
+    // Chờ người dùng ngừng gõ để không gọi API (và ghi nhật ký tra cứu khách) theo từng phím.
+    const timer = setTimeout(() => {
+      setSearching(true);
+      fetch(`/api/live/search?q=${encodeURIComponent(term)}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      })
+        .then(async (r) => ({
+          limited: r.status === 429,
+          body: r.ok ? ((await r.json()) as SearchResult) : null,
+        }))
+        .then(({ limited, body }) => {
+          // API giới hạn số lần tìm mỗi phút (GB8): báo rõ thay vì "không có kết quả".
+          setFound({ q: term, items: body ? searchItems(body) : [], limited });
+          setSearching(false);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setSearching(false);
+        });
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [term, wantData]);
   const results = useMemo(() => {
     const q = fold(query);
-    if (!q) return items;
-    return items.filter((i) => fold(`${i.label} ${i.group}`).includes(q));
-  }, [items, query]);
+    const pages = q
+      ? items.filter((i) => fold(`${i.label} ${i.group}`).includes(q))
+      : items;
+    return wantData && found.q === term ? [...pages, ...found.items] : pages;
+  }, [items, query, found, term, wantData]);
   const current = Math.min(active, Math.max(results.length - 1, 0));
 
   function go(item: PaletteItem | undefined) {
@@ -57,13 +113,17 @@ export function CommandPalette({
             enterKeyHint="go"
             autoComplete="off"
             data-autofocus
-            aria-label="Tìm trang"
+            aria-label={searchData ? "Tìm trang, vé hoặc chuyến" : "Tìm trang"}
             aria-expanded="true"
             aria-controls={listId}
             aria-activedescendant={
               results.length ? `${listId}-${current}` : undefined
             }
-            placeholder="Gõ tên trang, ví dụ: sổ thu"
+            placeholder={
+              searchData
+                ? "Tên trang, mã vé, SĐT, tên khách, mã chuyến…"
+                : "Gõ tên trang, ví dụ: sổ thu"
+            }
             className="min-w-0 flex-1 bg-transparent py-2 text-base md:text-sm"
             // Khung bao ngoài đã đổi viền khi focus; tắt viền :focus-visible toàn cục để không thành hai vòng.
             style={{ outline: "none" }}
@@ -87,12 +147,18 @@ export function CommandPalette({
             }}
           />
         </label>
-        <ul id={listId} role="listbox" aria-label="Trang" className="space-y-1">
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label="Kết quả"
+          aria-busy={searching}
+          className="max-h-[60vh] space-y-1 overflow-y-auto"
+        >
           {results.map((item, index) => {
             const Icon = item.icon;
             return (
               <li
-                key={item.href}
+                key={`${item.group}-${item.href}-${item.label}`}
                 id={`${listId}-${index}`}
                 role="option"
                 aria-selected={index === current}
@@ -102,8 +168,15 @@ export function CommandPalette({
                 onClick={() => go(item)}
               >
                 <Icon size={17} aria-hidden={true} />
-                <span className="min-w-0 flex-1 truncate font-medium">
-                  {item.label}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">
+                    {item.label}
+                  </span>
+                  {item.detail && (
+                    <span className="block truncate text-xs text-faint">
+                      {item.detail}
+                    </span>
+                  )}
                 </span>
                 <span className="text-xs text-faint">{item.group}</span>
                 {index === current && (
@@ -113,11 +186,23 @@ export function CommandPalette({
             );
           })}
         </ul>
-        {!results.length && (
-          <p className="py-6 text-center text-sm text-muted">
-            Không có trang nào khớp “{query.trim()}”.
+        {searching && (
+          <p className="text-center text-xs text-muted" role="status">
+            Đang tìm vé và chuyến…
           </p>
         )}
+        {wantData && found.q === term && found.limited && !searching && (
+          <p className="text-center text-xs text-warning" role="status">
+            Bạn tìm quá nhiều lần trong một phút. Thử lại sau ít phút.
+          </p>
+        )}
+        {!results.length &&
+          !searching &&
+          !(found.q === term && found.limited) && (
+            <p className="py-6 text-center text-sm text-muted">
+              Không có kết quả nào khớp “{query.trim()}”.
+            </p>
+          )}
       </div>
     </Modal>
   );

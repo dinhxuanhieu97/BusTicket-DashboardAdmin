@@ -7,12 +7,26 @@ import {
   Clock,
   Hash,
   Landmark,
+  MapPin,
   Receipt,
   TrendingUp,
   Wallet,
 } from "lucide-react";
-import { methodLabels, vnToday, vnd, type Payment } from "@/lib/live-contracts";
-import { revenueReport, shares, type RevenueDays } from "@/lib/revenue";
+import {
+  methodLabels,
+  vnToday,
+  vnd,
+  type Payment,
+  type RevenueReport,
+} from "@/lib/live-contracts";
+import {
+  revenueFromReports,
+  revenuePeriods,
+  revenueReport,
+  routeNote,
+  shares,
+  type RevenueDays,
+} from "@/lib/revenue";
 import { shortVnd } from "@/lib/overview";
 import { useResource } from "./use-resource";
 import { LoadState, Notice, RefreshButton } from "./shared";
@@ -30,13 +44,35 @@ const dayLabel = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}`;
 
 export function Revenue() {
   const [days, setDays] = useState<RevenueDays>(7);
-  const { data, error, loading, reload } = useResource<{
+  const periods = revenuePeriods(vnToday(), days);
+  const range = (p: { from: string; to: string }) =>
+    `revenue-report?from=${p.from}&to=${p.to}`;
+  const cur = useResource<RevenueReport>(range(periods.current));
+  const prev = useResource<RevenueReport>(range(periods.previous));
+  // API báo cáo chưa có (backend cũ) → tính tạm từ 200 khoản thu gần nhất như trước.
+  const fallback = Boolean(cur.error || prev.error);
+  const legacy = useResource<{
     payments: Payment[];
     meta: { fetchedAt: string; limit: number };
-  }>("payments");
-  const report = data
-    ? revenueReport(data.payments, vnToday(), days, data.meta.limit)
-    : null;
+  }>(fallback ? "payments" : null);
+  const report =
+    cur.data && prev.data
+      ? revenueFromReports(cur.data, prev.data)
+      : fallback && legacy.data
+        ? revenueReport(
+            legacy.data.payments,
+            vnToday(),
+            days,
+            legacy.data.meta.limit,
+          )
+        : null;
+  const loading = cur.loading || prev.loading || legacy.loading;
+  const error = fallback ? legacy.error : "";
+  const reload = () => {
+    cur.reload();
+    prev.reload();
+    legacy.reload();
+  };
   const total = report ? shortVnd(report.total) : null;
   const methodShare = report ? shares(report.methods) : null;
 
@@ -44,8 +80,16 @@ export function Revenue() {
     <div className="pn-page-stack">
       <PageHero
         title="Doanh thu"
-        description="Tiền đã nhận theo ngày (giờ Việt Nam), so với kỳ liền trước."
-        note="Tính từ 200 khoản thu gần nhất mà API trả về."
+        description={
+          report?.net
+            ? "Thu thuần theo ngày (đã nhận trừ đã hoàn, giờ Việt Nam), so với kỳ liền trước."
+            : "Tiền đã nhận theo ngày (giờ Việt Nam), so với kỳ liền trước."
+        }
+        note={
+          report && !report.net
+            ? "Tính từ 200 khoản thu gần nhất mà API trả về."
+            : undefined
+        }
         actions={
           <>
             <div
@@ -83,7 +127,9 @@ export function Revenue() {
           <div className="grid grid-cols-2 gap-3 md:gap-4 2xl:grid-cols-4">
             <StatCard
               icon={Wallet}
-              label={`Tổng thu ${days} ngày`}
+              label={
+                report.net ? `Thu thuần ${days} ngày` : `Tổng thu ${days} ngày`
+              }
               value={total.value}
               unit={total.unit}
               foot={
@@ -114,7 +160,16 @@ export function Revenue() {
               label="Số khoản thu"
               value={report.count.toLocaleString("vi-VN")}
               unit="khoản"
-              foot={`Trong ${days} ngày gần nhất`}
+              foot={
+                report.net ? (
+                  <span data-testid="revenue-refunded">
+                    Đã nhận {vnd(report.net.received)} · đã hoàn{" "}
+                    {vnd(report.net.refunded)}
+                  </span>
+                ) : (
+                  `Trong ${days} ngày gần nhất`
+                )
+              }
             />
             <StatCard
               icon={TrendingUp}
@@ -216,6 +271,52 @@ export function Revenue() {
               </Link>
             </section>
           </div>
+
+          {report.net && (
+            <section className="card min-w-0 p-5" aria-labelledby="rev-routes">
+              <h3 id="rev-routes" className="font-semibold">
+                Theo tuyến
+              </h3>
+              <p className="mb-2 text-sm text-muted">
+                Tiền đã gắn vào đơn, chia theo chặng; đơn khứ hồi chia theo giá
+                từng chặng.
+              </p>
+              {report.net.routes.length === 0 ? (
+                <p className="text-sm text-muted">
+                  Chưa có khoản thu gắn với đơn trong kỳ.
+                </p>
+              ) : (
+                <ul aria-label="Doanh thu theo tuyến">
+                  {report.net.routes.map((r) => (
+                    <li key={r.code} className="pn-list-row">
+                      <span className="pn-list-icon" aria-hidden="true">
+                        <MapPin size={16} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-ink">
+                          {r.origin} → {r.destination}
+                        </p>
+                        <p className="text-xs text-muted tabular-nums">
+                          {r.code} · {routeNote(r, vnd)}
+                        </p>
+                      </div>
+                      <span className="text-sm font-semibold tabular-nums">
+                        {vnd(r.net)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {report.net.unallocated !== 0 && (
+                <p
+                  className="mt-2 text-sm text-muted"
+                  data-testid="revenue-unallocated"
+                >
+                  Chưa gắn đơn: {vnd(report.net.unallocated)} — xử lý ở Sổ thu.
+                </p>
+              )}
+            </section>
+          )}
         </>
       )}
     </div>

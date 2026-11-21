@@ -1,13 +1,43 @@
 "use client";
 import { useEffect, useState } from "react";
-/** `path = null`: không tải (vd. người dùng không có quyền xem tài nguyên đó). */
-export function useResource<T>(path: string | null) {
-  const [result, setResult] = useState<{
-    path: string | null;
-    data: T | null;
-    error: string;
-    loading: boolean;
-  }>({ path, data: null, error: "", loading: path !== null });
+import { collectPages, withCursor } from "@/lib/paging";
+
+/** Phiên hết hạn / cần 2FA / đổi mật khẩu: chuyển trang và trả `null` (không coi là lỗi). */
+class Redirected extends Error {}
+
+async function fetchLive(path: string, signal: AbortSignal) {
+  const res = await fetch("/api/live/" + path, { cache: "no-store", signal });
+  const body = await res.json();
+  const go = (to: string) => {
+    window.location.replace(to);
+    throw new Redirected();
+  };
+  if (res.status === 401) go("/login");
+  if (body.error?.code === "MFA_SETUP_REQUIRED") go("/mfa");
+  if (body.error?.code === "PASSWORD_CHANGE_REQUIRED") go("/change-password");
+  if (body.error?.code === "OPERATOR_REQUIRED") go("/login");
+  if (!res.ok)
+    throw new Error(body.error?.message || "Không tải được dữ liệu.");
+  return body;
+}
+
+type State<T> = {
+  path: string | null;
+  data: T | null;
+  error: string;
+  loading: boolean;
+};
+
+function useLive<T>(
+  path: string | null,
+  load: (path: string, signal: AbortSignal) => Promise<T>,
+) {
+  const [result, setResult] = useState<State<T>>({
+    path,
+    data: null,
+    error: "",
+    loading: path !== null,
+  });
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     if (path === null) return;
@@ -15,42 +45,22 @@ export function useResource<T>(path: string | null) {
     setResult({ path, data: null, error: "", loading: true });
     void (async () => {
       try {
-        const res = await fetch("/api/live/" + path, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        const body = await res.json();
-        if (controller.signal.aborted) return;
-        if (res.status === 401) {
-          window.location.replace("/login");
-          return;
-        }
-        if (body.error?.code === "MFA_SETUP_REQUIRED") {
-          window.location.replace("/mfa");
-          return;
-        }
-        if (body.error?.code === "PASSWORD_CHANGE_REQUIRED") {
-          window.location.replace("/change-password");
-          return;
-        }
-        if (body.error?.code === "OPERATOR_REQUIRED") {
-          window.location.replace("/login");
-          return;
-        }
-        if (!res.ok)
-          throw new Error(body.error?.message || "Không tải được dữ liệu.");
-        setResult({ path, data: body, error: "", loading: false });
-      } catch (e) {
+        const data = await load(path, controller.signal);
         if (!controller.signal.aborted)
-          setResult({
-            path,
-            data: null,
-            error: e instanceof Error ? e.message : "Mất kết nối API.",
-            loading: false,
-          });
+          setResult({ path, data, error: "", loading: false });
+      } catch (e) {
+        if (controller.signal.aborted || e instanceof Redirected) return;
+        setResult({
+          path,
+          data: null,
+          error: e instanceof Error ? e.message : "Mất kết nối API.",
+          loading: false,
+        });
       }
     })();
     return () => controller.abort();
+    // `load` là hàm cố định của từng hook bên dưới.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, revision]);
   return {
     data: result.path === path ? result.data : null,
@@ -58,4 +68,24 @@ export function useResource<T>(path: string | null) {
     loading: path !== null && (result.path !== path || result.loading),
     reload: () => setRevision((n) => n + 1),
   };
+}
+
+/** `path = null`: không tải (vd. người dùng không có quyền xem tài nguyên đó). */
+export function useResource<T>(path: string | null) {
+  return useLive<T>(path, fetchLive);
+}
+
+/**
+ * Tải hết các trang theo `nextCursor` (API chuyến trả tối đa 100 chuyến/lần), gộp `trips`.
+ * Dừng ở `maxPages` trang; khi đó `nextCursor` còn giá trị để giao diện ghi "ít nhất".
+ */
+export function useAllTrips<
+  T extends { trips: unknown[]; nextCursor?: string | null },
+>(path: string | null, maxPages = 10) {
+  return useLive<T>(path, (p, signal) =>
+    collectPages<T>(
+      (cursor) => fetchLive(withCursor(p, cursor), signal) as Promise<T>,
+      maxPages,
+    ),
+  );
 }

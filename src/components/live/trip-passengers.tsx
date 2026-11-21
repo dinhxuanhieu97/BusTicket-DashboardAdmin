@@ -30,6 +30,7 @@ import {
   paginate,
   paymentFilterLabels,
   pickupOptions,
+  roundTripText,
   seatSummary,
   type PaymentFilter,
   type AdminPassengerBooking,
@@ -608,6 +609,14 @@ function PassengerRow({
                 {people} khách{infants ? ` +${infants} bé` : ""}
               </span>
             </p>
+            {roundTripText(b) && (
+              <p
+                className="mt-1 text-xs font-medium text-info"
+                data-testid="round-trip"
+              >
+                {roundTripText(b)}
+              </p>
+            )}
             {(b.note || b.cancelReason) && (
               <p className="mt-1 text-xs text-muted">
                 {b.cancelReason && <>Lý do hủy: {b.cancelReason}</>}
