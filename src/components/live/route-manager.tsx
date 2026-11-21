@@ -6,6 +6,7 @@ import { routesSchema } from "@/lib/trip-management";
 import { listPlaces, type PlaceUsage } from "@/lib/routes";
 import { operation } from "./operations-client";
 import { RouteStopsEditor } from "./route-stops-editor";
+import { stopTimeText } from "@/lib/route-stops";
 import {
   EmptyRow,
   LoadState,
@@ -243,7 +244,9 @@ export function RouteManager({ canWrite }: { canWrite: boolean }) {
           canWrite={canWrite}
           onClose={() => setAction(null)}
           onSaved={() =>
-            done(`Đã lưu điểm đón/trả tuyến ${action.route.code}.`)
+            done(
+              `Đã lưu điểm đón/trả tuyến ${action.route.code}. Các chuyến chưa khởi hành dùng điểm mới.`,
+            )
           }
         />
       )}
@@ -521,6 +524,10 @@ function StopsDialog({
         />
       ) : (
         <div className="space-y-4 py-2 text-sm">
+          <p className="text-xs text-muted">
+            Giờ là giờ dự kiến; nhà xe gọi khách trước vài giờ để báo giờ đón
+            chính xác.
+          </p>
           {(["pickup", "dropoff"] as const).map((kind) => (
             <div key={kind}>
               <h4 className="font-semibold">
@@ -530,8 +537,7 @@ function StopsDialog({
                 <ul>
                   {stops[kind].map((s, i) => (
                     <li key={`${i}-${s.name}`}>
-                      {s.time}
-                      {s.day > 0 ? ` (+${s.day} ngày)` : ""} · {s.name}
+                      {stopTimeText(s)} · {s.name}
                     </li>
                   ))}
                 </ul>

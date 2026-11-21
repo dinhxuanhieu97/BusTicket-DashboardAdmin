@@ -351,7 +351,9 @@ http
       method: req.method,
       path: url.pathname,
       query: url.search,
-      ...(path.includes("/trips") || path.endsWith("/reinstate")
+      ...(path.includes("/trips") ||
+      path.endsWith("/reinstate") ||
+      path.endsWith("/stops")
         ? { body }
         : {}),
     });
@@ -1746,6 +1748,21 @@ http
       const r = routeRows.find((x) => x.id === routeMatch[1]);
       if (!r) return fail(res, 404, "NOT_FOUND", "Không tìm thấy tuyến.");
       if (routeMatch[2] && req.method === "PUT") {
+        // Như API thật: mỗi danh sách phải theo thứ tự (ngày, giờ).
+        const ordered = (list) =>
+          list.every(
+            (s, i) =>
+              i === 0 ||
+              s.day > list[i - 1].day ||
+              (s.day === list[i - 1].day && s.time >= list[i - 1].time),
+          );
+        if (!ordered(body.pickup ?? []) || !ordered(body.dropoff ?? []))
+          return fail(
+            res,
+            400,
+            "VALIDATION_FAILED",
+            "Các điểm cần theo thứ tự thời gian.",
+          );
         r.stops = body;
         return send(res, 200, { id: r.id });
       }
