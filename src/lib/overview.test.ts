@@ -363,7 +363,7 @@ test("GB4: the sales card says how many of today's tickets are round trips", () 
     "2026-11-21",
   );
   assert.equal(r.roundTripsToday, 2);
-  assert.equal(salesChangeText(r), "↑ 50% so với hôm qua (2) · 2 khứ hồi");
+  assert.equal(salesChangeText(r), "↑ 50% so với hôm qua (2) · 2 vé khứ hồi");
   // API cũ không có `roundTrips`: không ghi gì thêm.
   assert.equal(
     salesChangeText({ change: null, seatsYesterday: 1, roundTripsToday: 0 }),

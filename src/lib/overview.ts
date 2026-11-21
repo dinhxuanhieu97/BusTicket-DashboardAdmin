@@ -178,13 +178,13 @@ export function cancelPercent(rate: number | null) {
 /** Ngưỡng cảnh báo tỷ lệ hủy (từ 10%). */
 export const CANCEL_WARN = 0.1;
 
-/** Dòng so sánh với hôm qua của thẻ "Vé bán hôm nay"; vé khứ hồi tính 1 vé (GB4). */
+/** Dòng so sánh với hôm qua của thẻ "Vé bán hôm nay"; vé khứ hồi tính 2 vé, lượt đi và lượt về (GB4). */
 export function salesChangeText(s: {
   change: number | null;
   seatsYesterday: number;
   roundTripsToday?: number;
 }) {
-  const round = s.roundTripsToday ? ` · ${s.roundTripsToday} khứ hồi` : "";
+  const round = s.roundTripsToday ? ` · ${s.roundTripsToday} vé khứ hồi` : "";
   if (s.change === null) return `Hôm qua ${s.seatsYesterday} vé${round}`;
   if (s.change === 0) return `Bằng hôm qua (${s.seatsYesterday})${round}`;
   return `${s.change > 0 ? "↑" : "↓"} ${Math.abs(s.change)}% so với hôm qua (${s.seatsYesterday})${round}`;

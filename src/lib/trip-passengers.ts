@@ -35,7 +35,7 @@ export const adminPassengerBookingSchema = passengerBookingSchema.extend({
   transferClaimedAt: z.string().nullable().optional(),
   /** Số ảnh lệnh chuyển khoản khách đã gửi. */
   paymentProofCount: z.number().int().nonnegative().optional(),
-  /** Vé khứ hồi (tính 1 vé): ngày giờ lượt đi và lượt về; API cũ không có. */
+  /** Vé khứ hồi (tính 2 vé, mỗi lượt một vé): ngày giờ lượt đi và lượt về; API cũ không có. */
   roundTrip: z
     .object({ outbound: legSchema, return: legSchema })
     .nullable()
