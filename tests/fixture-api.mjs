@@ -331,8 +331,8 @@ http
         refreshDown = body.refreshDown ?? refreshDown;
         refreshMalformed = body.refreshMalformed ?? refreshMalformed;
         brandMissing = body.brandMissing ?? brandMissing;
-        reportsOff = body.reportsOff ?? reportsOff;
         extraPayments = body.extraPayments ?? extraPayments;
+        reportsOff = body.reportsOff ?? reportsOff;
         requireMfa = body.requireMfa ?? requireMfa;
         if (body.revokeSessions)
           for (const sess of sessions.values()) sess.revoked = true;

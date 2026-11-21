@@ -1,4 +1,4 @@
-import { test, expect, type BrowserContext } from "@playwright/test";
+import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 
 async function signIn(context: BrowserContext) {
   await context.request.post("/api/auth/login", {
@@ -9,6 +9,17 @@ async function signIn(context: BrowserContext) {
       otp: "123456",
     },
   });
+}
+
+/** ⌘K bấm trước khi trang hydrate xong thì bị bỏ qua: bấm lại tới khi bảng tìm mở. */
+async function openPalette(page: Page) {
+  const palette = page.getByRole("dialog", { name: "Tìm nhanh" });
+  await expect(async () => {
+    if (!(await palette.isVisible()))
+      await page.keyboard.press("ControlOrMeta+k");
+    await expect(palette).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15000 });
+  return palette;
 }
 
 test.beforeEach(async ({ context, request }) => {
@@ -29,8 +40,7 @@ test("sidebar groups pages by job and ⌘K jumps to a page", async ({ page }) =>
 
   const opener = page.getByRole("button", { name: "Tìm nhanh" }).first();
   await opener.focus();
-  await page.keyboard.press("ControlOrMeta+k");
-  const palette = page.getByRole("dialog", { name: "Tìm nhanh" });
+  const palette = await openPalette(page);
   await expect(palette).toBeVisible();
   const input = palette.getByRole("combobox", { name: /^Tìm trang/ });
   await expect(input).toBeFocused();
@@ -415,8 +425,7 @@ test("⌘K finds tickets by code, phone or name and trips by code (GF1)", async 
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/admin");
-  await page.keyboard.press("ControlOrMeta+k");
-  const palette = page.getByRole("dialog", { name: "Tìm nhanh" });
+  const palette = await openPalette(page);
   const input = palette.getByRole("combobox", {
     name: "Tìm trang, vé hoặc chuyến",
   });
@@ -437,7 +446,7 @@ test("⌘K finds tickets by code, phone or name and trips by code (GF1)", async 
     /\/admin\/seats\?(.+&)?trip=44444444-4444-4444-8444-444444444444(&|$)/,
   );
 
-  await page.keyboard.press("ControlOrMeta+k");
+  await openPalette(page);
   await palette.getByRole("combobox").fill("test123");
   await palette.getByRole("option", { name: /TEST123/ }).click();
   await expect(page).toHaveURL(
@@ -460,8 +469,7 @@ test("⌘K says when the search limit is hit instead of showing no results (GB8)
     }),
   );
   await page.goto("/admin");
-  await page.keyboard.press("ControlOrMeta+k");
-  const palette = page.getByRole("dialog", { name: "Tìm nhanh" });
+  const palette = await openPalette(page);
   await palette
     .getByRole("combobox", { name: "Tìm trang, vé hoặc chuyến" })
     .fill("0912 345");
