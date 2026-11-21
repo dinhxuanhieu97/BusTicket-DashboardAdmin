@@ -141,9 +141,10 @@ test("the menu follows the permissions returned by the server", async ({
   });
   await login(page);
   const nav = page.getByRole("navigation", { name: "Điều hướng quản trị" });
+  // "Chuyến xe" có thể kèm số chuyến sắp đóng bán (GF2) tùy lúc `counters` tải xong.
   await expect(nav.getByRole("link")).toHaveText([
     "Tổng quan",
-    "Chuyến xe",
+    /^Chuyến xe\d*$/,
     "Sơ đồ chỗ",
     "Cài đặt",
   ]);
