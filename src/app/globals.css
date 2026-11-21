@@ -779,6 +779,19 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
   @apply my-1 h-px;
   background: var(--border);
 }
+/* "Đánh dấu đã đọc tất cả" ở cuối danh sách chuông. */
+.pn-mark-read {
+  @apply mt-1 flex min-h-10 w-full items-center justify-center rounded-[0.625rem] border-t border-line text-sm font-medium;
+  color: var(--accent);
+}
+.pn-mark-read:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.pn-mark-read:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 .pn-account-item {
   @apply flex min-h-11 w-full items-center gap-3 rounded-[0.625rem] px-2.5 text-left text-sm;
   color: var(--text);

@@ -2,18 +2,27 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { AlertTriangle, Bell, Clock, Undo2 } from "lucide-react";
-import type { Counters } from "@/lib/live-contracts";
-import { attentionItems, badgeText, type AttentionItem } from "@/lib/attention";
+import { badgeText, type AttentionItem } from "@/lib/attention";
 
 const icons = { review: AlertTriangle, refunds: Undo2, closing: Clock };
 
-/** Chuông thông báo ở topbar: số việc cần chú ý, bấm mở danh sách liên kết tới trang xử lý. */
-export function NotificationBell({ counters }: { counters: Counters }) {
+/**
+ * Chuông thông báo ở topbar: huy hiệu là số việc mới (chưa đánh dấu đã đọc), bấm mở danh sách liên kết
+ * tới trang xử lý. Danh sách luôn đủ mọi việc còn tồn, kể cả đã đọc.
+ */
+export function NotificationBell({
+  items,
+  unread,
+  onMarkRead,
+}: {
+  items: AttentionItem[];
+  unread: number;
+  onMarkRead: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const panelId = useId();
-  const items = attentionItems(counters);
   const total = items.reduce((t, i) => t + i.count, 0);
 
   useEffect(() => {
@@ -43,18 +52,20 @@ export function NotificationBell({ counters }: { counters: Counters }) {
         type="button"
         className="icon-btn relative"
         aria-label={
-          total
-            ? `Thông báo: ${total.toLocaleString("vi-VN")} việc cần chú ý`
-            : "Thông báo: không có việc cần chú ý"
+          unread
+            ? `Thông báo: ${unread.toLocaleString("vi-VN")} việc mới cần chú ý`
+            : total
+              ? `Thông báo: đã đọc, còn ${total.toLocaleString("vi-VN")} việc cần chú ý`
+              : "Thông báo: không có việc cần chú ý"
         }
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((v) => !v)}
       >
         <Bell size={17} aria-hidden="true" />
-        {total > 0 && (
+        {unread > 0 && (
           <span className="pn-bell-badge" aria-hidden="true">
-            {badgeText(total)}
+            {badgeText(unread)}
           </span>
         )}
       </button>
@@ -74,6 +85,18 @@ export function NotificationBell({ counters }: { counters: Counters }) {
             </p>
           ) : (
             <AttentionLinks items={items} onPick={() => setOpen(false)} />
+          )}
+          {unread > 0 && (
+            <button
+              type="button"
+              className="pn-mark-read"
+              onClick={() => {
+                onMarkRead();
+                button.current?.focus();
+              }}
+            >
+              Đánh dấu đã đọc tất cả
+            </button>
           )}
         </div>
       )}

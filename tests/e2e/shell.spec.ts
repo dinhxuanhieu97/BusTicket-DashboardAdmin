@@ -269,7 +269,7 @@ test("the bell and menu badges show what needs attention (GF2)", async ({
   await page.goto("/admin/audit-logs");
   // Fixture `counters`: 5 khoản cần đối soát, 1 khoản cần hoàn, 1 chuyến sắp đóng bán.
   const bell = page.getByRole("button", { name: /^Thông báo/ });
-  await expect(bell).toHaveAccessibleName("Thông báo: 7 việc cần chú ý");
+  await expect(bell).toHaveAccessibleName("Thông báo: 7 việc mới cần chú ý");
   const nav = page.getByRole("navigation", { name: "Điều hướng quản trị" });
   await expect(nav.getByRole("link", { name: "Sổ thu" })).toHaveAttribute(
     "data-badge",
@@ -302,7 +302,7 @@ test("phones list what needs attention in the Thêm drawer (GB7)", async ({
   await page.goto("/admin/audit-logs");
   const bar = page.getByRole("navigation", { name: "Điều hướng nhanh" });
   // Fixture `counters`: 5 cần đối soát + 1 cần hoàn + 1 chuyến sắp đóng bán.
-  const more = bar.getByRole("button", { name: "Thêm, 7 việc cần chú ý" });
+  const more = bar.getByRole("button", { name: "Thêm, 7 việc mới cần chú ý" });
   await expect(more).toBeVisible();
   await expect(more.locator(".pn-more-badge")).toHaveText("7");
   await more.click();
@@ -337,6 +337,63 @@ test("phones list what needs attention in the Thêm drawer (GB7)", async ({
   await expect(drawer.getByRole("region", { name: "Cần chú ý" })).toHaveCount(
     0,
   );
+});
+
+test("Đánh dấu đã đọc tất cả clears the badges but keeps the list", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/audit-logs");
+  const bell = page.getByRole("button", { name: /^Thông báo/ });
+  await expect(bell.locator(".pn-bell-badge")).toHaveText("7");
+  await bell.click();
+  const panel = page.getByRole("region", { name: "Thông báo" });
+  await panel.getByRole("button", { name: "Đánh dấu đã đọc tất cả" }).click();
+  await expect(bell).toBeFocused();
+  await expect(bell).toHaveAccessibleName(
+    "Thông báo: đã đọc, còn 7 việc cần chú ý",
+  );
+  await expect(bell.locator(".pn-bell-badge")).toHaveCount(0);
+  // Việc vẫn còn tồn nên danh sách giữ nguyên; chỉ nút đánh dấu biến mất.
+  await expect(panel.getByRole("link")).toHaveCount(3);
+  await expect(
+    panel.getByRole("button", { name: "Đánh dấu đã đọc tất cả" }),
+  ).toHaveCount(0);
+
+  // Mốc đã đọc lưu trên máy: tải lại vẫn không có số, điện thoại cũng vậy.
+  await page.reload();
+  await expect(bell).toHaveAccessibleName(
+    "Thông báo: đã đọc, còn 7 việc cần chú ý",
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  const more = page
+    .getByRole("navigation", { name: "Điều hướng nhanh" })
+    .getByRole("button", { name: "Thêm", exact: true });
+  await expect(more).toBeVisible();
+  await expect(more.locator(".pn-more-badge")).toHaveCount(0);
+});
+
+test("phones can mark attention as read from the Thêm drawer", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/admin/audit-logs");
+  const bar = page.getByRole("navigation", { name: "Điều hướng nhanh" });
+  await bar.getByRole("button", { name: "Thêm, 7 việc mới cần chú ý" }).click();
+  const attention = page
+    .getByRole("dialog", { name: "Điều hướng" })
+    .getByRole("region", { name: "Cần chú ý" });
+  await attention
+    .getByRole("button", { name: "Đánh dấu đã đọc tất cả" })
+    .click();
+  await expect(attention.getByRole("link")).toHaveCount(3);
+  await expect(
+    attention.getByRole("button", { name: "Đánh dấu đã đọc tất cả" }),
+  ).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(
+    bar.getByRole("button", { name: "Thêm", exact: true }),
+  ).toBeVisible();
 });
 
 test("the bell stays hidden on an API without counters", async ({

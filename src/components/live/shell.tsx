@@ -45,7 +45,17 @@ import { LoadState } from "./shared";
 import { CommandPalette } from "./command-palette";
 import { AttentionLinks, NotificationBell } from "./notification-bell";
 import { useResource } from "./use-resource";
-import { attentionItems, badgeText, navBadges } from "@/lib/attention";
+import {
+  ATTENTION_SEEN_KEY,
+  attentionItems,
+  badgeText,
+  markAllSeen,
+  navBadges,
+  parseSeen,
+  settleSeen,
+  unreadCount,
+  type AttentionSeen,
+} from "@/lib/attention";
 
 const icons: Record<NavKey, typeof LayoutDashboard> = {
   assigned: ClipboardList,
@@ -101,7 +111,33 @@ export function LiveShell({
   const badges = navBadges(counters.data);
   // Điện thoại không có chuông (GB7): việc cần chú ý nằm đầu ngăn "Thêm", tổng số hiện trên nút "Thêm".
   const attention = counters.data ? attentionItems(counters.data) : [];
-  const attentionCount = attention.reduce((t, i) => t + i.count, 0);
+  // "Đánh dấu đã đọc tất cả": huy hiệu chỉ đếm việc mới; mốc lưu trên máy người xem.
+  const [seen, setSeen] = useState<AttentionSeen>({});
+  useEffect(() => {
+    try {
+      setSeen(parseSeen(localStorage.getItem(ATTENTION_SEEN_KEY)));
+    } catch {
+      /* Không đọc được bộ nhớ trình duyệt: coi như chưa đọc. */
+    }
+  }, []);
+  const saveSeen = (next: AttentionSeen) => {
+    setSeen(next);
+    try {
+      localStorage.setItem(ATTENTION_SEEN_KEY, JSON.stringify(next));
+    } catch {
+      /* Chỉ mất mốc đã đọc khi tải lại trang. */
+    }
+  };
+  const attentionKey = JSON.stringify(attention);
+  useEffect(() => {
+    if (!counters.data) return;
+    const next = settleSeen(attention, seen);
+    if (next !== seen) saveSeen(next);
+    // Chỉ chạy khi số việc đổi.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attentionKey, seen]);
+  const attentionCount = unreadCount(attention, seen);
+  const markAttentionRead = () => saveSeen(markAllSeen(attention));
   const permissionKey = JSON.stringify(permissions ?? null);
   const [operatorName, setOperatorName] = useState("Nhà xe");
   const [operatorLogo, setOperatorLogo] = useState<string | null>(null);
@@ -473,6 +509,15 @@ export function LiveShell({
                 Cần chú ý
               </p>
               <AttentionLinks items={attention} onPick={() => setMenu(false)} />
+              {attentionCount > 0 && (
+                <button
+                  type="button"
+                  className="pn-mark-read"
+                  onClick={markAttentionRead}
+                >
+                  Đánh dấu đã đọc tất cả
+                </button>
+              )}
             </section>
           )}
           {navigation}
@@ -557,7 +602,13 @@ export function LiveShell({
             <span className="hidden sm:inline">Tạo chuyến</span>
           </Link>
         )}
-        {counters.data && <NotificationBell counters={counters.data} />}
+        {counters.data && (
+          <NotificationBell
+            items={attention}
+            unread={attentionCount}
+            onMarkRead={markAttentionRead}
+          />
+        )}
         <AccountMenu
           name={accountName}
           role={roleLabels[user.role]}
@@ -603,7 +654,7 @@ export function LiveShell({
               aria-haspopup="dialog"
               aria-label={
                 attentionCount
-                  ? `Thêm, ${attentionCount.toLocaleString("vi-VN")} việc cần chú ý`
+                  ? `Thêm, ${attentionCount.toLocaleString("vi-VN")} việc mới cần chú ý`
                   : undefined
               }
               className="relative"
