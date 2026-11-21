@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type SyntheticEvent } from "react";
 import { createPortal } from "react-dom";
+import { nextScrollChrome } from "@/lib/scroll-chrome";
 import {
   LayoutDashboard,
   Route,
@@ -103,6 +104,31 @@ export function LiveShell({
   const [palette, setPalette] = useState(false);
   const [now, setNow] = useState("");
   const [dark, setDark] = useState(true);
+  // Cuộn xuống thì ẩn thanh trên cùng và thanh điều hướng dưới để có thêm chỗ xem; cuộn lên thì hiện lại.
+  const [chromeHidden, setChromeHidden] = useState(false);
+  useEffect(() => {
+    let state = { hidden: false, anchor: window.scrollY };
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const y = window.scrollY;
+        const atBottom =
+          y + window.innerHeight >= document.documentElement.scrollHeight - 2;
+        state = nextScrollChrome(state, y, undefined, undefined, atBottom);
+        setChromeHidden(state.hidden);
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+  // Đổi trang thì hiện lại; đang dùng bàn phím trong thanh thì không ẩn.
+  useEffect(() => setChromeHidden(false), [path]);
+  const showChrome = () => setChromeHidden(false);
   // Sidebar desktop thu gọn (chỉ icon). Trạng thái ban đầu do script trong layout đặt lên <html> để không nháy.
   const [collapsed, setCollapsed] = useState(false);
   // Nhãn nổi khi thanh bên thu gọn. Render qua portal: menu có thanh cuộn (cắt mất nhãn) và
@@ -438,7 +464,11 @@ export function LiveShell({
           onClose={() => setPalette(false)}
         />
       )}
-      <header className="pn-topbar pn-glass flex min-h-16 items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 lg:pl-6">
+      <header
+        className="pn-topbar pn-glass flex min-h-16 items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 lg:pl-6"
+        data-hidden={chromeHidden && !menu && !palette ? "true" : undefined}
+        onFocus={showChrome}
+      >
         <button
           type="button"
           className="icon-btn lg:hidden"
@@ -533,7 +563,12 @@ export function LiveShell({
         </footer>
       </main>
       {!menu && quick.length > 0 && (
-        <nav aria-label="Điều hướng nhanh" className="pn-bottom-nav pn-glass">
+        <nav
+          aria-label="Điều hướng nhanh"
+          className="pn-bottom-nav pn-glass"
+          data-hidden={chromeHidden && !menu ? "true" : undefined}
+          onFocus={showChrome}
+        >
           {quick.map(({ href, label, short, icon: Icon }) => (
             <Link
               key={href}
