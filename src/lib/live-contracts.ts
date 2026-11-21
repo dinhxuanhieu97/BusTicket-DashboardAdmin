@@ -154,7 +154,10 @@ const bookingDay = {
   cancelled: count,
   abandoned: count,
   holding: count,
+  /** Số vé của đơn đã xác nhận; vé khứ hồi tính 1 (GB4, API cũ tính 2). */
   seats: count,
+  /** Số vé khứ hồi trong `seats`; API cũ không có. */
+  roundTrips: count.optional(),
 };
 /** `GET reports/bookings`: đơn theo ngày tạo; tỷ lệ hủy = đơn nhân viên hủy / đơn trong kỳ. */
 export const bookingsReportSchema = z.object({

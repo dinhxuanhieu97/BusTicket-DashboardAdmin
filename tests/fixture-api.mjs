@@ -1432,6 +1432,19 @@ http
           paidAmount: 420000,
           dueAmount: 0,
           paymentStatus: "PAID",
+          // Vé khứ hồi (GB4): chuyến này là lượt đi.
+          roundTrip: {
+            outbound: {
+              tripId,
+              departAt: "2027-02-05T10:30:00.000Z",
+              routeCode: "TEST",
+            },
+            return: {
+              tripId: "33333333-3333-4333-8333-333333333333",
+              departAt: "2027-02-07T01:00:00.000Z",
+              routeCode: "TEST-R",
+            },
+          },
           seats: [{ code: "B1", floor: "2", occupancy: 1, infantCount: 0 }],
         }),
         ...(status === "all"

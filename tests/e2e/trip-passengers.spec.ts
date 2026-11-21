@@ -97,6 +97,13 @@ test("OWNER sees passengers with contacts, filters them, and switches to every b
   await expect(
     table.locator('tr[data-booking="TESTE1"]').getByRole("link"),
   ).toHaveCount(0);
+  // GB4: vé khứ hồi ghi rõ hai lượt; vé một chiều không có dòng này.
+  await expect(
+    table.locator('tr[data-booking="TESTE1"]').getByTestId("round-trip"),
+  ).toHaveText(
+    "Khứ hồi · Đi 17:30 05/02/2027 (TEST) · Về 08:00 07/02/2027 (TEST-R)",
+  );
+  await expect(table.getByTestId("round-trip")).toHaveCount(1);
   const summary = section.getByLabel("Tóm tắt hành khách");
   await expect(summary).toContainText(
     /Đơn đã xác nhận\s*2 đơn\s*4 khách · 3 chỗ/,
@@ -236,6 +243,9 @@ test("exports the manifest as Excel in the operator template and as safe CSV", a
   expect(r2.getCell(12).value).toBe(840000);
   expect(list.getRow(3).getCell(12).value).toBeNull();
   expect(String(list.getRow(4).getCell(15).value)).toContain("Đang giữ chỗ");
+  expect(String(list.getRow(5).getCell(15).value)).toContain(
+    "Khứ hồi · Đi 17:30 05/02/2027 (TEST) · Về 08:00 07/02/2027 (TEST-R)",
+  );
   const info = wb.getWorksheet("Chuyen")!;
   expect(info.getCell("B2").value).toBe("TEST-20270205-1730");
 

@@ -139,6 +139,8 @@ export function salesStats(report: BookingsReport, today: string) {
   return {
     seatsToday,
     seatsYesterday,
+    roundTripsToday:
+      report.byDay.find((d) => d.date === today)?.roundTrips ?? 0,
     change: seatsYesterday
       ? Math.round(((seatsToday - seatsYesterday) / seatsYesterday) * 100)
       : null,
@@ -176,14 +178,16 @@ export function cancelPercent(rate: number | null) {
 /** Ngưỡng cảnh báo tỷ lệ hủy (từ 10%). */
 export const CANCEL_WARN = 0.1;
 
-/** Dòng so sánh với hôm qua của thẻ "Vé bán hôm nay". */
+/** Dòng so sánh với hôm qua của thẻ "Vé bán hôm nay"; vé khứ hồi tính 1 vé (GB4). */
 export function salesChangeText(s: {
   change: number | null;
   seatsYesterday: number;
+  roundTripsToday?: number;
 }) {
-  if (s.change === null) return `Hôm qua ${s.seatsYesterday} chỗ`;
-  if (s.change === 0) return `Bằng hôm qua (${s.seatsYesterday})`;
-  return `${s.change > 0 ? "↑" : "↓"} ${Math.abs(s.change)}% so với hôm qua (${s.seatsYesterday})`;
+  const round = s.roundTripsToday ? ` · ${s.roundTripsToday} khứ hồi` : "";
+  if (s.change === null) return `Hôm qua ${s.seatsYesterday} vé${round}`;
+  if (s.change === 0) return `Bằng hôm qua (${s.seatsYesterday})${round}`;
+  return `${s.change > 0 ? "↑" : "↓"} ${Math.abs(s.change)}% so với hôm qua (${s.seatsYesterday})${round}`;
 }
 
 /** Số tiền gọn cho thẻ: 1,25 tr / 1,94 tỷ / 850.000. */

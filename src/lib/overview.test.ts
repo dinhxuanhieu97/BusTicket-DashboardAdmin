@@ -187,6 +187,7 @@ test("sales stats compare today's seats with yesterday and keep the period cance
     {
       seatsToday: 10,
       seatsYesterday: 8,
+      roundTripsToday: 0,
       change: 25,
       series: 2,
       cancelRate: 0.1,
@@ -240,7 +241,7 @@ test("GF7: no seats yesterday gives no percentage instead of dividing by zero", 
   assert.equal(r.seatsToday, 4);
   assert.equal(r.seatsYesterday, 0);
   assert.equal(r.change, null);
-  assert.equal(salesChangeText(r), "Hôm qua 0 chỗ");
+  assert.equal(salesChangeText(r), "Hôm qua 0 vé");
 });
 
 test("GF7: a day missing from the report counts as zero seats and a drop shows ↓", () => {
@@ -323,4 +324,49 @@ test("GF17: shortVnd keeps the short unit for a negative net", () => {
   assert.deepEqual(shortVnd(-2_500_000), { value: "-2,5", unit: "tr ₫" });
   assert.deepEqual(shortVnd(-1_200_000_000), { value: "-1,2", unit: "tỷ ₫" });
   assert.deepEqual(shortVnd(-50_000), { value: "-50.000", unit: "₫" });
+});
+
+test("GB4: the sales card says how many of today's tickets are round trips", () => {
+  const r = salesStats(
+    {
+      from: "2026-11-20",
+      to: "2026-11-22",
+      totals: {
+        bookings: 3,
+        cancelled: 0,
+        abandoned: 0,
+        holding: 0,
+        seats: 5,
+        roundTrips: 2,
+        cancelRate: 0,
+      },
+      byDay: [
+        {
+          date: "2026-11-20",
+          bookings: 1,
+          cancelled: 0,
+          abandoned: 0,
+          holding: 0,
+          seats: 2,
+        },
+        {
+          date: "2026-11-21",
+          bookings: 2,
+          cancelled: 0,
+          abandoned: 0,
+          holding: 0,
+          seats: 3,
+          roundTrips: 2,
+        },
+      ],
+    },
+    "2026-11-21",
+  );
+  assert.equal(r.roundTripsToday, 2);
+  assert.equal(salesChangeText(r), "↑ 50% so với hôm qua (2) · 2 khứ hồi");
+  // API cũ không có `roundTrips`: không ghi gì thêm.
+  assert.equal(
+    salesChangeText({ change: null, seatsYesterday: 1, roundTripsToday: 0 }),
+    "Hôm qua 1 vé",
+  );
 });

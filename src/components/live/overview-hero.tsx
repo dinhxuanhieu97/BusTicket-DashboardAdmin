@@ -431,7 +431,7 @@ export function OverviewHero({
             icon={Ticket}
             label="Vé bán hôm nay"
             value={sales.seatsToday}
-            unit="chỗ"
+            unit="vé"
             foot={
               <span data-testid="sales-vs-yesterday">
                 {salesChangeText(sales)}

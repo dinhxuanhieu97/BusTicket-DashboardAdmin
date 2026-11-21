@@ -133,7 +133,7 @@ test("staff without payment access see no money figures or payment shortcuts", a
   // Điều hành có `booking.read`: thấy vé bán và tỷ lệ hủy, không thấy tiền.
   await expect(
     page.getByRole("region", { name: "Vé bán hôm nay" }),
-  ).toContainText("6chỗ");
+  ).toContainText("6vé");
   await expect(page.getByRole("region", { name: "Cần đối soát" })).toHaveCount(
     0,
   );
@@ -149,7 +149,7 @@ test("overview compares tickets with yesterday and shows the 7-day cancel rate (
   await page.goto("/admin");
   // Fixture `reports/bookings`: hôm nay 6 chỗ, hôm qua 4 chỗ; 7 ngày 6 đơn, 1 đơn bị hủy.
   const sold = page.getByRole("region", { name: "Vé bán hôm nay" });
-  await expect(sold).toContainText("6chỗ");
+  await expect(sold).toContainText("6vé");
   await expect(page.getByTestId("sales-vs-yesterday")).toHaveText(
     "↑ 50% so với hôm qua (4)",
   );
