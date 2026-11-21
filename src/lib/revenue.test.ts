@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   revenueFromReports,
   revenuePeriods,
+  routeNote,
   revenueReport,
   shares,
 } from "./revenue";
@@ -276,5 +277,25 @@ test("GF17: no percentage change when the previous net is zero or negative", () 
   assert.equal(
     revenueFromReports(current, report([day("2026-11-19", 0, 80_000)])).change,
     null,
+  );
+});
+
+test("routeNote says when a route only had refunds in the period (GE1)", () => {
+  const money = (n: number) => `${n.toLocaleString("vi-VN")} ₫`;
+  assert.equal(
+    routeNote({ bookings: 2, refunded: 0 }, money),
+    "2 đơn trả tiền",
+  );
+  assert.equal(
+    routeNote({ bookings: 1200, refunded: 100000 }, money),
+    "1.200 đơn trả tiền · đã hoàn 100.000 ₫",
+  );
+  assert.equal(
+    routeNote({ bookings: 0, refunded: 250000 }, money),
+    "không có đơn trả tiền · đã hoàn 250.000 ₫",
+  );
+  assert.equal(
+    routeNote({ bookings: 0, refunded: 0 }, money),
+    "0 đơn trả tiền",
   );
 });

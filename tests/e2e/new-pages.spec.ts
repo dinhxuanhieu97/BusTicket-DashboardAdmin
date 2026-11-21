@@ -60,7 +60,7 @@ test("revenue shows net income, refunds and routes from the report API (GF8, GF1
   await expect(routes.getByRole("listitem")).toHaveCount(1);
   await expect(routes).toContainText("TP. Hồ Chí Minh → Đà Lạt");
   await expect(routes).toContainText("430.000");
-  await expect(routes).toContainText("đã hoàn 100.000");
+  await expect(routes).toContainText("2 đơn trả tiền · đã hoàn 100.000");
   await expect(page.getByTestId("revenue-unallocated")).toContainText(
     "100.000",
   );

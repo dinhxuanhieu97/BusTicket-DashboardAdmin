@@ -23,6 +23,7 @@ import {
   revenueFromReports,
   revenuePeriods,
   revenueReport,
+  routeNote,
   shares,
   type RevenueDays,
 } from "@/lib/revenue";
@@ -296,8 +297,7 @@ export function Revenue() {
                           {r.origin} → {r.destination}
                         </p>
                         <p className="text-xs text-muted tabular-nums">
-                          {r.code} · {r.bookings.toLocaleString("vi-VN")} đơn
-                          {r.refunded > 0 && <> · đã hoàn {vnd(r.refunded)}</>}
+                          {r.code} · {routeNote(r, vnd)}
                         </p>
                       </div>
                       <span className="text-sm font-semibold tabular-nums">

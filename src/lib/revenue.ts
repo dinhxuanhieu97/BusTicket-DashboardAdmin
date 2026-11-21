@@ -166,3 +166,20 @@ export function shares<K extends string>(parts: Record<K, number>) {
     ]),
   ) as Record<K, number>;
 }
+
+/**
+ * Dòng phụ của một tuyến (GE1). `bookings` chỉ đếm đơn **có tiền nhận trong kỳ**, nên tuyến chỉ có hoàn tiền
+ * ghi rõ "không có đơn trả tiền" thay vì "0 đơn" (dễ hiểu nhầm là tuyến không có khách).
+ */
+export function routeNote(
+  r: { bookings: number; refunded: number },
+  money: (n: number) => string,
+) {
+  const paid =
+    r.bookings > 0
+      ? `${r.bookings.toLocaleString("vi-VN")} đơn trả tiền`
+      : r.refunded > 0
+        ? "không có đơn trả tiền"
+        : "0 đơn trả tiền";
+  return r.refunded > 0 ? `${paid} · đã hoàn ${money(r.refunded)}` : paid;
+}
