@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type SyntheticEvent } from "react";
 import { createPortal } from "react-dom";
 import { nextScrollChrome } from "@/lib/scroll-chrome";
+import { topbarDateTime } from "@/lib/overview";
 import {
   LayoutDashboard,
   Route,
@@ -213,21 +214,7 @@ export function LiveShell({
 
   // Ngày giờ ở đầu trang theo giờ Việt Nam; chỉ tính ở trình duyệt để không lệch khi hydrate.
   useEffect(() => {
-    const tick = () => {
-      const d = new Date();
-      const date = d.toLocaleDateString("vi-VN", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        timeZone: "Asia/Ho_Chi_Minh",
-      });
-      const time = d.toLocaleTimeString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: "Asia/Ho_Chi_Minh",
-      });
-      setNow(`${date.charAt(0).toUpperCase()}${date.slice(1)} · ${time}`);
-    };
+    const tick = () => setNow(topbarDateTime(new Date()));
     tick();
     const timer = setInterval(tick, 30000);
     return () => clearInterval(timer);

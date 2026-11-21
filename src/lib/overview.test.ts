@@ -8,6 +8,7 @@ import {
   paymentStats,
   seatFill,
   shortVnd,
+  topbarDateTime,
 } from "./overview";
 import type { Payment, Trip } from "./live-contracts";
 const trip = (
@@ -150,4 +151,17 @@ test("short money keeps Vietnamese separators", () => {
   assert.deepEqual(shortVnd(1_250_000), { value: "1,25", unit: "tr ₫" });
   assert.deepEqual(shortVnd(12_850_000), { value: "12,9", unit: "tr ₫" });
   assert.deepEqual(shortVnd(1_940_000_000), { value: "1,94", unit: "tỷ ₫" });
+});
+
+test("topbar date reads day/month/year in Vietnam time", () => {
+  // 05:08 UTC = 12:08 giờ VN, thứ Bảy.
+  assert.equal(
+    topbarDateTime(new Date("2026-11-21T05:08:00Z")),
+    "Thứ Bảy, 21/11/2026 · 12:08",
+  );
+  // 17:30 UTC thứ Bảy đã là 00:30 Chủ Nhật ở VN; ngày/tháng một chữ số có số 0.
+  assert.equal(
+    topbarDateTime(new Date("2027-01-02T17:30:00Z")),
+    "Chủ Nhật, 03/01/2027 · 00:30",
+  );
 });
