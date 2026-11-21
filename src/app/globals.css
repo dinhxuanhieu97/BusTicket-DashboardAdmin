@@ -394,6 +394,18 @@ fieldset:disabled button {
     left: 0;
     width: min(100%, 100cqw);
   }
+  /* Cột thao tác (DataTable) ghim mép phải: bảng tràn ngang vẫn bấm được "Chi tiết". */
+  .pn-table :is(th, td)[data-actions] {
+    position: sticky;
+    inset-inline-end: 0;
+    box-shadow: -1px 0 var(--border);
+  }
+  .pn-table td[data-actions] {
+    background: var(--panel);
+  }
+  .pn-table tr:hover td[data-actions] {
+    background: var(--surface);
+  }
   @media (width < 48rem) {
     .pn-table[data-pin-first] :is(th, td):first-child:not([colspan]) {
       position: sticky;

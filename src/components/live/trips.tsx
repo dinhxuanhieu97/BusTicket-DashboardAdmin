@@ -5,21 +5,14 @@ import { Modal } from "../modal";
 import { OverviewPanels } from "./overview-panels";
 import { TripEditor, TripDetails, TripStatusDialog } from "./trip-editor";
 import { tripPeriodRange, type TripPeriod } from "@/lib/trip-period";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Trip, vnDateOf, vnToday, vnDateTime } from "@/lib/live-contracts";
 import { useResource } from "./use-resource";
 import { routeChips } from "@/lib/route-chips";
-import {
-  LoadState,
-  RefreshButton,
-  EmptyRow,
-  StatusBadge,
-  Notice,
-  TableScroll,
-  tableClass,
-  thClass,
-  tdClass,
-} from "./shared";
+import { LoadState, RefreshButton, StatusBadge, Notice } from "./shared";
+import { DataTable, type Column } from "./data-table";
+import { PAGE_SIZES, nextSort, sortRows, type Sort } from "@/lib/table-state";
+import type { TripSort } from "@/lib/access-policy";
 import {
   Eye,
   Play,
@@ -35,6 +28,10 @@ import { FilterChips } from "../ui/filter-chips";
 import { Switch } from "../ui/switch";
 
 const VIEW_KEY = "pnticket_trip_view";
+/** Thứ tự mặc định của API: giờ khởi hành tăng dần (phân trang con trỏ). */
+const DEFAULT_SORT = { key: "depart", dir: "asc" } as const;
+const isDefaultSort = (s: Sort) =>
+  !s || (s.key === DEFAULT_SORT.key && s.dir === DEFAULT_SORT.dir);
 type View = "table" | "cards";
 function readView(): View {
   try {
@@ -83,6 +80,10 @@ export function Trips({
   // Backend có lọc `route` (GF13); backend cũ trả 400 thì quay về lọc trong trang đã tải.
   const [serverRoute, setServerRoute] = useState(true);
   const [knownRoutes, setKnownRoutes] = useState<string[]>([]);
+  // T2: sắp xếp cả khoảng ở API; API cũ trả 400 thì quay về sắp xếp trong trang đã tải.
+  const [sort, setSort] = useState<Sort>(DEFAULT_SORT);
+  const [serverSort, setServerSort] = useState(true);
+  const [pageSize, setPageSize] = useState(25);
   const [view, setView] = useState<View>("table");
   useEffect(() => setView(readView()), []);
   const changeView = (next: View) => {
@@ -104,10 +105,15 @@ export function Trips({
   const range = tripPeriodRange(date, period);
   const rangeKey = `${range.from}|${range.to}`;
   useEffect(() => setKnownRoutes([]), [rangeKey]);
-  const query = new URLSearchParams({ ...range, limit: "25" });
+  const query = new URLSearchParams({ ...range, limit: String(pageSize) });
   if (cursors.length) query.set("cursor", cursors[cursors.length - 1]);
   const filterOnServer = !overview && serverRoute && route !== "";
   if (filterOnServer) query.set("route", route);
+  const sortOnServer = !overview && serverSort && !isDefaultSort(sort);
+  if (sortOnServer && sort) {
+    query.set("sort", sort.key);
+    query.set("order", sort.dir);
+  }
   const { data, error, loading, reload } = useResource<{
     trips: Trip[];
     nextCursor?: string | null;
@@ -119,6 +125,12 @@ export function Trips({
       setCursors([]);
     }
   }, [filterOnServer, error]);
+  useEffect(() => {
+    if (sortOnServer && error) {
+      setServerSort(false);
+      setCursors([]);
+    }
+  }, [sortOnServer, error]);
   const loaded = data?.trips || [];
   // Giữ các tuyến đã thấy để chip không biến mất khi đang lọc một tuyến.
   const pageRoutes = [...new Set(loaded.map((t) => t.route_code))];
@@ -135,7 +147,26 @@ export function Trips({
     selected: overview ? "" : route,
     serverFiltered: filterOnServer,
   });
-  const { routes, active: activeRoute, rows } = chips;
+  const { routes, active: activeRoute } = chips;
+  const columns = useMemo(
+    () =>
+      tripColumns({
+        canReadPassengers,
+      }),
+    [canReadPassengers],
+  );
+  // Sắp xếp ở API thì giữ nguyên thứ tự trả về; còn lại (tổng quan, API cũ) sắp trong trang đã tải.
+  const rows: Trip[] = sortOnServer
+    ? chips.rows
+    : [
+        ...sortRows(chips.rows, sort, (t, key) =>
+          columns.find((c) => c.key === key)?.sortValue?.(t),
+        ),
+      ];
+  const onSort = (key: string) => {
+    setSort((s) => nextSort(s, key) ?? DEFAULT_SORT);
+    setCursors([]);
+  };
   const cards = !overview && view === "cards";
 
   return (
@@ -358,145 +389,77 @@ export function Trips({
                 )}
               </ul>
             ) : (
-              <TableScroll label="Danh sách chuyến">
-                <table className={tableClass} data-pin-first>
-                  <thead>
-                    <tr>
-                      {[
-                        "Chuyến / tuyến",
-                        "Khởi hành",
-                        "Xe",
-                        "Chỗ khả dụng / tổng",
-                        "Trạng thái",
-                        ...(canWrite ? ["Thao tác"] : []),
-                      ].map((h) => (
-                        <th className={thClass} key={h}>
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line/40">
-                    {rows.map((t) => (
-                      <tr key={t.id} className="transition-colors">
-                        <td className={tdClass}>
-                          <strong className="block font-semibold text-ink">
-                            {t.name}
-                          </strong>
-                          <span className="inline-block mt-0.5 rounded bg-surface/80 px-1.5 py-0.5 text-[11px] font-mono text-muted">
-                            {t.code}
-                          </span>
-                          <button
-                            type="button"
-                            className="mt-1 flex min-h-8 items-center gap-1.5 rounded-lg text-xs font-semibold text-accent hover:underline"
-                            onClick={() => setDetail(t)}
-                          >
-                            <Eye size={14} aria-hidden="true" />
-                            Chi tiết
-                          </button>
-                          {canReadPassengers && (
-                            <Link
-                              href={`/admin/passengers?date=${vnDateOf(t.depart_at)}&trip=${t.id}`}
-                              className="flex min-h-8 items-center gap-1.5 rounded-lg text-xs font-semibold text-accent hover:underline"
-                            >
-                              <Users size={14} aria-hidden="true" />
-                              Hành khách
-                            </Link>
-                          )}
-                        </td>
-                        <td className={tdClass + " whitespace-nowrap"}>
-                          <div className="flex items-center gap-1.5 text-sm text-ink font-mono">
-                            <Clock
-                              size={14}
-                              className="text-muted shrink-0"
-                              aria-hidden="true"
-                            />
-                            <span>{vnDateTime(t.depart_at)}</span>
-                          </div>
-                        </td>
-                        <td className={tdClass}>
-                          <span className="font-medium text-ink">
-                            {t.vehicle_name}
-                          </span>
-                          <small className="block font-mono text-xs text-muted">
-                            {t.vehicle_code}
-                          </small>
-                        </td>
-                        <td className={tdClass}>
-                          <div className="flex flex-col gap-1.5">
-                            <span className="font-mono text-sm font-semibold text-ink">
-                              {t.available} / {t.capacity}
-                            </span>
-                            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface">
-                              <div
-                                className="h-full rounded-full bg-accent transition-all duration-300"
-                                style={{
-                                  width: `${
-                                    t.capacity > 0
-                                      ? Math.min(
-                                          100,
-                                          Math.round(
-                                            (t.available / t.capacity) * 100,
-                                          ),
-                                        )
-                                      : 0
-                                  }%`,
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                        <td className={tdClass + " whitespace-nowrap"}>
-                          <StatusBadge
-                            tone={tripStates[t.status].tone}
-                            label={tripStates[t.status].label}
-                          />
-                        </td>
-                        {canWrite && (
-                          <td className={tdClass}>
-                            {t.status !== "CANCELLED" && (
-                              <button
-                                className="btn py-1.5 text-xs"
-                                type="button"
-                                onClick={() => setChanging(t)}
-                              >
-                                {t.status === "OPEN" ? (
-                                  <>
-                                    <Pause size={13} aria-hidden="true" />
-                                    Đóng bán
-                                  </>
-                                ) : (
-                                  <>
-                                    <Play size={13} aria-hidden="true" />
-                                    Mở bán
-                                  </>
-                                )}
-                              </button>
-                            )}
-                          </td>
+              <DataTable
+                label="Danh sách chuyến"
+                columns={columns}
+                rows={rows}
+                rowKey={(t) => t.id}
+                sort={sort}
+                onSort={onSort}
+                emptyText={
+                  overview || period === "day"
+                    ? "Không có chuyến trong ngày đã chọn."
+                    : "Không có chuyến trong khoảng thời gian đã chọn."
+                }
+                actions={(t) => (
+                  <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:justify-end sm:gap-2">
+                    <button
+                      type="button"
+                      className="btn py-1.5 text-xs"
+                      onClick={() => setDetail(t)}
+                    >
+                      <Eye size={13} aria-hidden="true" />
+                      Chi tiết
+                    </button>
+                    {canWrite && t.status !== "CANCELLED" && (
+                      <button
+                        className="btn py-1.5 text-xs"
+                        type="button"
+                        onClick={() => setChanging(t)}
+                      >
+                        {t.status === "OPEN" ? (
+                          <>
+                            <Pause size={13} aria-hidden="true" />
+                            Đóng bán
+                          </>
+                        ) : (
+                          <>
+                            <Play size={13} aria-hidden="true" />
+                            Mở bán
+                          </>
                         )}
-                      </tr>
-                    ))}
-                    {!rows.length && (
-                      <EmptyRow
-                        columns={canWrite ? 6 : 5}
-                        text={
-                          overview || period === "day"
-                            ? "Không có chuyến trong ngày đã chọn."
-                            : "Không có chuyến trong khoảng thời gian đã chọn."
-                        }
-                      />
+                      </button>
                     )}
-                  </tbody>
-                </table>
-              </TableScroll>
+                  </div>
+                )}
+              />
             )}
             {!overview && (
               <div className="pn-table-footer">
                 <span className="text-muted">
-                  Trang {cursors.length + 1} · Tối đa 25 chuyến/trang
+                  Trang {cursors.length + 1} · Tối đa {pageSize} chuyến/trang
+                  {!sortOnServer &&
+                    !isDefaultSort(sort) &&
+                    " · Sắp xếp trong trang đã tải"}
                 </span>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex items-center gap-1.5 text-xs text-muted">
+                    <span>Số dòng</span>
+                    <select
+                      className="field h-8 w-auto py-0 pr-7 text-xs"
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setCursors([]);
+                      }}
+                    >
+                      {PAGE_SIZES.map((n) => (
+                        <option key={n} value={n}>
+                          {n} / trang
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <button
                     className="btn"
                     disabled={!cursors.length}
@@ -684,3 +647,107 @@ function TripCard({
     </li>
   );
 }
+
+/** Cột bảng chuyến; `key` trùng tên cột sắp xếp của API (`TripSort`). */
+function tripColumns({
+  canReadPassengers,
+}: {
+  canReadPassengers: boolean;
+}): (Column<Trip> & { key: TripSort })[] {
+  return [
+    {
+      key: "name",
+      header: "Chuyến / tuyến",
+      sortValue: (t) => t.name,
+      render: (t) => (
+        <>
+          <strong className="block font-semibold text-ink">{t.name}</strong>
+          <span className="mt-0.5 inline-block rounded bg-surface/80 px-1.5 py-0.5 font-mono text-[11px] text-muted">
+            {t.code}
+          </span>
+          {canReadPassengers && (
+            <Link
+              href={`/admin/passengers?date=${vnDateOf(t.depart_at)}&trip=${t.id}`}
+              className="mt-1 flex min-h-8 items-center gap-1.5 rounded-lg text-xs font-semibold text-accent hover:underline"
+            >
+              <Users size={14} aria-hidden="true" />
+              Hành khách
+            </Link>
+          )}
+        </>
+      ),
+    },
+    {
+      key: "depart",
+      header: "Khởi hành",
+      sortValue: (t) => Date.parse(t.depart_at),
+      className: "whitespace-nowrap",
+      render: (t) => (
+        <div className="flex items-center gap-1.5 font-mono text-sm text-ink">
+          <Clock size={14} className="shrink-0 text-muted" aria-hidden="true" />
+          <span>{vnDateTime(t.depart_at)}</span>
+        </div>
+      ),
+    },
+    {
+      key: "vehicle",
+      header: "Xe",
+      sortValue: (t) => t.vehicle_code,
+      render: (t) => (
+        <>
+          <span className="font-medium text-ink">{t.vehicle_name}</span>
+          <small className="block font-mono text-xs text-muted">
+            {t.vehicle_code}
+          </small>
+        </>
+      ),
+    },
+    {
+      key: "available",
+      header: "Chỗ khả dụng / tổng",
+      sortValue: (t) => t.available,
+      render: (t) => (
+        <div className="flex flex-col gap-1.5">
+          <span className="font-mono text-sm font-semibold text-ink">
+            {t.available} / {t.capacity}
+          </span>
+          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface">
+            <div
+              className="h-full rounded-full bg-accent transition-all duration-300"
+              style={{
+                width: `${
+                  t.capacity > 0
+                    ? Math.min(
+                        100,
+                        Math.round((t.available / t.capacity) * 100),
+                      )
+                    : 0
+                }%`,
+              }}
+            />
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      header: "Trạng thái",
+      sortValue: (t) => tripStatusOrder[t.status],
+      className: "whitespace-nowrap",
+      render: (t) => (
+        <StatusBadge
+          tone={tripStates[t.status].tone}
+          label={tripStates[t.status].label}
+        />
+      ),
+    },
+  ];
+}
+
+/** Cùng thứ tự vòng đời với API: nháp → mở bán → đóng bán → đã hủy. */
+const tripStatusOrder: Record<Trip["status"], number> = {
+  DRAFT: 0,
+  OPEN: 1,
+  CLOSED: 2,
+  CANCELLED: 3,
+};

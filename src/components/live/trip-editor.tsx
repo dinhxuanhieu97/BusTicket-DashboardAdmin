@@ -457,7 +457,7 @@ export function TripStatusDialog({
 
         <p className="text-sm leading-relaxed text-muted">
           {status === "CLOSED"
-            ? "Ngừng nhận đặt vé mới. Các vé đã đặt được giữ nguyên."
+            ? "Khách sẽ không đặt được chỗ mới trên chuyến này. Vé đã đặt và đơn đang giữ chỗ vẫn giữ nguyên. Có thể mở bán lại sau."
             : "Cho phép nhận đặt vé trong thời gian mở/đóng bán của chuyến."}
         </p>
 
@@ -467,9 +467,17 @@ export function TripStatusDialog({
           </div>
         )}
 
-        <div className="pt-2">
+        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row">
           <button
-            className={`btn w-full ${
+            type="button"
+            className="btn w-full sm:w-auto sm:flex-1"
+            disabled={busy}
+            onClick={onClose}
+          >
+            {status === "CLOSED" ? "Giữ mở bán" : "Giữ đóng bán"}
+          </button>
+          <button
+            className={`btn w-full sm:flex-1 ${
               status === "CLOSED"
                 ? "hover:border-amber-500 hover:text-warning"
                 : "btn-primary"
