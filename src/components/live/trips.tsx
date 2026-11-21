@@ -8,6 +8,7 @@ import { tripPeriodRange, type TripPeriod } from "@/lib/trip-period";
 import { useEffect, useState } from "react";
 import { Trip, vnDateOf, vnToday, vnDateTime } from "@/lib/live-contracts";
 import { useResource } from "./use-resource";
+import { routeChips } from "@/lib/route-chips";
 import {
   LoadState,
   RefreshButton,
@@ -79,6 +80,9 @@ export function Trips({
   const [period, setPeriod] = useState<TripPeriod>(initialPeriod);
   const [cursors, setCursors] = useState<string[]>([]);
   const [route, setRoute] = useState("");
+  // Backend có lọc `route` (GF13); backend cũ trả 400 thì quay về lọc trong trang đã tải.
+  const [serverRoute, setServerRoute] = useState(true);
+  const [knownRoutes, setKnownRoutes] = useState<string[]>([]);
   const [view, setView] = useState<View>("table");
   useEffect(() => setView(readView()), []);
   const changeView = (next: View) => {
@@ -98,19 +102,40 @@ export function Trips({
     window.history.replaceState(null, "", url);
   }, [overview, date, period]);
   const range = tripPeriodRange(date, period);
+  const rangeKey = `${range.from}|${range.to}`;
+  useEffect(() => setKnownRoutes([]), [rangeKey]);
   const query = new URLSearchParams({ ...range, limit: "25" });
   if (cursors.length) query.set("cursor", cursors[cursors.length - 1]);
+  const filterOnServer = !overview && serverRoute && route !== "";
+  if (filterOnServer) query.set("route", route);
   const { data, error, loading, reload } = useResource<{
     trips: Trip[];
     nextCursor?: string | null;
     meta: { fetchedAt: string };
   }>(overview ? "trips?date=" + date : "trips?" + query.toString());
+  useEffect(() => {
+    if (filterOnServer && error) {
+      setServerRoute(false);
+      setCursors([]);
+    }
+  }, [filterOnServer, error]);
   const loaded = data?.trips || [];
-  const routes = [...new Set(loaded.map((t) => t.route_code))].sort();
-  const activeRoute = routes.includes(route) ? route : "";
-  const rows = activeRoute
-    ? loaded.filter((t) => t.route_code === activeRoute)
-    : loaded;
+  // Giữ các tuyến đã thấy để chip không biến mất khi đang lọc một tuyến.
+  const pageRoutes = [...new Set(loaded.map((t) => t.route_code))];
+  const seenKey = pageRoutes.sort().join(",");
+  useEffect(() => {
+    if (!seenKey) return;
+    setKnownRoutes((prev) =>
+      [...new Set([...prev, ...seenKey.split(",")])].sort(),
+    );
+  }, [seenKey]);
+  const chips = routeChips({
+    known: knownRoutes,
+    loaded,
+    selected: overview ? "" : route,
+    serverFiltered: filterOnServer,
+  });
+  const { routes, active: activeRoute, rows } = chips;
   const cards = !overview && view === "cards";
 
   return (
@@ -271,18 +296,17 @@ export function Trips({
         )}
       </div>
 
-      {!overview && routes.length > 1 && (
+      {!overview && chips.show && (
         <FilterChips
           label="Lọc theo tuyến"
           value={activeRoute}
-          onChange={setRoute}
+          onChange={(next) => {
+            setRoute(next);
+            setCursors([]);
+          }}
           items={[
-            { value: "", label: "Tất cả tuyến", count: loaded.length },
-            ...routes.map((code) => ({
-              value: code,
-              label: code,
-              count: loaded.filter((t) => t.route_code === code).length,
-            })),
+            { value: "", label: "Tất cả tuyến" },
+            ...routes.map((code) => ({ value: code, label: code })),
           ]}
         />
       )}

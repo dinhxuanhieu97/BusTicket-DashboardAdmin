@@ -25,9 +25,30 @@ test.beforeEach(async ({ context, request }) => {
   await signIn(context);
 });
 
-test("payment tabs show counts per review status and filter through the API", async ({
+test("payment tabs count the whole ledger from the counters API (GF12)", async ({
   page,
 }) => {
+  await page.goto("/admin/payments");
+  const tabs = page.getByRole("group", { name: "Trạng thái kiểm tra" });
+  // Fixture `counters`: 412 khoản (405 / 5 / 2) — nhiều hơn danh sách 200 khoản.
+  await expect(tabs.getByRole("button")).toHaveText([
+    "Tất cả412",
+    "Không cần kiểm tra405",
+    "Cần kiểm tra5",
+    "Đã xử lý2",
+  ]);
+  await tabs.getByRole("button", { name: /^Đã xử lý/ }).click();
+  await expect(tabs.getByRole("button", { name: /^Tất cả/ })).toHaveText(
+    "Tất cả412",
+  );
+});
+
+test("payment tabs show counts per review status and filter through the API", async ({
+  page,
+  request,
+}) => {
+  // API cũ chưa có `counters`: đếm trong 200 khoản gần nhất.
+  await request.post(`${fixture}/state`, { data: { reportsOff: true } });
   // Fixture bỏ qua `?review=`; giả lập backend lọc thật để số đếm không thể lấy nhầm từ tập đã lọc.
   await page.route("**/api/live/payments?review=*", async (route) => {
     const response = await route.fetch();
@@ -113,10 +134,12 @@ test("trip page has one create button and the card view switch closes sales", as
   await expect(page.getByRole("list", { name: "Thẻ chuyến" })).toBeVisible();
 });
 
-test("route chips filter the loaded trips", async ({ page }) => {
-  await page.route("**/api/live/trips?*", async (route) => {
+const withBackTrip = async (page: Page, serverFilter: boolean) =>
+  page.route("**/api/live/trips?*", async (route) => {
+    const url = new URL(route.request().url());
     const response = await route.fetch();
     const body = await response.json();
+    if (!response.ok()) return route.fulfill({ response, json: body });
     const [first] = body.trips;
     body.trips.push({
       ...first,
@@ -124,21 +147,73 @@ test("route chips filter the loaded trips", async ({ page }) => {
       name: "Chuyến chiều về",
       route_code: "BACK",
     });
+    const code = url.searchParams.get("route");
+    if (serverFilter && code)
+      body.trips = body.trips.filter(
+        (t: { route_code: string }) => t.route_code === code,
+      );
     await route.fulfill({ response, json: body });
   });
+
+test("route chips ask the API for that route across all pages (GF13)", async ({
+  page,
+}) => {
+  await withBackTrip(page, true);
   await page.goto("/admin/trips");
   const chips = page.getByRole("group", { name: "Lọc theo tuyến" });
   await expect(chips.getByRole("button")).toHaveText([
-    "Tất cả tuyến2",
-    "BACK1",
-    "TEST1",
+    "Tất cả tuyến",
+    "BACK",
+    "TEST",
   ]);
   const table = page.getByRole("region", { name: "Danh sách chuyến" });
   await expect(table.getByRole("row")).toHaveCount(3);
-  await chips.getByRole("button", { name: /^BACK/ }).click();
+  const filtered = page.waitForRequest((r) =>
+    /\/api\/live\/trips\?.*route=BACK/.test(r.url()),
+  );
+  await chips.getByRole("button", { name: "BACK" }).click();
+  expect(new URL((await filtered).url()).searchParams.has("cursor")).toBe(
+    false,
+  );
   await expect(table.getByRole("row")).toHaveCount(2);
   await expect(table).toContainText("Chuyến chiều về");
   await expect(table).not.toContainText("Chuyến kiểm thử");
+  // Chip của tuyến khác vẫn còn khi đang lọc.
+  await expect(chips.getByRole("button")).toHaveCount(3);
+});
+
+test("changing the period while a route is filtered keeps the chips so the filter can be cleared (GF13)", async ({
+  page,
+}) => {
+  await withBackTrip(page, true);
+  await page.goto("/admin/trips");
+  const chips = page.getByRole("group", { name: "Lọc theo tuyến" });
+  await chips.getByRole("button", { name: "BACK" }).click();
+  const table = page.getByRole("region", { name: "Danh sách chuyến" });
+  await expect(table).not.toContainText("Chuyến kiểm thử");
+  // Đổi kỳ xem: danh sách tuyến đã thấy bị xóa, backend chỉ trả chuyến BACK.
+  await page.getByRole("button", { name: "Tháng", exact: true }).click();
+  await expect(chips).toBeVisible();
+  await expect(chips.getByRole("button", { name: "BACK" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await chips.getByRole("button", { name: "Tất cả tuyến" }).click();
+  await expect(table).toContainText("Chuyến kiểm thử");
+});
+
+test("route chips fall back to filtering the loaded page on an older API", async ({
+  page,
+  request,
+}) => {
+  await request.post(`${fixture}/state`, { data: { reportsOff: true } });
+  await withBackTrip(page, false);
+  await page.goto("/admin/trips");
+  const chips = page.getByRole("group", { name: "Lọc theo tuyến" });
+  await chips.getByRole("button", { name: "BACK" }).click();
+  const table = page.getByRole("region", { name: "Danh sách chuyến" });
+  await expect(table.getByRole("row")).toHaveCount(2);
+  await expect(table).toContainText("Chuyến chiều về");
 });
 
 test("audit log is a list of rows with a detail button", async ({ page }) => {

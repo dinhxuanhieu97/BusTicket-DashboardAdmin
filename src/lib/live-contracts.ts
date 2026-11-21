@@ -100,8 +100,132 @@ export const auditSchema = z.object({
   actor_name: z.string().nullable(),
   actor_role: z.string().nullable(),
 });
+const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+const signedMoney = z
+  .number()
+  .int()
+  .min(-Number.MAX_SAFE_INTEGER)
+  .max(Number.MAX_SAFE_INTEGER);
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const moneyDay = {
+  received: money,
+  refunded: money,
+  net: signedMoney,
+  payments: count,
+  refunds: count,
+};
+/** `GET reports/revenue`: thu thuần = đã nhận − đã hoàn trong kỳ (giờ VN). */
+export const revenueReportSchema = z.object({
+  from: isoDate,
+  to: isoDate,
+  totals: z.object(moneyDay),
+  byDay: z.array(z.object({ date: isoDate, ...moneyDay })).max(366),
+  byMethod: z
+    .array(
+      z.object({
+        method: z.enum(["BANK_TRANSFER", "MANUAL_BANK", "CASH"]),
+        amount: money,
+        count,
+      }),
+    )
+    .max(3),
+  byHour: z
+    .array(
+      z.object({ hour: z.number().int().min(0).max(23), amount: money, count }),
+    )
+    .max(24),
+  byRoute: z
+    .array(
+      z.object({
+        code: z.string(),
+        origin: z.string(),
+        destination: z.string(),
+        received: money,
+        refunded: money,
+        net: signedMoney,
+        bookings: count,
+      }),
+    )
+    .max(1000),
+  unallocated: signedMoney,
+});
+const bookingDay = {
+  bookings: count,
+  cancelled: count,
+  abandoned: count,
+  holding: count,
+  /** Số vé của đơn đã xác nhận; mỗi chặng một vé nên khứ hồi tính 2 (GB4). */
+  seats: count,
+  /** Số vé trong `seats` thuộc đơn khứ hồi; API cũ không có. */
+  roundTrips: count.optional(),
+};
+/** `GET reports/bookings`: đơn theo ngày tạo; tỷ lệ hủy = đơn nhân viên hủy / đơn trong kỳ. */
+export const bookingsReportSchema = z.object({
+  from: isoDate,
+  to: isoDate,
+  totals: z.object({
+    ...bookingDay,
+    cancelRate: z.number().min(0).max(1).nullable(),
+  }),
+  byDay: z.array(z.object({ date: isoDate, ...bookingDay })).max(366),
+});
+/** `GET counters`: chuông thông báo + tab Sổ thu; nhóm tiền `null` khi không có `payment.read`. */
+export const countersSchema = z.object({
+  tripsClosingSoon: count,
+  payments: z
+    .object({
+      total: count,
+      NONE: count,
+      NEEDS_REVIEW: count,
+      RESOLVED: count,
+    })
+    .nullable(),
+  refundsOpen: count.nullable(),
+});
+/** `GET search?q=`: chuyến (trip.read) và đơn (booking.read, `null` khi không có quyền). */
+export const searchResultSchema = z.object({
+  q: z.string(),
+  trips: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        code: z.string(),
+        name: z.string(),
+        status: z.string(),
+        departAt: z.string(),
+        routeCode: z.string(),
+      }),
+    )
+    .max(20),
+  bookings: z
+    .array(
+      z.object({
+        code: z.string(),
+        status: z.string(),
+        contactName: z.string(),
+        contactPhone: z.string(),
+        totalAmount: money,
+        trip: z.object({
+          id: z.string().uuid(),
+          code: z.string(),
+          name: z.string(),
+          departAt: z.string(),
+        }),
+      }),
+    )
+    .max(20)
+    .nullable(),
+});
+export type RevenueReport = z.infer<typeof revenueReportSchema>;
+export type BookingsReport = z.infer<typeof bookingsReportSchema>;
+export type Counters = z.infer<typeof countersSchema>;
+export type SearchResult = z.infer<typeof searchResultSchema>;
 export const resourceSchemas = {
   payments: z.object({ payments: z.array(paymentSchema) }),
+  "revenue-report": revenueReportSchema,
+  "bookings-report": bookingsReportSchema,
+  counters: countersSchema,
+  search: searchResultSchema,
   users: z.object({ users: z.array(userSchema) }),
   trips: z.object({
     trips: z.array(tripSchema),

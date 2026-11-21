@@ -9,6 +9,7 @@ import {
   localPhone,
   manifestRows,
   manifestTripCode,
+  roundTripText,
   toCsv,
   type AdminTripPassengers,
 } from "./trip-passengers";
@@ -287,4 +288,25 @@ test("seatSummary shows the first seat and how many more", async () => {
     "A12 +2",
   );
   assert.equal(seatSummary({ seats: [] }), "—");
+});
+
+test("GB4: a round-trip ticket shows both legs in Vietnam time; one-way and old API show nothing", () => {
+  const roundTrip = {
+    outbound: {
+      tripId: "t1",
+      departAt: "2027-02-01T11:00:00.000Z",
+      routeCode: "HCM-HA",
+    },
+    return: {
+      tripId: "t2",
+      departAt: "2027-02-03T10:30:00.000Z",
+      routeCode: "HA-HCM",
+    },
+  };
+  assert.equal(
+    roundTripText({ roundTrip }),
+    "Khứ hồi · Đi 18:00 01/02/2027 (HCM-HA) · Về 17:30 03/02/2027 (HA-HCM)",
+  );
+  assert.equal(roundTripText({ roundTrip: null }), null);
+  assert.equal(roundTripText({}), null);
 });
