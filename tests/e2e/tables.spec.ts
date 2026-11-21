@@ -92,6 +92,88 @@ test("payment tabs show counts per review status and filter through the API", as
   );
 });
 
+test("Sổ thu pages 25 rows, sorts by a column and opens Chi tiết (T1)", async ({
+  page,
+  request,
+}) => {
+  // 2 khoản sẵn có + 30 khoản đã khớp (100.000–390.000 đ, mỗi khoản cách nhau 1 giờ).
+  await request.post(`${fixture}/state`, { data: { extraPayments: 30 } });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/payments");
+  const table = page.getByRole("region", { name: "Danh sách khoản thu" });
+  const rows = table.locator("tbody tr");
+  const codes = () => rows.locator("td:first-child > span").allInnerTexts();
+  const footer = page.locator(".pn-table-footer");
+  await expect(rows).toHaveCount(25);
+  await expect(footer).toContainText(
+    "1–25 trên 32 khoản thu · trong dữ liệu đã tải",
+  );
+  await expect(footer.getByRole("combobox", { name: "Số dòng" })).toHaveValue(
+    "25",
+  );
+  await footer.getByRole("button", { name: "Sau" }).click();
+  await expect(rows).toHaveCount(7);
+  await expect(footer).toContainText("26–32 trên 32 khoản thu");
+  await expect(footer.getByRole("button", { name: "Sau" })).toBeDisabled();
+
+  // Bấm tiêu đề: tăng → giảm → bỏ; đổi sắp xếp quay về trang 1.
+  const amount = table.getByRole("columnheader", { name: /Số tiền/ });
+  await expect(amount).toHaveAttribute("aria-sort", "none");
+  await amount.getByRole("button").click();
+  await expect(amount).toHaveAttribute("aria-sort", "ascending");
+  await expect(footer).toContainText("1–25 trên 32");
+  expect((await codes())[0]).toBe("TESTP30");
+  await amount.getByRole("button").click();
+  await expect(amount).toHaveAttribute("aria-sort", "descending");
+  // 390.000 đ trước; hai khoản 380.000 đ giữ thứ tự gốc.
+  expect((await codes()).slice(0, 3)).toEqual([
+    "TESTP17",
+    "TESTLATE",
+    "TESTP04",
+  ]);
+  await amount.getByRole("button").click();
+  await expect(amount).toHaveAttribute("aria-sort", "none");
+  expect((await codes()).slice(0, 2)).toEqual(["TEST123", "TESTLATE"]);
+  // Cột không sắp xếp được thì không có nút.
+  await expect(
+    table.getByRole("columnheader").last().getByRole("button"),
+  ).toHaveCount(0);
+
+  // Đổi số dòng mỗi trang; tìm kiếm quay về trang 1.
+  await footer.getByRole("combobox", { name: "Số dòng" }).selectOption("10");
+  await expect(rows).toHaveCount(10);
+  await expect(footer).toContainText("1–10 trên 32");
+  await footer.getByRole("button", { name: "Sau" }).click();
+  await page
+    .getByRole("textbox", { name: "Tìm trong khoản thu đã tải" })
+    .fill("TESTP1");
+  // TESTP1 + TESTP10…TESTP19.
+  await expect(footer).toContainText("1–10 trên 11 khoản thu");
+
+  // Thao tác dòng chỉ có "Chi tiết".
+  await page
+    .getByRole("textbox", { name: "Tìm trong khoản thu đã tải" })
+    .fill("TEST123");
+  await expect(rows).toHaveCount(1);
+  await expect(rows.getByRole("button")).toHaveText(["Chi tiết"]);
+  await rows.getByRole("button", { name: /^Chi tiết khoản thu/ }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Chi tiết khoản thu" }),
+  ).toBeVisible();
+});
+
+test("Sổ thu table fits a phone screen (T1)", async ({ page, request }) => {
+  await request.post(`${fixture}/state`, { data: { extraPayments: 30 } });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/admin/payments");
+  await expect(
+    page
+      .getByRole("region", { name: "Danh sách khoản thu" })
+      .locator("tbody tr"),
+  ).toHaveCount(25);
+  await noHorizontalOverflow(page);
+});
+
 test("trip page has one create button and the card view switch closes sales", async ({
   page,
   request,
