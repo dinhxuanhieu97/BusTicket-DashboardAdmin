@@ -849,6 +849,16 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
 .pn-bottom-nav span {
   @apply max-w-full truncate;
 }
+/* Tổng việc cần chú ý trên nút "Thêm" (GB7) — chỉ ở điện thoại, từ sm đã có chuông ở topbar. */
+.pn-bottom-nav .pn-more-badge {
+  top: 0.125rem;
+  right: calc(50% - 1.5rem);
+}
+@media (min-width: 40rem) {
+  .pn-bottom-nav .pn-more-badge {
+    display: none;
+  }
+}
 @media (min-width: 64rem) {
   .pn-bottom-nav {
     display: none;

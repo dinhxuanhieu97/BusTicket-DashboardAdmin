@@ -43,9 +43,9 @@ import { AccountMenu } from "./account-menu";
 import { Modal } from "../modal";
 import { LoadState } from "./shared";
 import { CommandPalette } from "./command-palette";
-import { NotificationBell } from "./notification-bell";
+import { AttentionLinks, NotificationBell } from "./notification-bell";
 import { useResource } from "./use-resource";
-import { badgeText, navBadges } from "@/lib/attention";
+import { attentionItems, badgeText, navBadges } from "@/lib/attention";
 
 const icons: Record<NavKey, typeof LayoutDashboard> = {
   assigned: ClipboardList,
@@ -99,6 +99,9 @@ export function LiveShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
   const badges = navBadges(counters.data);
+  // Điện thoại không có chuông (GB7): việc cần chú ý nằm đầu ngăn "Thêm", tổng số hiện trên nút "Thêm".
+  const attention = counters.data ? attentionItems(counters.data) : [];
+  const attentionCount = attention.reduce((t, i) => t + i.count, 0);
   const permissionKey = JSON.stringify(permissions ?? null);
   const [operatorName, setOperatorName] = useState("Nhà xe");
   const [operatorLogo, setOperatorLogo] = useState<string | null>(null);
@@ -461,6 +464,17 @@ export function LiveShell({
         )}
       {menu && (
         <Modal drawer title="Điều hướng" onClose={() => setMenu(false)}>
+          {attention.length > 0 && (
+            <section
+              aria-label="Cần chú ý"
+              className="pn-drawer-attention mx-3 mt-3 rounded-2xl border border-line sm:hidden"
+            >
+              <p className="px-3 pt-2 pb-1 text-xs font-semibold tracking-[0.1em] text-faint uppercase">
+                Cần chú ý
+              </p>
+              <AttentionLinks items={attention} onPick={() => setMenu(false)} />
+            </section>
+          )}
           {navigation}
         </Modal>
       )}
@@ -587,9 +601,20 @@ export function LiveShell({
             <button
               type="button"
               aria-haspopup="dialog"
+              aria-label={
+                attentionCount
+                  ? `Thêm, ${attentionCount.toLocaleString("vi-VN")} việc cần chú ý`
+                  : undefined
+              }
+              className="relative"
               onClick={() => setMenu(true)}
             >
               <MoreHorizontal size={19} aria-hidden="true" />
+              {attentionCount > 0 && (
+                <b className="pn-bell-badge pn-more-badge" aria-hidden="true">
+                  {badgeText(attentionCount)}
+                </b>
+              )}
               <span>Thêm</span>
             </button>
           )}

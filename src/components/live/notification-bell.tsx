@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { AlertTriangle, Bell, Clock, Undo2 } from "lucide-react";
 import type { Counters } from "@/lib/live-contracts";
-import { attentionItems, badgeText } from "@/lib/attention";
+import { attentionItems, badgeText, type AttentionItem } from "@/lib/attention";
 
 const icons = { review: AlertTriangle, refunds: Undo2, closing: Clock };
 
@@ -73,31 +73,38 @@ export function NotificationBell({ counters }: { counters: Counters }) {
               Không có việc nào cần xử lý.
             </p>
           ) : (
-            <ul>
-              {items.map(({ key, count, label, href }) => {
-                const Icon = icons[key];
-                return (
-                  <li key={key}>
-                    <Link
-                      href={href}
-                      className="pn-account-item"
-                      onClick={() => setOpen(false)}
-                    >
-                      <Icon size={16} aria-hidden="true" />
-                      <span>
-                        <b className="tabular-nums">
-                          {count.toLocaleString("vi-VN")}
-                        </b>{" "}
-                        {label}
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
+            <AttentionLinks items={items} onPick={() => setOpen(false)} />
           )}
         </div>
       )}
     </div>
+  );
+}
+
+/** Danh sách việc cần chú ý, dùng ở chuông (topbar) và ngăn "Thêm" trên điện thoại (GB7). */
+export function AttentionLinks({
+  items,
+  onPick,
+}: {
+  items: AttentionItem[];
+  onPick: () => void;
+}) {
+  return (
+    <ul>
+      {items.map(({ key, count, label, href }) => {
+        const Icon = icons[key];
+        return (
+          <li key={key}>
+            <Link href={href} className="pn-account-item" onClick={onPick}>
+              <Icon size={16} aria-hidden="true" />
+              <span>
+                <b className="tabular-nums">{count.toLocaleString("vi-VN")}</b>{" "}
+                {label}
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

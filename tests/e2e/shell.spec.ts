@@ -294,6 +294,51 @@ test("the bell and menu badges show what needs attention (GF2)", async ({
   await expect(page).toHaveURL(/\/admin\/payments$/);
 });
 
+test("phones list what needs attention in the Thêm drawer (GB7)", async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/admin/audit-logs");
+  const bar = page.getByRole("navigation", { name: "Điều hướng nhanh" });
+  // Fixture `counters`: 5 cần đối soát + 1 cần hoàn + 1 chuyến sắp đóng bán.
+  const more = bar.getByRole("button", { name: "Thêm, 7 việc cần chú ý" });
+  await expect(more).toBeVisible();
+  await expect(more.locator(".pn-more-badge")).toHaveText("7");
+  await more.click();
+  const drawer = page.getByRole("dialog", { name: "Điều hướng" });
+  const attention = drawer.getByRole("region", { name: "Cần chú ý" });
+  await expect(attention.getByRole("link")).toHaveText([
+    "5 khoản thu cần đối soát",
+    "1 khoản cần hoàn cho khách",
+    "1 chuyến đóng bán trong 2 giờ",
+  ]);
+  await attention.getByRole("link", { name: /cần hoàn/ }).click();
+  await expect(page).toHaveURL(/\/admin\/payments$/);
+  await expect(drawer).toHaveCount(0);
+
+  // Từ sm đã có chuông ở topbar: ngăn không lặp lại danh sách, nút "Thêm" không có số.
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await expect(more.locator(".pn-more-badge")).toBeHidden();
+  await more.click();
+  await expect(drawer.getByRole("region", { name: "Cần chú ý" })).toBeHidden();
+  await page.keyboard.press("Escape");
+
+  // API cũ không có `counters`: không có mục và không có số.
+  await request.post("http://127.0.0.1:3101/__test/state", {
+    data: { reportsOff: true },
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(
+    bar.getByRole("button", { name: "Thêm", exact: true }),
+  ).toBeVisible();
+  await bar.getByRole("button", { name: "Thêm", exact: true }).click();
+  await expect(drawer.getByRole("region", { name: "Cần chú ý" })).toHaveCount(
+    0,
+  );
+});
+
 test("the bell stays hidden on an API without counters", async ({
   page,
   request,
