@@ -259,3 +259,43 @@ test("the avatar opens an account menu that works by mouse and keyboard", async 
   await menu.getByRole("menuitem", { name: "Đăng xuất" }).click();
   await expect(page).toHaveURL(/\/login$/);
 });
+
+test("scrolling down hides the top bar and bottom nav, scrolling up shows them", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/admin/payments");
+  await expect(
+    page.getByRole("heading", { name: "Sổ thu tài chính", level: 2 }),
+  ).toBeVisible();
+  // Trang thử ít dữ liệu: kéo dài trang để cuộn được.
+  await page.evaluate(() => (document.body.style.minHeight = "4000px"));
+  const topbar = page.locator("header.pn-topbar");
+  const nav = page.getByRole("navigation", { name: "Điều hướng nhanh" });
+  await expect(nav).not.toHaveAttribute("data-hidden");
+
+  await page.mouse.wheel(0, 600);
+  await expect(nav).toHaveAttribute("data-hidden", "true");
+  await expect(topbar).toHaveAttribute("data-hidden", "true");
+  await expect
+    .poll(async () => (await nav.boundingBox())?.y ?? 0)
+    .toBeGreaterThanOrEqual(844);
+
+  await page.mouse.wheel(0, -200);
+  await expect(nav).not.toHaveAttribute("data-hidden");
+  await expect(topbar).not.toHaveAttribute("data-hidden");
+  await expect
+    .poll(async () => (await nav.boundingBox())?.y ?? 9999)
+    .toBeLessThan(844);
+
+  // Đang ẩn mà dùng bàn phím vào thanh thì hiện lại.
+  await page.mouse.wheel(0, 600);
+  await expect(nav).toHaveAttribute("data-hidden", "true");
+  await nav.getByRole("link").first().focus();
+  await expect(nav).not.toHaveAttribute("data-hidden");
+  // Chạm cuối trang: hiện lại để chuyển trang tiếp.
+  await page.mouse.wheel(0, 300);
+  await expect(nav).toHaveAttribute("data-hidden", "true");
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect(nav).not.toHaveAttribute("data-hidden");
+});

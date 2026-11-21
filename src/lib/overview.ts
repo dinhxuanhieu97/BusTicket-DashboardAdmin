@@ -130,3 +130,23 @@ export function shortVnd(value: number) {
   if (value >= 1e6) return { value: f(value / 1e6), unit: "tr ₫" };
   return { value: value.toLocaleString("vi-VN"), unit: "₫" };
 }
+
+const topbarFormat = new Intl.DateTimeFormat("vi-VN", {
+  weekday: "long",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "Asia/Ho_Chi_Minh",
+});
+
+/** Ngày giờ ở thanh trên theo giờ Việt Nam: "Thứ Bảy, 21/11/2026 · 12:08". */
+export function topbarDateTime(d: Date) {
+  const p = Object.fromEntries(
+    topbarFormat.formatToParts(d).map((x) => [x.type, x.value]),
+  );
+  const weekday = p.weekday.charAt(0).toUpperCase() + p.weekday.slice(1);
+  return `${weekday}, ${p.day}/${p.month}/${p.year} · ${p.hour}:${p.minute}`;
+}

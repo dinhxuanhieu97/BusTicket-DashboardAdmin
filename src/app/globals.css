@@ -686,6 +686,11 @@ html[data-sidebar="collapsed"] .pn-sidebar .btn-ghost span {
   top: 0.75rem;
   z-index: 10;
   border-radius: var(--radius-panel);
+  transition: transform 220ms ease;
+}
+/* Cuộn xuống: trượt thanh ra khỏi màn hình (thêm khoảng cách top để không còn mép). */
+.pn-topbar[data-hidden="true"] {
+  transform: translateY(calc(-100% - 1.5rem));
 }
 @media (min-width: 64rem) {
   .pn-topbar {
@@ -762,6 +767,15 @@ html[data-sidebar="collapsed"] .pn-sidebar .btn-ghost span {
 .pn-account-item:disabled {
   @apply cursor-wait opacity-60;
 }
+/* Đăng xuất ở chân thanh bên: nền đỏ nhạt để tách khỏi các mục điều hướng. */
+.btn.pn-logout {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.btn.pn-logout:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 24%, transparent);
+  color: var(--danger);
+}
 .pn-account-danger,
 .pn-account-danger > svg {
   color: var(--danger);
@@ -803,6 +817,16 @@ html[data-sidebar="collapsed"] .pn-sidebar .btn-ghost span {
   gap: 0.25rem;
   padding: 0.5rem;
   border-radius: 1.25rem;
+  transition: transform 220ms ease;
+}
+.pn-bottom-nav[data-hidden="true"] {
+  transform: translateY(calc(100% + 1.5rem + env(safe-area-inset-bottom)));
+}
+@media (prefers-reduced-motion: reduce) {
+  .pn-topbar,
+  .pn-bottom-nav {
+    transition: none;
+  }
 }
 /* Ô chia theo độ dài nhãn (flex-auto), không chia đều: "Tổng quan" vừa khít 1/5 bar ở 390 px
    nên font hơi rộng hơn (Linux CI) hoặc màn 375 px là bị cắt. */
