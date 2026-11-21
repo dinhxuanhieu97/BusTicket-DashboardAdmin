@@ -126,6 +126,19 @@ function dateRange(params: URLSearchParams) {
     );
   return { from, to };
 }
+/** Cột chuyến API cho sắp xếp (T2, `GET /admin/operators/:id/trips?sort=`). */
+export const TRIP_SORTS = [
+  "depart",
+  "code",
+  "name",
+  "route",
+  "vehicle",
+  "available",
+  "capacity",
+  "status",
+] as const;
+export type TripSort = (typeof TRIP_SORTS)[number];
+
 export function readPath(
   resource: Resource,
   operatorId: string,
@@ -134,7 +147,7 @@ export function readPath(
   const allowed: Record<Resource, string[]> = {
     payments: ["review"],
     users: [],
-    trips: ["date", "from", "to", "limit", "cursor", "route"],
+    trips: ["date", "from", "to", "limit", "cursor", "route", "sort", "order"],
     "audit-logs": [],
     "revenue-report": ["from", "to"],
     "bookings-report": ["from", "to"],
@@ -179,6 +192,25 @@ export function readPath(
       if (!/^[A-Z0-9-]{2,32}$/.test(route))
         throw new ApiError(400, "VALIDATION_FAILED", "Mã tuyến không hợp lệ.");
       query.set("route", route);
+    }
+    // T2: sắp xếp toàn khoảng ở API; chỉ chuyển tiếp cột và chiều trong danh sách cho phép.
+    if (params.has("sort") || params.has("order")) {
+      const sort = params.get("sort") ?? "depart";
+      const order = params.get("order") ?? "asc";
+      if (!(TRIP_SORTS as readonly string[]).includes(sort))
+        throw new ApiError(
+          400,
+          "VALIDATION_FAILED",
+          "Cột sắp xếp không hợp lệ.",
+        );
+      if (order !== "asc" && order !== "desc")
+        throw new ApiError(
+          400,
+          "VALIDATION_FAILED",
+          "Chiều sắp xếp không hợp lệ.",
+        );
+      query.set("sort", sort);
+      query.set("order", order);
     }
     const limit = params.get("limit") ?? "25";
     if (!/^\d+$/.test(limit) || Number(limit) < 1 || Number(limit) > 100)

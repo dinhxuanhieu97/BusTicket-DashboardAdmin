@@ -334,3 +334,105 @@ test("table pages do not scroll sideways on a phone", async ({ page }) => {
   await expect(page.getByRole("list", { name: "Thẻ chuyến" })).toBeVisible();
   await noHorizontalOverflow(page);
 });
+
+test("trip columns sort the whole range through the API (T2)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/trips");
+  const table = page.getByRole("region", { name: "Danh sách chuyến" });
+  const header = (name: string) =>
+    table.getByRole("columnheader", { name: new RegExp(name) });
+  // Mặc định: giờ khởi hành tăng dần, không gửi tham số sắp xếp.
+  await expect(header("Khởi hành")).toHaveAttribute("aria-sort", "ascending");
+  const sent = (pattern: RegExp) =>
+    page.waitForRequest(
+      (r) => /\/api\/live\/trips\?/.test(r.url()) && pattern.test(r.url()),
+    );
+
+  let req = sent(/sort=available&order=asc/);
+  await header("Chỗ khả dụng").getByRole("button").click();
+  expect(new URL((await req).url()).searchParams.has("cursor")).toBe(false);
+  await expect(header("Chỗ khả dụng")).toHaveAttribute(
+    "aria-sort",
+    "ascending",
+  );
+  await expect(header("Khởi hành")).toHaveAttribute("aria-sort", "none");
+  req = sent(/sort=available&order=desc/);
+  await header("Chỗ khả dụng").getByRole("button").click();
+  await req;
+  // Lần bấm thứ ba bỏ sắp xếp: quay về thứ tự mặc định của API.
+  req = page.waitForRequest(
+    (r) =>
+      /\/api\/live\/trips\?/.test(r.url()) &&
+      !new URL(r.url()).searchParams.has("sort"),
+  );
+  await header("Chỗ khả dụng").getByRole("button").click();
+  await req;
+  await expect(header("Khởi hành")).toHaveAttribute("aria-sort", "ascending");
+  req = sent(/sort=depart&order=desc/);
+  await header("Khởi hành").getByRole("button").click();
+  await req;
+
+  // Số dòng mỗi trang đi theo `limit`.
+  req = sent(/limit=50/);
+  await page
+    .locator(".pn-table-footer")
+    .getByRole("combobox", { name: "Số dòng" })
+    .selectOption("50");
+  await req;
+  await expect(page.locator(".pn-table-footer")).toContainText(
+    "Tối đa 50 chuyến/trang",
+  );
+  // Thao tác dòng: Chi tiết và Đóng bán.
+  await expect(
+    table.locator("tbody tr").first().getByRole("button"),
+  ).toHaveText(["Chi tiết", "Đóng bán"]);
+});
+
+test("trip sorting falls back to the loaded page on an older API (T2)", async ({
+  page,
+  request,
+}) => {
+  await request.post(`${fixture}/state`, { data: { reportsOff: true } });
+  await withBackTrip(page, false);
+  await page.goto("/admin/trips");
+  const table = page.getByRole("region", { name: "Danh sách chuyến" });
+  const first = table.locator("tbody tr").first();
+  await expect(first).toContainText("Chuyến kiểm thử");
+  await table
+    .getByRole("columnheader", { name: /Chuyến \/ tuyến/ })
+    .getByRole("button")
+    .click();
+  await expect(first).toContainText("Chuyến chiều về");
+  await expect(page.locator(".pn-table-footer")).toContainText(
+    "Sắp xếp trong trang đã tải",
+  );
+});
+
+test("Đóng bán on a trip row asks first and Giữ mở bán changes nothing", async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/trips");
+  const row = page
+    .getByRole("region", { name: "Danh sách chuyến" })
+    .locator("tbody tr")
+    .first();
+  await row.getByRole("button", { name: "Đóng bán" }).click();
+  const dialog = page.getByRole("dialog", { name: "Đóng bán chuyến xe" });
+  await expect(dialog).toContainText("Khách sẽ không đặt được chỗ mới");
+  await dialog.getByRole("button", { name: "Giữ mở bán" }).click();
+  await expect(dialog).toHaveCount(0);
+  const patches = async () =>
+    (await (await request.get(`${fixture}/state`)).json()).requests.filter(
+      (r: { method: string; path: string }) =>
+        r.method === "PATCH" && r.path.endsWith("/status"),
+    );
+  expect(await patches()).toHaveLength(0);
+  await row.getByRole("button", { name: "Đóng bán" }).click();
+  await dialog.getByRole("button", { name: "Xác nhận đóng bán" }).click();
+  await expect(row.getByRole("button", { name: "Mở bán" })).toBeVisible();
+  expect(await patches()).toHaveLength(1);
+});

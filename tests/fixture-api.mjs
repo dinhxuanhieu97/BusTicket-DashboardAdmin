@@ -2190,6 +2190,9 @@ http
     // Backend cũ (`reportsOff`) chưa biết tham số `route` → 400 như schema strict thật.
     if (resource === "trips" && url.searchParams.has("route") && reportsOff)
       return fail(res, 400, "VALIDATION_FAILED", "Unrecognized key: route");
+    // Backend cũ chưa có `sort`/`order` (T2) → 400 như schema strict thật.
+    if (resource === "trips" && url.searchParams.has("sort") && reportsOff)
+      return fail(res, 400, "VALIDATION_FAILED", "Unrecognized key: sort");
     if (resource === "trips")
       return send(res, 200, {
         trips: [

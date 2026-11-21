@@ -150,7 +150,7 @@ export function DataTable<T>({
               );
             })}
             {actions && (
-              <th scope="col" className={thClass + " text-right"}>
+              <th scope="col" data-actions className={thClass + " text-right"}>
                 <span className="sr-only">Thao tác</span>
               </th>
             )}
@@ -170,7 +170,10 @@ export function DataTable<T>({
                 </td>
               ))}
               {actions && (
-                <td className={tdClass + " text-right whitespace-nowrap"}>
+                <td
+                  data-actions
+                  className={tdClass + " text-right whitespace-nowrap"}
+                >
                   {actions(row)}
                 </td>
               )}

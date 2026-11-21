@@ -208,6 +208,18 @@ test("report, counter and search reads map to fixed backend paths with validated
     new URLSearchParams(tripPath.split("?")[1]).get("route"),
     "HCM-DL",
   );
+  // T2: cột và chiều sắp xếp đi tiếp tới API; thiếu chiều thì mặc định tăng dần.
+  const sorted = new URLSearchParams(
+    readPath(
+      "trips",
+      operator,
+      new URLSearchParams("from=2026-11-21&to=2026-11-22&sort=available"),
+    ).split("?")[1],
+  );
+  assert.deepEqual(
+    [sorted.get("sort"), sorted.get("order")],
+    ["available", "asc"],
+  );
   for (const [resource, params] of [
     ["revenue-report", "from=2026-11-22&to=2026-11-22"],
     ["revenue-report", "from=2026-01-01&to=2027-02-01"],
@@ -216,6 +228,9 @@ test("report, counter and search reads map to fixed backend paths with validated
     ["search", "q=a"],
     ["search", `q=${"x".repeat(65)}`],
     ["trips", "from=2026-11-21&to=2026-11-22&route=hcm dl"],
+    ["trips", "from=2026-11-21&to=2026-11-22&sort=price"],
+    ["trips", "from=2026-11-21&to=2026-11-22&sort=name&order=up"],
+    ["trips", "date=2026-11-21&sort=name"],
   ] as const)
     assert.throws(
       () => readPath(resource, operator, new URLSearchParams(params)),
