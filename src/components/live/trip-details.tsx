@@ -175,7 +175,8 @@ function DetailBody({
 
   return (
     <div className="pn-page-stack">
-      <dl className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] rounded-xl border border-line/60 text-sm">
+      {/* Từ sm: cột nhãn rộng theo nhãn dài nhất, không xuống dòng. Điện thoại giữ 9rem để chừa chỗ cho giá trị. */}
+      <dl className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] rounded-xl sm:grid-cols-[max-content_minmax(0,1fr)] border border-line/60 text-sm">
         {[
           [
             "Trạng thái",

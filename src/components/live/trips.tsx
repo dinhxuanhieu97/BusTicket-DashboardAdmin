@@ -236,7 +236,7 @@ export function Trips({
             </div>
           )}
           <div>
-            <label htmlFor="trip-date" className="label mb-1.5">
+            <label htmlFor="trip-date" className="sr-only">
               {period === "day"
                 ? "Ngày khởi hành · Giờ Việt Nam"
                 : period === "month"
