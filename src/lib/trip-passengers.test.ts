@@ -310,3 +310,37 @@ test("GB4: a round-trip ticket shows both legs in Vietnam time; one-way and old 
   assert.equal(roundTripText({ roundTrip: null }), null);
   assert.equal(roundTripText({}), null);
 });
+
+test("passenger sort values: seat, pickup with day offset, due and status order", async () => {
+  const { passengerSortValue } = await import("./trip-passengers");
+  const b = (over: Record<string, unknown>) =>
+    ({
+      seats: [{ code: "A10" }],
+      pickupStop: { name: "Hoài Ân", time: "17:30", day: 0 },
+      dueAmount: 50_000,
+      status: "CONFIRMED",
+      ...over,
+    }) as unknown as Parameters<typeof passengerSortValue>[0];
+  assert.equal(passengerSortValue(b({}), "seat"), "A10");
+  assert.equal(passengerSortValue(b({ seats: [] }), "seat"), null);
+  assert.equal(passengerSortValue(b({}), "pickup"), 17 * 60 + 30);
+  assert.equal(
+    passengerSortValue(
+      b({ pickupStop: { name: "Sài Gòn", time: "04:00", day: 1 } }),
+      "pickup",
+    ),
+    1440 + 240,
+  );
+  assert.equal(passengerSortValue(b({ pickupStop: null }), "pickup"), null);
+  assert.equal(passengerSortValue(b({}), "due"), 50_000);
+  assert.equal(passengerSortValue(b({ status: "CANCELLED" }), "due"), 0);
+  assert.ok(
+    (passengerSortValue(b({ status: "HOLDING" }), "status") as number) <
+      (passengerSortValue(b({ status: "CONFIRMED" }), "status") as number),
+  );
+  assert.ok(
+    (passengerSortValue(b({ status: "COMPLETED" }), "status") as number) <
+      (passengerSortValue(b({ status: "EXPIRED" }), "status") as number),
+  );
+  assert.equal(passengerSortValue(b({}), "unknown"), null);
+});

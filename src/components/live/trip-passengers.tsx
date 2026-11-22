@@ -1,9 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   BusFront,
-  ChevronLeft,
-  ChevronRight,
   Download,
   FileUp,
   Flag,
@@ -26,8 +24,8 @@ import {
   filterPassengers,
   localPhone,
   NO_PICKUP,
-  PAGE_SIZES,
-  paginate,
+  passengerSortLabels,
+  passengerSortValue,
   paymentFilterLabels,
   pickupOptions,
   roundTripText,
@@ -36,7 +34,15 @@ import {
   type AdminPassengerBooking,
   type AdminTripPassengers,
   type PassengerScope,
+  type PassengerSortKey,
 } from "@/lib/trip-passengers";
+import {
+  SortHeader,
+  TableFooter,
+  ariaSort,
+  useTableState,
+  type Column,
+} from "./data-table";
 import { useJson } from "./assigned-trips";
 import { BookingEditDialog } from "./booking-edit-dialog";
 import { PassengerImport } from "./passenger-import";
@@ -58,6 +64,16 @@ const statusTone: Record<string, "success" | "warning" | "neutral" | "info"> = {
   EXPIRED: "neutral",
   CANCELLED: "neutral",
 };
+
+/** Chỉ dùng phần `sortValue` cho `useTableState`; dòng vẫn vẽ bằng `PassengerRow`. */
+const sortColumns: Column<AdminPassengerBooking>[] = (
+  Object.keys(passengerSortLabels) as PassengerSortKey[]
+).map((key) => ({
+  key,
+  header: passengerSortLabels[key],
+  render: () => null,
+  sortValue: (b) => passengerSortValue(b, key),
+}));
 
 const canBoardStatus = (b: AdminPassengerBooking) =>
   b.status === "CONFIRMED" || b.status === "COMPLETED";
@@ -93,8 +109,7 @@ export function TripPassengersSection({
   const [query, setQuery] = useState("");
   const [payment, setPayment] = useState<PaymentFilter>("all");
   const [pickup, setPickup] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<number>(20);
+  const [status, setStatus] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{
     tone: "success" | "danger";
@@ -127,11 +142,26 @@ export function TripPassengersSection({
   }
 
   const pickups = data ? pickupOptions(data.bookings) : [];
-  const filtered = data
-    ? filterBookings(filterPassengers(data.bookings, query), payment, pickup)
+  const filtered = useMemo(
+    () =>
+      data
+        ? filterBookings(
+            filterPassengers(data.bookings, query),
+            payment,
+            pickup,
+          ).filter((b) => !status || b.status === status)
+        : [],
+    [data, query, payment, pickup, status],
+  );
+  const table = useTableState(filtered, sortColumns);
+  const setPage = table.resetPage;
+  const statuses = data
+    ? Object.keys(bookingStatusLabels).filter((s) =>
+        data.bookings.some((b) => b.status === s),
+      )
     : [];
-  const view = paginate(filtered, page, pageSize);
-  const filtering = Boolean(query.trim()) || payment !== "all" || !!pickup;
+  const filtering =
+    Boolean(query.trim()) || payment !== "all" || !!pickup || !!status;
   const collected = data
     ? data.bookings
         .filter((b) => b.status === "CONFIRMED" || b.status === "COMPLETED")
@@ -141,7 +171,8 @@ export function TripPassengersSection({
     setQuery("");
     setPayment("all");
     setPickup("");
-    setPage(1);
+    setStatus("");
+    setPage();
   };
 
   return (
@@ -259,7 +290,7 @@ export function TripPassengersSection({
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
-                setPage(1);
+                setPage();
               }}
               autoComplete="off"
             />
@@ -275,7 +306,7 @@ export function TripPassengersSection({
             value={payment}
             onChange={(e) => {
               setPayment(e.target.value as PaymentFilter);
-              setPage(1);
+              setPage();
             }}
           >
             {(Object.keys(paymentFilterLabels) as PaymentFilter[]).map((k) => (
@@ -295,7 +326,7 @@ export function TripPassengersSection({
             value={pickup}
             onChange={(e) => {
               setPickup(e.target.value);
-              setPage(1);
+              setPage();
             }}
           >
             <option value="">Tất cả điểm đón</option>
@@ -305,6 +336,51 @@ export function TripPassengersSection({
               </option>
             ))}
             <option value={NO_PICKUP}>Chưa chọn điểm đón</option>
+          </select>
+        </div>
+        {statuses.length > 1 && (
+          <div className="min-w-0 max-w-full flex-[0_1_auto] max-sm:flex-[1_1_9rem]">
+            <label htmlFor="passenger-status" className="label mb-1.5">
+              Trạng thái
+            </label>
+            <select
+              id="passenger-status"
+              className="field w-full sm:w-auto"
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                setPage();
+              }}
+            >
+              <option value="">Mọi trạng thái</option>
+              {statuses.map((s) => (
+                <option key={s} value={s}>
+                  {bookingStatusLabels[s]}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="min-w-0 max-w-full flex-[0_1_auto] max-sm:flex-[1_1_9rem] md:hidden">
+          <label htmlFor="passenger-sort" className="label mb-1.5">
+            Sắp xếp
+          </label>
+          <select
+            id="passenger-sort"
+            className="field w-full"
+            value={table.sort ? `${table.sort.key}:${table.sort.dir}` : ""}
+            onChange={(e) => {
+              const [key, dir] = e.target.value.split(":");
+              table.setSort(
+                key ? { key, dir: dir === "desc" ? "desc" : "asc" } : null,
+              );
+            }}
+          >
+            <option value="">Mặc định</option>
+            <option value="seat:asc">Theo chỗ</option>
+            <option value="pickup:asc">Theo giờ đón</option>
+            <option value="due:desc">Còn thu nhiều nhất</option>
+            <option value="status:asc">Theo trạng thái</option>
           </select>
         </div>
         <div
@@ -324,7 +400,7 @@ export function TripPassengersSection({
               aria-pressed={scope === value}
               onClick={() => {
                 setScope(value);
-                setPage(1);
+                setPage();
               }}
             >
               {label}
@@ -406,19 +482,69 @@ export function TripPassengersSection({
           <>
             <TableScroll label="Danh sách hành khách">
               <table className="pn-table w-full border-collapse text-left text-sm md:min-w-[760px]">
-                <thead className="max-md:sr-only">
+                <thead className="max-md:hidden">
                   <tr>
-                    <th className={thClass}>Khách</th>
-                    <th className={thClass}>Đón · Trả</th>
-                    <th className={`${thClass} text-right`}>Thanh toán</th>
-                    <th className={thClass}>Trạng thái</th>
+                    <th
+                      className={thClass}
+                      aria-sort={ariaSort(table.sort, "seat")}
+                    >
+                      <SortHeader
+                        header="Chỗ · Khách"
+                        dir={
+                          table.sort?.key === "seat"
+                            ? table.sort.dir
+                            : undefined
+                        }
+                        onClick={() => table.onSort("seat")}
+                      />
+                    </th>
+                    <th
+                      className={thClass}
+                      aria-sort={ariaSort(table.sort, "pickup")}
+                    >
+                      <SortHeader
+                        header="Đón · Trả"
+                        dir={
+                          table.sort?.key === "pickup"
+                            ? table.sort.dir
+                            : undefined
+                        }
+                        onClick={() => table.onSort("pickup")}
+                      />
+                    </th>
+                    <th
+                      className={`${thClass} text-right`}
+                      aria-sort={ariaSort(table.sort, "due")}
+                    >
+                      <SortHeader
+                        header="Thanh toán"
+                        dir={
+                          table.sort?.key === "due" ? table.sort.dir : undefined
+                        }
+                        onClick={() => table.onSort("due")}
+                      />
+                    </th>
+                    <th
+                      className={thClass}
+                      aria-sort={ariaSort(table.sort, "status")}
+                    >
+                      <SortHeader
+                        header="Trạng thái"
+                        dir={
+                          table.sort?.key === "status"
+                            ? table.sort.dir
+                            : undefined
+                        }
+                        onClick={() => table.onSort("status")}
+                      />
+                    </th>
                     {(canBoard || canCancel || canEdit || canPay) && (
                       <th className={`${thClass} text-right`}>Thao tác</th>
                     )}
                   </tr>
                 </thead>
                 <tbody>
-                  {view.rows.map((b) => (
+                  {table.visible.map((b) => (
                     <PassengerRow
                       key={b.code}
                       booking={b}
@@ -435,59 +561,14 @@ export function TripPassengersSection({
                 </tbody>
               </table>
             </TableScroll>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
-              <p aria-live="polite">
-                {view.from}–{view.to} trên {filtered.length} đơn
-                {filtering ? ` (lọc từ ${data.bookings.length})` : ""}
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-2">
-                  <span>Số dòng</span>
-                  <select
-                    className="field h-8 w-auto py-0 text-xs"
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(Number(e.target.value));
-                      setPage(1);
-                    }}
-                  >
-                    {PAGE_SIZES.map((n) => (
-                      <option key={n} value={n}>
-                        {n} / trang
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {view.pages > 1 && (
-                  <nav
-                    aria-label="Phân trang hành khách"
-                    className="flex items-center gap-1"
-                  >
-                    <button
-                      type="button"
-                      className="btn h-8 px-2 text-xs"
-                      disabled={view.page <= 1}
-                      onClick={() => setPage(view.page - 1)}
-                      aria-label="Trang trước"
-                    >
-                      <ChevronLeft size={14} aria-hidden="true" />
-                    </button>
-                    <span className="px-2 tabular-nums">
-                      Trang {view.page}/{view.pages}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn h-8 px-2 text-xs"
-                      disabled={view.page >= view.pages}
-                      onClick={() => setPage(view.page + 1)}
-                      aria-label="Trang sau"
-                    >
-                      <ChevronRight size={14} aria-hidden="true" />
-                    </button>
-                  </nav>
-                )}
-              </div>
-            </div>
+            <TableFooter
+              info={table.info}
+              noun="đơn"
+              note={filtering ? `lọc từ ${data.bookings.length}` : undefined}
+              setPage={table.setPage}
+              pageSize={table.pageSize}
+              setPageSize={table.setPageSize}
+            />
           </>
         ))}
     </section>

@@ -57,6 +57,11 @@ export function useTableState<T>(
     visible: pageSlice(sorted, info),
     setPage,
     resetPage: () => setPage(1),
+    /** Đặt thẳng cách sắp xếp (ô chọn "Sắp xếp" trên điện thoại). */
+    setSort: (next: Sort) => {
+      setSort(next);
+      setPage(1);
+    },
     pageSize,
     setPageSize: (n: number) => {
       setPageSize(n);
@@ -67,7 +72,13 @@ export function useTableState<T>(
 
 const sortLabel = { asc: "tăng dần", desc: "giảm dần" } as const;
 
-function SortHeader({
+/** Giá trị `aria-sort` cho tiêu đề cột sắp xếp được. */
+export function ariaSort(sort: Sort, key: string) {
+  const dir = sort?.key === key ? sort.dir : undefined;
+  return dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none";
+}
+
+export function SortHeader({
   header,
   dir,
   onClick,
