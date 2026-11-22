@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  salesStats,
+  reportMoney,
+  salesChangeText,
+  cancelPercent,
+  CANCEL_WARN,
   addDays,
   greeting,
   nextDeparture,
@@ -163,5 +168,219 @@ test("topbar date reads day/month/year in Vietnam time", () => {
   assert.equal(
     topbarDateTime(new Date("2027-01-02T17:30:00Z")),
     "Chủ Nhật, 03/01/2027 · 00:30",
+  );
+});
+
+test("sales stats compare today's seats with yesterday and keep the period cancel rate", () => {
+  const day = (date: string, seats: number) => ({
+    date,
+    bookings: seats,
+    cancelled: 0,
+    abandoned: 0,
+    holding: 0,
+    seats,
+  });
+  const r = salesStats(
+    {
+      from: "2026-11-15",
+      to: "2026-11-22",
+      totals: {
+        bookings: 20,
+        cancelled: 2,
+        abandoned: 1,
+        holding: 0,
+        seats: 18,
+        cancelRate: 0.1,
+      },
+      byDay: [day("2026-11-20", 8), day("2026-11-21", 10)],
+    },
+    "2026-11-21",
+  );
+  assert.deepEqual(
+    { ...r, series: r.series.length },
+    {
+      seatsToday: 10,
+      seatsYesterday: 8,
+      roundTripsToday: 0,
+      change: 25,
+      series: 2,
+      cancelRate: 0.1,
+      cancelled: 2,
+      bookings: 20,
+    },
+  );
+  assert.equal(
+    salesStats(
+      {
+        from: "2026-11-21",
+        to: "2026-11-22",
+        totals: {
+          bookings: 3,
+          cancelled: 0,
+          abandoned: 0,
+          holding: 0,
+          seats: 3,
+          cancelRate: null,
+        },
+        byDay: [day("2026-11-21", 3)],
+      },
+      "2026-11-21",
+    ).change,
+    null,
+  );
+});
+
+const report = (
+  byDay: [string, number][],
+  totals: { bookings: number; cancelled: number; cancelRate: number | null },
+) => ({
+  from: "2026-11-15",
+  to: "2026-11-22",
+  totals: { ...totals, abandoned: 0, holding: 0, seats: 0 },
+  byDay: byDay.map(([date, seats]) => ({
+    date,
+    bookings: seats,
+    cancelled: 0,
+    abandoned: 0,
+    holding: 0,
+    seats,
+  })),
+});
+
+test("GF7: no seats yesterday gives no percentage instead of dividing by zero", () => {
+  const r = salesStats(
+    report([["2026-11-21", 4]], { bookings: 4, cancelled: 0, cancelRate: 0 }),
+    "2026-11-21",
+  );
+  assert.equal(r.seatsToday, 4);
+  assert.equal(r.seatsYesterday, 0);
+  assert.equal(r.change, null);
+  assert.equal(salesChangeText(r), "Hôm qua 0 vé");
+});
+
+test("GF7: a day missing from the report counts as zero seats and a drop shows ↓", () => {
+  const r = salesStats(
+    report([["2026-11-20", 8]], { bookings: 8, cancelled: 0, cancelRate: 0 }),
+    "2026-11-21",
+  );
+  assert.equal(r.seatsToday, 0);
+  assert.equal(r.change, -100);
+  assert.equal(salesChangeText(r), "↓ 100% so với hôm qua (8)");
+  const up = salesStats(
+    report(
+      [
+        ["2026-11-20", 3],
+        ["2026-11-21", 4],
+      ],
+      { bookings: 7, cancelled: 0, cancelRate: 0 },
+    ),
+    "2026-11-21",
+  );
+  assert.equal(up.change, 33);
+  assert.equal(salesChangeText(up), "↑ 33% so với hôm qua (3)");
+});
+
+test("GF7: yesterday crosses a month boundary", () => {
+  const r = salesStats(
+    report(
+      [
+        ["2026-11-30", 5],
+        ["2026-12-01", 5],
+      ],
+      { bookings: 10, cancelled: 0, cancelRate: 0 },
+    ),
+    "2026-12-01",
+  );
+  assert.equal(r.seatsYesterday, 5);
+  assert.equal(r.change, 0);
+  assert.equal(salesChangeText(r), "Bằng hôm qua (5)");
+});
+
+test("GF7: cancel rate is shown with one decimal and warns from 10%", () => {
+  assert.equal(cancelPercent(null), null);
+  assert.equal(cancelPercent(0), "0");
+  assert.equal(cancelPercent(0.125), "12,5");
+  assert.equal(cancelPercent(1 / 3), "33,3");
+  assert.equal(cancelPercent(1), "100");
+  assert.equal(CANCEL_WARN, 0.1);
+  const none = salesStats(
+    report([], { bookings: 0, cancelled: 0, cancelRate: null }),
+    "2026-11-21",
+  );
+  assert.equal(none.cancelRate, null);
+  assert.equal(none.bookings, 0);
+});
+
+test("GF8: overview money uses the last report day (today) as net and is always complete", () => {
+  const m = reportMoney(
+    {
+      byDay: [
+        { date: "2026-11-20", net: 200_000 },
+        { date: "2026-11-21", net: -50_000 },
+      ],
+    },
+    5,
+  );
+  assert.deepEqual(m, {
+    today: -50_000,
+    series: [
+      { date: "2026-11-20", amount: 200_000 },
+      { date: "2026-11-21", amount: -50_000 },
+    ],
+    needsReview: 5,
+    complete: true,
+    net: true,
+  });
+  assert.equal(reportMoney({ byDay: [] }, 0).today, 0);
+});
+
+test("GF17: shortVnd keeps the short unit for a negative net", () => {
+  assert.deepEqual(shortVnd(-2_500_000), { value: "-2,5", unit: "tr ₫" });
+  assert.deepEqual(shortVnd(-1_200_000_000), { value: "-1,2", unit: "tỷ ₫" });
+  assert.deepEqual(shortVnd(-50_000), { value: "-50.000", unit: "₫" });
+});
+
+test("GB4: the sales card says how many of today's tickets are round trips", () => {
+  const r = salesStats(
+    {
+      from: "2026-11-20",
+      to: "2026-11-22",
+      totals: {
+        bookings: 3,
+        cancelled: 0,
+        abandoned: 0,
+        holding: 0,
+        seats: 5,
+        roundTrips: 2,
+        cancelRate: 0,
+      },
+      byDay: [
+        {
+          date: "2026-11-20",
+          bookings: 1,
+          cancelled: 0,
+          abandoned: 0,
+          holding: 0,
+          seats: 2,
+        },
+        {
+          date: "2026-11-21",
+          bookings: 2,
+          cancelled: 0,
+          abandoned: 0,
+          holding: 0,
+          seats: 3,
+          roundTrips: 2,
+        },
+      ],
+    },
+    "2026-11-21",
+  );
+  assert.equal(r.roundTripsToday, 2);
+  assert.equal(salesChangeText(r), "↑ 50% so với hôm qua (2) · 2 vé khứ hồi");
+  // API cũ không có `roundTrips`: không ghi gì thêm.
+  assert.equal(
+    salesChangeText({ change: null, seatsYesterday: 1, roundTripsToday: 0 }),
+    "Hôm qua 1 vé",
   );
 });

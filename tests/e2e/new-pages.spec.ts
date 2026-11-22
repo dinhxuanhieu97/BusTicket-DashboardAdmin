@@ -42,9 +42,39 @@ async function noHorizontalOverflow(page: Page) {
   ).toBeLessThanOrEqual(0);
 }
 
-test("revenue sums the fixture payments by period and method", async ({
+test("revenue shows net income, refunds and routes from the report API (GF8, GF16, GF17)", async ({
   page,
 }) => {
+  await page.goto("/admin/revenue");
+  // Fixture `reports/revenue`: hôm nay nhận 630.000 (2 chuyển khoản), hoàn 100.000; hôm qua 200.000 tiền mặt.
+  const total = page.getByRole("region", { name: "Thu thuần 7 ngày" });
+  await expect(total).toContainText("730.000");
+  await expect(page.getByTestId("revenue-refunded")).toHaveText(
+    /^Đã nhận 830\.000\s₫ · đã hoàn 100\.000\s₫$/,
+  );
+  await expect(
+    page.getByRole("region", { name: "Số khoản thu" }),
+  ).toContainText("3");
+  await expect(page.getByText(/200 khoản thu gần nhất/)).toHaveCount(0);
+  const routes = page.getByRole("list", { name: "Doanh thu theo tuyến" });
+  await expect(routes.getByRole("listitem")).toHaveCount(1);
+  await expect(routes).toContainText("TP. Hồ Chí Minh → Đà Lạt");
+  await expect(routes).toContainText("430.000");
+  await expect(routes).toContainText("2 đơn trả tiền · đã hoàn 100.000");
+  await expect(page.getByTestId("revenue-unallocated")).toContainText(
+    "100.000",
+  );
+  // Bảng ẩn cho trình đọc màn hình: ngày cuối là thu thuần hôm nay.
+  const table = page.locator("[data-area-chart] table");
+  await expect(table.locator("tbody tr")).toHaveCount(7);
+  await expect(table.locator("tbody tr").last()).toContainText("530.000");
+});
+
+test("revenue falls back to summing the payment list on an API without reports", async ({
+  page,
+  request,
+}) => {
+  await request.post(`${fixture}/state`, { data: { reportsOff: true } });
   await page.goto("/admin/revenue");
   await expect(
     page.getByRole("heading", { name: "Doanh thu", level: 1 }),
@@ -80,7 +110,9 @@ test("revenue sums the fixture payments by period and method", async ({
 
 test("revenue warns when the payment list hits the 200 cap", async ({
   page,
+  request,
 }) => {
+  await request.post(`${fixture}/state`, { data: { reportsOff: true } });
   await page.route("**/api/live/payments", async (route) => {
     const response = await route.fetch();
     const body = await response.json();
@@ -116,6 +148,17 @@ test("seat map: picking a seat shows its booking and opens the counter sale", as
   await expect(
     panel.getByRole("link", { name: "Xem khách của chuyến" }),
   ).toBeVisible();
+
+  // Chỗ đã đặt có nền xám riêng, khác xanh "Còn trống" (đề xuất 22/11).
+  const booked = page.getByRole("button", { name: /· Đã đặt$/ }).first();
+  await expect(booked).toHaveAttribute("data-tone", "booked");
+  const bookedBg = await booked.evaluate(
+    (el) => getComputedStyle(el).backgroundColor,
+  );
+  expect(bookedBg).toMatch(/^rgba\(206, 206, 206, 0\.41\d*\)$/);
+  await expect(
+    page.getByRole("button", { name: "A1 · Còn trống" }),
+  ).not.toHaveCSS("background-color", bookedBg);
 
   await page.getByRole("button", { name: "B2 · Không bán" }).click();
   await expect(panel.getByRole("button", { name: "Bán tại quầy" })).toHaveCount(

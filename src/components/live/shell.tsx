@@ -3,7 +3,7 @@ import { BrandMark } from "./brand";
 import { logoUrl } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { createPortal } from "react-dom";
 import { nextScrollChrome } from "@/lib/scroll-chrome";
 import { topbarDateTime } from "@/lib/overview";
@@ -31,7 +31,7 @@ import {
   LifeBuoy,
   TrendingUp,
 } from "lucide-react";
-import { roleLabels, type AppUser } from "@/lib/live-contracts";
+import { roleLabels, type AppUser, type Counters } from "@/lib/live-contracts";
 import {
   groupNav,
   mobileNav,
@@ -45,6 +45,19 @@ import { AccountMenu } from "./account-menu";
 import { Modal } from "../modal";
 import { LoadState } from "./shared";
 import { CommandPalette } from "./command-palette";
+import { AttentionLinks, NotificationBell } from "./notification-bell";
+import { useResource } from "./use-resource";
+import {
+  ATTENTION_SEEN_KEY,
+  attentionItems,
+  badgeText,
+  markAllSeen,
+  navBadges,
+  parseSeen,
+  settleSeen,
+  unreadCount,
+  type AttentionSeen,
+} from "@/lib/attention";
 
 const icons: Record<NavKey, typeof LayoutDashboard> = {
   assigned: ClipboardList,
@@ -83,6 +96,50 @@ export function LiveShell({
       icon: icons[i.key],
     }));
   const canReadProfile = granted?.includes("policy.read") ?? true;
+  const canReadTrips = granted?.includes("trip.read") ?? true;
+  // Chuông + số trên menu (GF2). Backend cũ chưa có `counters` thì lỗi → ẩn chuông, không báo lỗi.
+  const counters = useResource<Counters>(canReadTrips ? "counters" : null);
+  const firstPath = useRef(true);
+  const reloadCounters = counters.reload;
+  useEffect(() => {
+    if (firstPath.current) {
+      firstPath.current = false;
+      return;
+    }
+    reloadCounters();
+    // Tải lại khi đổi trang (vd. vừa xử lý xong khoản thu); `reload` đổi mỗi lần render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path]);
+  const badges = navBadges(counters.data);
+  // Điện thoại không có chuông (GB7): việc cần chú ý nằm đầu ngăn "Thêm", tổng số hiện trên nút "Thêm".
+  const attention = counters.data ? attentionItems(counters.data) : [];
+  // "Đánh dấu đã đọc tất cả": huy hiệu chỉ đếm việc mới; mốc lưu trên máy người xem.
+  const [seen, setSeen] = useState<AttentionSeen>({});
+  useEffect(() => {
+    try {
+      setSeen(parseSeen(localStorage.getItem(ATTENTION_SEEN_KEY)));
+    } catch {
+      /* Không đọc được bộ nhớ trình duyệt: coi như chưa đọc. */
+    }
+  }, []);
+  const saveSeen = (next: AttentionSeen) => {
+    setSeen(next);
+    try {
+      localStorage.setItem(ATTENTION_SEEN_KEY, JSON.stringify(next));
+    } catch {
+      /* Chỉ mất mốc đã đọc khi tải lại trang. */
+    }
+  };
+  const attentionKey = JSON.stringify(attention);
+  useEffect(() => {
+    if (!counters.data) return;
+    const next = settleSeen(attention, seen);
+    if (next !== seen) saveSeen(next);
+    // Chỉ chạy khi số việc đổi.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attentionKey, seen]);
+  const attentionCount = unreadCount(attention, seen);
+  const markAttentionRead = () => saveSeen(markAllSeen(attention));
   const permissionKey = JSON.stringify(permissions ?? null);
   const [operatorName, setOperatorName] = useState("Nhà xe");
   const [operatorLogo, setOperatorLogo] = useState<string | null>(null);
@@ -347,19 +404,33 @@ export function LiveShell({
         {sidebarGroups(groups).map(({ id, title, items: group }) => (
           <div key={id} className="space-y-1">
             <p className="pn-nav-group">{title}</p>
-            {group.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                onClick={() => setMenu(false)}
-                aria-current={path === href ? "page" : undefined}
-                aria-label={label}
-                className="pn-nav-link"
-              >
-                <Icon size={18} className="shrink-0" aria-hidden="true" />
-                <span className="pn-sidebar-text">{label}</span>
-              </Link>
-            ))}
+            {group.map(({ key, href, label, icon: Icon }) => {
+              const badge = badges[key] ?? 0;
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setMenu(false)}
+                  aria-current={path === href ? "page" : undefined}
+                  aria-label={label}
+                  aria-description={
+                    badge
+                      ? `${badge} ${key === "trips" ? "chuyến đóng bán trong 2 giờ" : "khoản cần đối soát"}`
+                      : undefined
+                  }
+                  data-badge={badge || undefined}
+                  className="pn-nav-link"
+                >
+                  <Icon size={18} className="shrink-0" aria-hidden="true" />
+                  <span className="pn-sidebar-text">{label}</span>
+                  {badge > 0 && (
+                    <span className="pn-nav-badge" aria-hidden="true">
+                      {badgeText(badge)}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
           </div>
         ))}
       </nav>
@@ -442,12 +513,33 @@ export function LiveShell({
         )}
       {menu && (
         <Modal drawer title="Điều hướng" onClose={() => setMenu(false)}>
+          {attention.length > 0 && (
+            <section
+              aria-label="Cần chú ý"
+              className="pn-drawer-attention mx-3 mt-3 rounded-2xl border border-line sm:hidden"
+            >
+              <p className="px-3 pt-2 pb-1 text-xs font-semibold tracking-[0.1em] text-faint uppercase">
+                Cần chú ý
+              </p>
+              <AttentionLinks items={attention} onPick={() => setMenu(false)} />
+              {attentionCount > 0 && (
+                <button
+                  type="button"
+                  className="pn-mark-read"
+                  onClick={markAttentionRead}
+                >
+                  Đánh dấu đã đọc tất cả
+                </button>
+              )}
+            </section>
+          )}
           {navigation}
         </Modal>
       )}
       {palette && (
         <CommandPalette
           items={paletteItems}
+          searchData={granted?.includes("trip.read") ?? true}
           onClose={() => setPalette(false)}
         />
       )}
@@ -483,7 +575,11 @@ export function LiveShell({
           onClick={() => setPalette(true)}
         >
           <Search size={17} aria-hidden="true" />
-          <span className="flex-1 text-left">Tìm trang…</span>
+          <span className="flex-1 text-left">
+            {(granted?.includes("trip.read") ?? true)
+              ? "Tìm trang, vé, chuyến…"
+              : "Tìm trang…"}
+          </span>
           <kbd className="pn-kbd font-sans">⌘K</kbd>
         </button>
         <button
@@ -522,6 +618,13 @@ export function LiveShell({
             <Plus size={17} aria-hidden="true" />
             <span className="hidden sm:inline">Tạo chuyến</span>
           </Link>
+        )}
+        {counters.data && (
+          <NotificationBell
+            items={attention}
+            unread={attentionCount}
+            onMarkRead={markAttentionRead}
+          />
         )}
         <AccountMenu
           name={accountName}
@@ -571,9 +674,20 @@ export function LiveShell({
             <button
               type="button"
               aria-haspopup="dialog"
+              aria-label={
+                attentionCount
+                  ? `Thêm, ${attentionCount.toLocaleString("vi-VN")} việc mới cần chú ý`
+                  : undefined
+              }
+              className="relative"
               onClick={() => setMenu(true)}
             >
               <MoreHorizontal size={19} aria-hidden="true" />
+              {attentionCount > 0 && (
+                <b className="pn-bell-badge pn-more-badge" aria-hidden="true">
+                  {badgeText(attentionCount)}
+                </b>
+              )}
               <span>Thêm</span>
             </button>
           )}
