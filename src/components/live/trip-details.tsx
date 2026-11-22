@@ -25,7 +25,7 @@ import { Bus, Users } from "lucide-react";
 export const seatTone = {
   AVAILABLE: "success",
   HELD: "warning",
-  BOOKED: "info",
+  BOOKED: "booked",
   BLOCKED: "neutral",
 } as const satisfies Record<SeatStatus, string>;
 

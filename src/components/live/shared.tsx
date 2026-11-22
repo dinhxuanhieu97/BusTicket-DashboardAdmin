@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
-type Tone = "neutral" | "info" | "success" | "warning" | "danger";
+/** `booked` chỉ dùng cho ghế đã đặt (nền xám, tách khỏi xanh "Còn trống"). */
+type Tone = "neutral" | "info" | "success" | "warning" | "danger" | "booked";
 
 export function Notice({
   tone = "info",

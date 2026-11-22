@@ -478,6 +478,11 @@ fieldset:disabled button {
     --tone-fg: var(--accent);
     --tone-bg: var(--accent-glow);
   }
+  /* Ghế đã đặt: nền xám trong mờ (đề xuất 22/11) để không lẫn với xanh "Còn trống". */
+  .pn-tone[data-tone="booked"] {
+    --tone-fg: var(--text);
+    --tone-bg: #cecece69;
+  }
   .pn-badge {
     @apply inline-flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold leading-none;
   }
