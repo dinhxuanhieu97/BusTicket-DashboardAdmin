@@ -15,6 +15,11 @@ test("groups actions by prefix; unknown prefixes go to Khác", () => {
   assert.equal(auditGroup("user.update"), "user");
   assert.equal(auditGroup("vehicle.create"), "fleet");
   assert.equal(auditGroup("route.stops.update"), "fleet");
+  assert.equal(auditGroup("schedule.generate"), "trip");
+  assert.equal(auditGroup("passenger.list.view"), "trip");
+  assert.equal(auditGroup("payment_account.configure"), "payment");
+  assert.equal(auditGroup("refund.resolve"), "payment");
+  assert.equal(auditGroup("owner.password_reset"), "user");
   assert.equal(auditGroup("policy.update"), "other");
   assert.equal(auditGroup("tripx.create"), "other");
 });

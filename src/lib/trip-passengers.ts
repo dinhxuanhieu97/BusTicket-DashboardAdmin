@@ -292,3 +292,51 @@ export function seatSummary(b: Pick<AdminPassengerBooking, "seats">) {
   const [first, ...rest] = b.seats;
   return first ? first.code + (rest.length ? ` +${rest.length}` : "") : "—";
 }
+
+/** Cột sắp xếp được của danh sách khách (T3). */
+export const passengerSortLabels = {
+  seat: "Chỗ",
+  pickup: "Giờ đón",
+  due: "Còn thu",
+  status: "Trạng thái",
+} as const;
+export type PassengerSortKey = keyof typeof passengerSortLabels;
+
+/** Thứ tự trạng thái khi sắp xếp: việc cần làm (đang giữ) lên trước, đơn hết hiệu lực xuống cuối. */
+const statusOrder: Record<string, number> = {
+  HOLDING: 0,
+  CONFIRMED: 1,
+  COMPLETED: 2,
+  CANCELLED: 3,
+  EXPIRED: 4,
+};
+
+/**
+ * Giá trị sắp xếp của một đơn. Chỗ theo chỗ đầu tiên (so số tự nhiên: A2 < A10); giờ đón tính cả ngày lệch;
+ * đơn chưa chọn điểm đón trả `null` để luôn nằm cuối; còn thu của đơn đã hủy/hết hạn là 0.
+ */
+export function passengerSortValue(
+  b: Pick<
+    AdminPassengerBooking,
+    "seats" | "pickupStop" | "dueAmount" | "status"
+  >,
+  key: string,
+): string | number | null {
+  switch (key) {
+    case "seat":
+      return b.seats[0]?.code ?? null;
+    case "pickup": {
+      if (!b.pickupStop) return null;
+      const [h, m] = b.pickupStop.time.split(":").map(Number);
+      return (b.pickupStop.day ?? 0) * 1440 + h * 60 + m;
+    }
+    case "due":
+      return b.status === "CANCELLED" || b.status === "EXPIRED"
+        ? 0
+        : b.dueAmount;
+    case "status":
+      return statusOrder[b.status] ?? 9;
+    default:
+      return null;
+  }
+}

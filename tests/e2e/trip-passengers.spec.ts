@@ -52,10 +52,66 @@ test("filters by money due and pickup stop, then clears every filter", async ({
   await section.getByLabel("Điểm đón").selectOption("Bến xe Miền Đông");
   await expect(rows).toHaveCount(1);
   await expect(rows).toHaveAttribute("data-booking", "TESTA1");
-  await expect(section.getByText("1–1 trên 1 đơn (lọc từ 3)")).toBeVisible();
+  await expect(section.getByText("1–1 trên 1 đơn · lọc từ 3")).toBeVisible();
   await section.getByRole("button", { name: "Xoá lọc" }).click();
   await expect(rows).toHaveCount(3);
   await expect(section.getByRole("button", { name: "Xoá lọc" })).toHaveCount(0);
+});
+
+test("sorts by seat, money due and status, and filters by booking status (T3)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const section = await openPassengers(page);
+  const list = section.getByRole("region", { name: "Danh sách hành khách" });
+  const codes = () =>
+    list
+      .locator("tbody tr")
+      .evaluateAll((rows) => rows.map((r) => r.getAttribute("data-booking")));
+  await expect.poll(codes).toEqual(["TESTA1", "TESTH1", "TESTE1"]);
+  await expect(section.getByText("1–3 trên 3 đơn")).toBeVisible();
+
+  await list.getByRole("button", { name: /Chỗ · Khách/ }).click();
+  await list.getByRole("button", { name: /Chỗ · Khách/ }).click();
+  await expect(
+    list.getByRole("columnheader", { name: /Chỗ · Khách/ }),
+  ).toHaveAttribute("aria-sort", "descending");
+  await expect.poll(codes).toEqual(["TESTE1", "TESTH1", "TESTA1"]);
+
+  // Còn thu tăng dần: đã trả đủ (0) trước.
+  await list.getByRole("button", { name: /Thanh toán/ }).click();
+  await expect.poll(codes).toEqual(["TESTE1", "TESTH1", "TESTA1"]);
+  await list.getByRole("button", { name: /Thanh toán/ }).click();
+  await expect.poll(codes).toEqual(["TESTA1", "TESTH1", "TESTE1"]);
+
+  // Trạng thái: đơn đang giữ chỗ (việc cần làm) lên đầu.
+  await list.getByRole("button", { name: /Trạng thái/ }).click();
+  await expect.poll(codes).toEqual(["TESTH1", "TESTA1", "TESTE1"]);
+
+  await section
+    .getByLabel("Trạng thái", { exact: true })
+    .selectOption("HOLDING");
+  await expect.poll(codes).toEqual(["TESTH1"]);
+  await expect(section.getByText("1–1 trên 1 đơn · lọc từ 3")).toBeVisible();
+  await section.getByRole("button", { name: "Xoá lọc" }).click();
+  await expect.poll(codes).toHaveLength(3);
+});
+
+test("on a phone, sorting uses a select instead of hidden column headers", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  const section = await openPassengers(page);
+  const list = section.getByRole("region", { name: "Danh sách hành khách" });
+  await expect(list.locator("thead")).toBeHidden();
+  const codes = () =>
+    list
+      .locator("tbody tr")
+      .evaluateAll((rows) => rows.map((r) => r.getAttribute("data-booking")));
+  await section.getByLabel("Sắp xếp").selectOption("status:asc");
+  await expect.poll(codes).toEqual(["TESTH1", "TESTA1", "TESTE1"]);
+  await section.getByLabel("Sắp xếp").selectOption("seat:asc");
+  await expect.poll(codes).toEqual(["TESTA1", "TESTH1", "TESTE1"]);
 });
 
 test("on a phone the list fits the screen without horizontal scrolling", async ({
