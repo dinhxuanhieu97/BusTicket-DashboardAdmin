@@ -478,3 +478,37 @@ test("⌘K says when the search limit is hit instead of showing no results (GB8)
   ).toBeVisible();
   await expect(palette.getByText(/Không có kết quả nào khớp/)).toHaveCount(0);
 });
+
+test("pages fade in on navigation and seats grow on hover, unless motion is reduced", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin");
+  const enter = page.locator("main#main > .pn-page-enter");
+  await expect(enter).toHaveCount(1);
+  await expect(enter).toHaveCSS("animation-name", "pn-page-in");
+
+  // Đổi trang bằng thanh bên: template gắn lại, hiệu ứng chạy lại.
+  const before = await enter.elementHandle();
+  await page
+    .getByRole("navigation", { name: "Điều hướng quản trị" })
+    .getByRole("link", { name: "Sơ đồ chỗ" })
+    .click();
+  await expect(page).toHaveURL(/\/admin\/seats/);
+  await expect
+    .poll(() => enter.evaluate((el, old) => el !== old, before))
+    .toBe(true);
+  // Hết hiệu ứng thì không còn translate trên lớp bọc.
+  await expect(enter).toHaveCSS("translate", "none");
+
+  const seat = page.getByRole("button", { name: "A1 · Còn trống" });
+  await expect(seat).toHaveCSS("scale", "none");
+  await seat.hover();
+  await expect(seat).toHaveCSS("scale", "1.04");
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.reload();
+  await expect(enter).toHaveCSS("animation-name", "none");
+  await seat.hover();
+  await expect(seat).toHaveCSS("transition-duration", "0s");
+});
