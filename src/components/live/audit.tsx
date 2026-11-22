@@ -33,11 +33,12 @@ import {
 } from "lucide-react";
 
 function actionIcon(action: string): LucideIcon {
-  if (action.startsWith("trip.")) return Bus;
-  if (action.startsWith("payment.")) return Wallet;
-  if (action.startsWith("user.")) return User;
   if (action.startsWith("vehicle.")) return Warehouse;
   if (action.startsWith("route.")) return Route;
+  const group = auditGroup(action);
+  if (group === "trip") return Bus;
+  if (group === "payment") return Wallet;
+  if (group === "user") return User;
   return FileText;
 }
 
@@ -58,6 +59,37 @@ const labels: Record<string, string> = {
   "payment.manual": "Ghi nhận tiền thủ công",
   "payment.allocate": "Phân bổ tiền",
   "payment.resolve": "Xử lý khoản cần kiểm tra",
+  // T5b: mọi mã backend đang ghi (rà `apps/api/src` ngày 22/11).
+  "booking.create_staff": "Bán vé tại quầy",
+  "booking.edit_staff": "Sửa đơn vé",
+  "booking.cancel_staff": "Hủy đơn vé",
+  "booking.reinstate": "Khôi phục đơn vé",
+  "booking.import": "Nhập danh sách khách",
+  "booking.board": "Xác nhận khách lên xe",
+  "booking.unboard": "Bỏ xác nhận lên xe",
+  "booking.board_import": "Nhập danh sách lên xe",
+  "passenger.list.view": "Xem danh sách khách",
+  "passenger.list.export": "Xuất danh sách khách",
+  "schedule.create": "Tạo lịch tự động",
+  "schedule.generate": "Tạo chuyến từ lịch",
+  "schedule.exception": "Thêm ngày ngoại lệ cho lịch",
+  "schedule.pause": "Tạm dừng lịch",
+  "schedule.enable": "Bật lại lịch",
+  "trip.assistant.assign": "Phân công phụ xe",
+  "trip.assistant.unassign": "Bỏ phân công phụ xe",
+  "payment.record_manual": "Ghi nhận tiền thủ công",
+  "payment_account.configure": "Cấu hình tài khoản nhận tiền",
+  "refund.resolve": "Xử lý khoản hoàn tiền",
+  "user.archive": "Xóa nhân viên",
+  "user.password_reset": "Đặt lại mật khẩu nhân viên",
+  "user.mfa_disable": "Tắt 2FA",
+  "owner.password_reset": "Đặt mật khẩu tạm cho chủ xe",
+  "vehicle.delete": "Xóa xe",
+  "route.delete": "Xóa tuyến",
+  "route.pair.create": "Tạo tuyến đi và về",
+  "route.place.rename": "Đổi tên điểm",
+  "operator.logo.update": "Đổi logo nhà xe",
+  "operator.logo.delete": "Xóa logo nhà xe",
 };
 
 function getActionColor(action: string) {

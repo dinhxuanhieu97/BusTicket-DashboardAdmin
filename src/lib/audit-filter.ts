@@ -2,7 +2,7 @@ import { vnDateOf } from "./live-contracts";
 
 /** Nhóm thao tác để lọc nhật ký (T5). */
 export const auditGroups = {
-  trip: "Chuyến",
+  trip: "Chuyến và vé",
   payment: "Thanh toán",
   user: "Nhân viên",
   fleet: "Xe và tuyến",
@@ -12,9 +12,20 @@ export type AuditGroup = keyof typeof auditGroups;
 
 export function auditGroup(action: string): AuditGroup {
   const prefix = action.split(".")[0];
-  if (prefix === "trip" || prefix === "booking") return "trip";
-  if (prefix === "payment") return "payment";
-  if (prefix === "user") return "user";
+  if (
+    prefix === "trip" ||
+    prefix === "booking" ||
+    prefix === "schedule" ||
+    prefix === "passenger"
+  )
+    return "trip";
+  if (
+    prefix === "payment" ||
+    prefix === "payment_account" ||
+    prefix === "refund"
+  )
+    return "payment";
+  if (prefix === "user" || prefix === "owner") return "user";
   if (prefix === "vehicle" || prefix === "route") return "fleet";
   return "other";
 }
