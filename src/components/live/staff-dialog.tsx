@@ -10,27 +10,58 @@ import {
 import { Notice } from "./shared";
 
 export type StaffAction =
-  { kind: "create" } | { kind: "edit" | "delete"; user: StaffUser };
+  | { kind: "create" }
+  | { kind: "edit" | "delete" | "lock" | "unlock"; user: StaffUser };
+
+/** Hộp chỉ hỏi xác nhận (không có ô nhập). */
+const confirmCopy = {
+  delete: {
+    title: "Xóa nhân viên",
+    submit: "Xác nhận xóa",
+    tone: "danger",
+    body: "sẽ bị ẩn khỏi danh sách và không thể đăng nhập.",
+  },
+  lock: {
+    title: "Khóa nhân viên",
+    submit: "Xác nhận khóa",
+    tone: "danger",
+    body: "sẽ không đăng nhập được cho tới khi được mở khóa. Dữ liệu và lịch sử thao tác vẫn giữ nguyên.",
+  },
+  unlock: {
+    title: "Mở khóa nhân viên",
+    submit: "Xác nhận mở khóa",
+    tone: undefined,
+    body: "sẽ đăng nhập lại được với mật khẩu hiện có.",
+  },
+} as const;
 
 export function StaffDialog({
   action,
   viewerId,
   onClose,
   onSave,
+  onDelete,
 }: {
   action: StaffAction;
   viewerId: string;
   onClose: () => void;
   onSave: (fields: Record<string, string>) => Promise<void>;
+  /** Hộp Chi tiết: chuyển sang hộp xác nhận xóa. */
+  onDelete?: () => void;
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const submitting = useRef(false);
   const user = action.kind === "create" ? undefined : action.user;
   const self = user?.id.toLowerCase() === viewerId.toLowerCase();
-  const deleting = action.kind === "delete";
-  const title = deleting
-    ? "Xóa nhân viên"
+  const confirm =
+    action.kind === "delete" ||
+    action.kind === "lock" ||
+    action.kind === "unlock"
+      ? confirmCopy[action.kind]
+      : null;
+  const title = confirm
+    ? confirm.title
     : user
       ? "Sửa nhân viên"
       : "Thêm nhân viên";
@@ -55,7 +86,7 @@ export function StaffDialog({
       setError("Vui lòng nhập số điện thoại.");
       return;
     }
-    if (user && !deleting && !Object.keys(fields).length) {
+    if (user && !confirm && !Object.keys(fields).length) {
       setError("Chưa có thay đổi để lưu.");
       return;
     }
@@ -84,10 +115,10 @@ export function StaffDialog({
   return (
     <Modal title={title} onClose={close}>
       <form onSubmit={submit} aria-busy={pending} className="space-y-4">
-        {deleting ? (
+        {confirm ? (
           <p className="text-sm text-muted wrap-anywhere">
-            Tài khoản <strong className="text-ink">{user?.fullName}</strong> sẽ
-            bị ẩn khỏi danh sách và không thể đăng nhập.
+            Tài khoản <strong className="text-ink">{user?.fullName}</strong>{" "}
+            {confirm.body}
           </p>
         ) : (
           <fieldset
@@ -191,6 +222,17 @@ export function StaffDialog({
         )}
         {error && <Notice tone="danger">{error}</Notice>}
         <div className="flex flex-wrap justify-end gap-2">
+          {action.kind === "edit" && !self && onDelete && (
+            <button
+              type="button"
+              className="btn pn-tone mr-auto"
+              data-tone="danger"
+              disabled={pending}
+              onClick={onDelete}
+            >
+              Xóa nhân viên
+            </button>
+          )}
           <button
             type="button"
             className="btn"
@@ -201,14 +243,14 @@ export function StaffDialog({
           </button>
           <button
             type="submit"
-            className={deleting ? "btn pn-tone" : "btn btn-primary"}
-            data-tone={deleting ? "danger" : undefined}
+            className={confirm?.tone ? "btn pn-tone" : "btn btn-primary"}
+            data-tone={confirm?.tone}
             disabled={pending}
           >
             {pending
               ? "Đang xử lý…"
-              : deleting
-                ? "Xác nhận xóa"
+              : confirm
+                ? confirm.submit
                 : user
                   ? "Lưu thay đổi"
                   : "Tạo tài khoản"}

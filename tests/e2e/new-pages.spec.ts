@@ -149,6 +149,17 @@ test("seat map: picking a seat shows its booking and opens the counter sale", as
     panel.getByRole("link", { name: "Xem khách của chuyến" }),
   ).toBeVisible();
 
+  // Chỗ đã đặt có nền xám riêng, khác xanh "Còn trống" (đề xuất 22/11).
+  const booked = page.getByRole("button", { name: /· Đã đặt$/ }).first();
+  await expect(booked).toHaveAttribute("data-tone", "booked");
+  const bookedBg = await booked.evaluate(
+    (el) => getComputedStyle(el).backgroundColor,
+  );
+  expect(bookedBg).toMatch(/^rgba\(206, 206, 206, 0\.41\d*\)$/);
+  await expect(
+    page.getByRole("button", { name: "A1 · Còn trống" }),
+  ).not.toHaveCSS("background-color", bookedBg);
+
   await page.getByRole("button", { name: "B2 · Không bán" }).click();
   await expect(panel.getByRole("button", { name: "Bán tại quầy" })).toHaveCount(
     0,
