@@ -7,7 +7,12 @@ import {
   assertSignedInSession,
 } from "./access-policy";
 import type { Session } from "./live-contracts";
-import { randomTemporaryPassword, temporaryPasswordInput } from "./platform";
+import {
+  createOperatorInput,
+  createOwnerInput,
+  randomTemporaryPassword,
+  temporaryPasswordInput,
+} from "./platform";
 
 const owner: Session = {
   scope: "full",
@@ -69,4 +74,45 @@ test("temporary password input is strict and random passwords avoid look-alike c
   const pw = randomTemporaryPassword();
   assert.equal(pw.length, 16);
   assert.match(pw, /^[a-km-np-zA-HJ-NP-Z2-9]{16}$/);
+});
+
+test("operator code is 2–4 uppercase letters (prefix of booking and vehicle codes)", () => {
+  for (const code of ["VHA", "PN", "ABCD"])
+    assert.equal(
+      createOperatorInput.safeParse({ code, name: "Nhà xe" }).success,
+      true,
+      code,
+    );
+  for (const code of ["VHA01", "vha", "A", "ABCDE", "VH-A", ""])
+    assert.equal(
+      createOperatorInput.safeParse({ code, name: "Nhà xe" }).success,
+      false,
+      code,
+    );
+  assert.equal(
+    createOperatorInput.safeParse({ code: "VHA", name: "  " }).success,
+    false,
+  );
+  assert.equal(
+    createOperatorInput.safeParse({ code: "VHA", name: "X", extra: 1 }).success,
+    false,
+  );
+});
+
+test("owner creation never accepts a client-chosen password or role", () => {
+  const base = { fullName: "Chủ", phone: "0909", adminPassword: "x" };
+  assert.equal(createOwnerInput.safeParse(base).success, true);
+  assert.equal(
+    createOwnerInput.safeParse({ ...base, password: "Client-Pass-123" })
+      .success,
+    false,
+  );
+  assert.equal(
+    createOwnerInput.safeParse({ ...base, role: "PLATFORM_ADMIN" }).success,
+    false,
+  );
+  assert.equal(
+    createOwnerInput.safeParse({ ...base, otp: "12345" }).success,
+    false,
+  );
 });
