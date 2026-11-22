@@ -110,14 +110,19 @@ test("owner adds pickup points in any order; saving sorts them, flags duplicates
   );
 
   // Bỏ điểm có tên phải xác nhận; "Giữ điểm" không bỏ gì.
-  await dialog.getByRole("button", { name: "Bỏ điểm phù mỹ" }).click();
+  await dialog
+    .getByRole("button", { name: "Bỏ điểm phù mỹ", exact: true })
+    .click();
   const confirm = dialog.getByRole("group", {
-    name: "Xác nhận bỏ điểm phù  mỹ",
+    name: "Xác nhận bỏ điểm phù mỹ",
+    exact: true,
   });
   await expect(confirm).toContainText("Bỏ điểm đón “phù  mỹ”?");
   await confirm.getByRole("button", { name: "Giữ điểm" }).click();
   await expect(pickupRow(3).getByLabel("Tên điểm")).toHaveValue("  phù  mỹ ");
-  await dialog.getByRole("button", { name: "Bỏ điểm phù mỹ" }).click();
+  await dialog
+    .getByRole("button", { name: "Bỏ điểm phù mỹ", exact: true })
+    .click();
   await confirm.getByRole("button", { name: "Bỏ điểm này" }).click();
   await expect(
     dialog.locator("fieldset").first().locator(".pn-form-grid"),
