@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
-type Tone = "neutral" | "info" | "success" | "warning" | "danger";
+/** `booked` chỉ dùng cho ghế đã đặt (nền xám, tách khỏi xanh "Còn trống"). */
+type Tone = "neutral" | "info" | "success" | "warning" | "danger" | "booked";
 
 export function Notice({
   tone = "info",
@@ -186,3 +187,22 @@ export const thClass =
   "pn-panel-inline border-b border-line bg-surface py-3 text-xs font-semibold text-muted whitespace-nowrap";
 export const tdClass =
   "pn-panel-inline border-b border-line py-3 align-middle text-sm";
+
+/** POST JSON tới route của dashboard; lỗi API → Error với thông điệp tiếng Việt; hết phiên → về trang đăng nhập. */
+export async function postJson<T>(
+  url: string,
+  body: unknown,
+  init: { method?: "POST" | "PATCH"; headers?: Record<string, string> } = {},
+) {
+  const res = await fetch(url, {
+    method: init.method ?? "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json", ...init.headers },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) window.location.replace("/login");
+  if (!res.ok)
+    throw new Error(data.error?.message ?? "Không thực hiện được. Thử lại.");
+  return data as T;
+}

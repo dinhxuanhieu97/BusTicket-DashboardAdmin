@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { stopPointSchema } from "./trip-detail";
 
 /** Hợp đồng API phân công phụ xe (khớp `apps/api/src/trips/trip-assistants.service.ts`). */
 export const MAX_ASSISTANTS_PER_TRIP = 5;
@@ -59,12 +60,16 @@ export const passengerBookingSchema = z.object({
   paidAmount: z.number().int(),
   dueAmount: z.number().int(),
   paymentStatus: z.string(),
+  pickupStop: stopPointSchema.nullable().optional(),
+  dropoffStop: stopPointSchema.nullable().optional(),
   seats: z.array(
     z.object({
       code: z.string(),
       floor: z.string(),
       occupancy: z.number().int(),
       infantCount: z.number().int(),
+      /** Giờ đánh dấu lên xe; null = chưa lên (API cũ không có). */
+      boardedAt: z.string().nullable().optional(),
     }),
   ),
 });
@@ -77,6 +82,9 @@ export const tripPassengersSchema = z.object({
     people: z.number().int(),
     infants: z.number().int(),
     dueAmount: z.number().int(),
+    /** Số chỗ đã lên xe (API cũ không có). */
+    boarded: z.number().int().optional(),
+    boardedPeople: z.number().int().optional(),
   }),
   fetchedAt: z.string(),
 });

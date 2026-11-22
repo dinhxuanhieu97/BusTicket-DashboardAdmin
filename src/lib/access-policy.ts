@@ -5,9 +5,31 @@ export class ApiError extends Error {
     public code: string,
     message: string,
     public retryAfter?: string,
+    /** Lỗi theo dòng/chỗ (vd. nhập file khách) — chỉ số dòng và thông báo, không chứa họ tên/SĐT. */
+    public issues?: { rows: number[]; message: string }[],
   ) {
     super(message);
   }
+}
+
+/** Đọc `error.details.issues` của API (chỉ nhận đúng dạng {rows, message}, tối đa 300 mục). */
+export function issuesFrom(details: unknown) {
+  const raw = (details as { issues?: unknown } | null | undefined)?.issues;
+  if (!Array.isArray(raw)) return undefined;
+  const out: { rows: number[]; message: string }[] = [];
+  for (const i of raw.slice(0, 300)) {
+    const rows = (i as { rows?: unknown })?.rows;
+    const message = (i as { message?: unknown })?.message;
+    if (
+      typeof message === "string" &&
+      message.length <= 500 &&
+      Array.isArray(rows) &&
+      rows.length <= 50 &&
+      rows.every((r) => Number.isInteger(r))
+    )
+      out.push({ rows: rows as number[], message });
+  }
+  return out.length ? out : undefined;
 }
 export const isPlatformAdmin = (session: Session) =>
   session.user.role === "PLATFORM_ADMIN" && session.user.operatorId === null;
@@ -77,7 +99,46 @@ export const resourcePermissions: Record<Resource, string> = {
   payments: "payment.read",
   users: "user.manage",
   "audit-logs": "audit.read",
+  "revenue-report": "payment.read",
+  "bookings-report": "booking.read",
+  counters: "trip.read",
+  search: "trip.read",
 };
+/** Đường dẫn backend khác tên resource. */
+const backendSegments: Partial<Record<Resource, string>> = {
+  "revenue-report": "reports/revenue",
+  "bookings-report": "reports/bookings",
+};
+const validDate = (v: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(v) &&
+  !Number.isNaN(Date.parse(v)) &&
+  new Date(v).toISOString().slice(0, 10) === v;
+/** Khoảng `[from, to)` 1–366 ngày; ném lỗi 400 nếu sai. */
+function dateRange(params: URLSearchParams) {
+  const from = params.get("from") ?? "",
+    to = params.get("to") ?? "";
+  const span = Date.parse(to) - Date.parse(from);
+  if (!validDate(from) || !validDate(to) || span <= 0 || span > 366 * 86400000)
+    throw new ApiError(
+      400,
+      "VALIDATION_FAILED",
+      "Khoảng xem phải từ 1 đến 366 ngày.",
+    );
+  return { from, to };
+}
+/** Cột chuyến API cho sắp xếp (T2, `GET /admin/operators/:id/trips?sort=`). */
+export const TRIP_SORTS = [
+  "depart",
+  "code",
+  "name",
+  "route",
+  "vehicle",
+  "available",
+  "capacity",
+  "status",
+] as const;
+export type TripSort = (typeof TRIP_SORTS)[number];
+
 export function readPath(
   resource: Resource,
   operatorId: string,
@@ -86,8 +147,12 @@ export function readPath(
   const allowed: Record<Resource, string[]> = {
     payments: ["review"],
     users: [],
-    trips: ["date", "from", "to", "limit", "cursor"],
+    trips: ["date", "from", "to", "limit", "cursor", "route", "sort", "order"],
     "audit-logs": [],
+    "revenue-report": ["from", "to"],
+    "bookings-report": ["from", "to"],
+    counters: [],
+    search: ["q"],
   };
   if (!Object.hasOwn(allowed, resource))
     throw new ApiError(404, "NOT_FOUND", "Không tìm thấy dữ liệu.");
@@ -105,20 +170,48 @@ export function readPath(
       );
     query.set("review", review);
   }
-  if (resource === "trips" && !params.has("date")) {
-    const from = params.get("from") ?? "",
-      to = params.get("to") ?? "";
-    const valid = (v: string) =>
-      /^\d{4}-\d{2}-\d{2}$/.test(v) &&
-      !Number.isNaN(Date.parse(v)) &&
-      new Date(v).toISOString().slice(0, 10) === v;
-    const span = Date.parse(to) - Date.parse(from);
-    if (!valid(from) || !valid(to) || span <= 0 || span > 366 * 86400000)
+  if (resource === "revenue-report" || resource === "bookings-report") {
+    const { from, to } = dateRange(params);
+    query.set("from", from);
+    query.set("to", to);
+  }
+  if (resource === "search") {
+    const q = (params.get("q") ?? "").trim();
+    if (q.length < 2 || q.length > 64)
       throw new ApiError(
         400,
         "VALIDATION_FAILED",
-        "Khoảng xem phải từ 1 đến 366 ngày.",
+        "Nhập từ 2 đến 64 ký tự để tìm.",
       );
+    query.set("q", q);
+  }
+  if (resource === "trips" && !params.has("date")) {
+    const { from, to } = dateRange(params);
+    if (params.has("route")) {
+      const route = params.get("route")!;
+      if (!/^[A-Z0-9-]{2,32}$/.test(route))
+        throw new ApiError(400, "VALIDATION_FAILED", "Mã tuyến không hợp lệ.");
+      query.set("route", route);
+    }
+    // T2: sắp xếp toàn khoảng ở API; chỉ chuyển tiếp cột và chiều trong danh sách cho phép.
+    if (params.has("sort") || params.has("order")) {
+      const sort = params.get("sort") ?? "depart";
+      const order = params.get("order") ?? "asc";
+      if (!(TRIP_SORTS as readonly string[]).includes(sort))
+        throw new ApiError(
+          400,
+          "VALIDATION_FAILED",
+          "Cột sắp xếp không hợp lệ.",
+        );
+      if (order !== "asc" && order !== "desc")
+        throw new ApiError(
+          400,
+          "VALIDATION_FAILED",
+          "Chiều sắp xếp không hợp lệ.",
+        );
+      query.set("sort", sort);
+      query.set("order", order);
+    }
     const limit = params.get("limit") ?? "25";
     if (!/^\d+$/.test(limit) || Number(limit) < 1 || Number(limit) > 100)
       throw new ApiError(
@@ -161,7 +254,8 @@ export function readPath(
       );
     query.set("date", date);
   }
-  return `/api/v1/admin/operators/${encodeURIComponent(operatorId)}/${resource}${query.size ? "?" + query.toString() : ""}`;
+  const segment = backendSegments[resource] ?? resource;
+  return `/api/v1/admin/operators/${encodeURIComponent(operatorId)}/${segment}${query.size ? "?" + query.toString() : ""}`;
 }
 /**
  * Chống CSRF: Origin phải là dashboard và thân phải là kiểu form HTML không gửi được (JSON, hoặc ảnh khi tải logo) —

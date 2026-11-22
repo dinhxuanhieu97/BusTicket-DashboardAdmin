@@ -1,102 +1,107 @@
-# PNTicket Admin — Next.js
+# PNTicket Admin — Trang quản trị cho nhà xe
 
-Dashboard Next.js + TypeScript + Tailwind CSS, tiếng Việt. Đợt 2A kết nối API PNTicket cho **OWNER**: tạo chuyến, lưu nháp, mở/đóng bán và xem chi tiết. Các mục khác chỉ đọc. Bản HTML cũ ở `../dashboard/` không thay đổi.
+Dashboard web cho nhà xe dùng nền tảng đặt vé PNTicket: quản lý chuyến, hành khách, tiền thu, nhân viên và cấu hình nhà xe. Giao diện tiếng Việt, giờ Việt Nam, tiền VND.
+
+Dashboard chỉ là lớp giao diện + Backend-for-Frontend; dữ liệu, quyền và nghiệp vụ nằm ở API trong repo [BusTicket-App](https://github.com/dinhxuanhieu97/BusTicket-App) (cùng Zalo Mini App cho khách).
+
+```
+Trình duyệt ──► Next.js (trang + Route Handler /api/*) ──► API NestJS ──► PostgreSQL
+                cookie HttpOnly, kiểm tra Origin/schema       kiểm tra quyền, nhà xe, ghi audit
+```
+
+## Tính năng
+
+| Đường dẫn                                                | Chức năng                                                                                                      |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `/login`, `/mfa`, `/forgot-password`, `/change-password` | Đăng nhập bằng SĐT + mật khẩu (+ OTP nếu bật 2FA), ghi nhớ đăng nhập 30 ngày, thiết lập 2FA, quên/đổi mật khẩu |
+| `/admin`                                                 | Tổng quan chuyến và chỗ trong ngày                                                                             |
+| `/admin/trips`                                           | Tạo/lưu nháp chuyến, mở/đóng bán, chi tiết, sơ đồ chỗ, bán vé tại quầy, giao phụ xe                            |
+| `/admin/passengers`                                      | Hành khách theo chuyến: lọc/tìm, lên xe, sửa đơn (thông tin, thu tiền, lên xe), hủy đơn, nhập/xuất Excel, CSV  |
+| `/admin/assigned-trips`                                  | Phụ xe xem chuyến được giao và đánh dấu khách lên xe                                                           |
+| `/admin/payments`                                        | Sổ thu: khoản chuyển khoản/tiền mặt, phân bổ vào đơn, xử lý tiền về trễ và hoàn tiền                           |
+| `/admin/users`                                           | Nhân viên, vai trò, tình trạng 2FA                                                                             |
+| `/admin/audit-logs`                                      | Nhật ký thao tác                                                                                               |
+| `/admin/schedules`                                       | Lịch chạy tự động sinh chuyến                                                                                  |
+| `/admin/settings`                                        | Thông tin nhà xe, thương hiệu, tài khoản nhận tiền, điểm đón/trả theo tuyến, tài khoản và 2FA                  |
+| `/platform`                                              | Quản trị nền tảng: danh sách nhà xe, đặt mật khẩu tạm cho chủ xe                                               |
+
+Mỗi mục chỉ hiện khi tài khoản có quyền tương ứng (Chủ xe, Điều phối, Bán vé, Kế toán, Phụ xe, Quản trị nền tảng); API vẫn kiểm tra lại mọi quyền.
+
+## Công nghệ
+
+Next.js 16 (App Router, build bằng Webpack), React 19, TypeScript, Tailwind CSS 4, Zod, lucide-react, ExcelJS. Test: `node:test` (unit) và Playwright (E2E với API giả).
 
 ## Chạy local
 
+Yêu cầu Node.js 22+ và một API PNTicket đang chạy (local hoặc môi trường thử nghiệm).
+
 ```sh
 npm ci
+```
+
+```sh
 cp .env.example .env.local
+```
+
+```sh
 npm run dev
 ```
 
-Mở http://localhost:3002/login. `npm run build && npm start` chạy bản production local cùng cổng 3002. Backend local có thể tiếp tục dùng 3001; dashboard đang cấu hình API thật `https://api.dienmaykimbien.com.vn`.
+Mở http://localhost:3002/login. Bản production local: `npm run build && npm start` (cùng cổng 3002, hoặc `PORT`).
 
-Biến môi trường **chỉ dùng ở server**:
+### Biến môi trường (chỉ dùng ở server)
 
-- `PNTICKET_API_URL`: origin của NestJS, không kèm `/api/v1`. HTTPS bắt buộc, trừ backend kiểm thử trên loopback.
-- `PNTICKET_TRIP_WRITE_OPERATOR_ID`: UUID nhà xe được phép ghi chuyến (local hiện bật cho PN). Để trống để tắt quyền ghi. Chỉ dùng ở server.
-- `APP_ORIGIN`: origin của dashboard, mặc định mẫu `http://localhost:3002`. Khi triển khai phải đặt URL HTTPS thật. Local chấp nhận thêm alias `127.0.0.1` cùng cổng.
+| Biến                                                            | Ý nghĩa                                                                                  |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `PNTICKET_API_URL`                                              | Origin của API, không kèm `/api/v1`. Bắt buộc HTTPS, trừ API kiểm thử trên loopback      |
+| `APP_ORIGIN`                                                    | Origin của dashboard (URL HTTPS thật khi triển khai); dùng để kiểm tra Origin chống CSRF |
+| `PNTICKET_TRIP_WRITE_OPERATOR_ID`                               | UUID nhà xe được phép ghi chuyến; để trống để tắt thao tác ghi chuyến                    |
+| `PNTICKET_BRAND_OPERATOR_CODE`                                  | Mã nhà xe để hiện tên/logo trên trang đăng nhập                                          |
+| `PNTICKET_TRUSTED_CLIENT_IP_HEADER`, `PNTICKET_LOGIN_PROXY_KEY` | Chỉ bật khi ingress tin cậy ghi đè header IP khách; khóa dùng chung với API (≥ 32 ký tự) |
 
-Không đưa token, mật khẩu hoặc biến trên vào `NEXT_PUBLIC_*`. Không cần khóa ký JWT hay thông tin database của backend trong dashboard. `.env.local` không được commit.
+Không đặt các biến này với tiền tố `NEXT_PUBLIC_*` và không commit `.env.local`. Dashboard không cần khóa ký token hay thông tin database của API.
 
-## Đường dẫn và phạm vi
+## Bảo mật
 
-| Đường dẫn           | Chức năng                                                     |
-| ------------------- | ------------------------------------------------------------- |
-| `/login`            | Đăng nhập bằng SĐT, mật khẩu và OTP khi đã bật MFA            |
-| `/mfa`              | Thiết lập Authenticator và xác nhận mã cho OWNER chưa bật MFA |
-| `/admin`            | Chuyến trong ngày và số chỗ khả dụng theo API thật            |
-| `/admin/payments`   | Sổ thu, lọc kiểm tra, xem phân bổ/chi tiết; VND               |
-| `/admin/users`      | Nhân viên của nhà xe, vai trò và tình trạng MFA               |
-| `/admin/trips`      | Tạo/lưu nháp, mở/đóng bán, chi tiết; giờ Việt Nam             |
-| `/admin/audit-logs` | Nhật ký thao tác                                              |
-| `/admin/settings`   | Xem thông tin tài khoản và trạng thái 2FA                     |
-
-Các đường dẫn cũ `/admin/transactions` và `/admin/analytics` chuyển đến sổ thu và tổng quan thật.
-
-Đã gỡ toàn bộ chế độ demo khỏi ứng dụng Next.js; `/demo` và các trang con trả 404. Đăng nhập thất bại hoặc API không truy cập được sẽ hiện lỗi, không sinh dữ liệu mẫu.
-
-## Xác thực và phân quyền
-
-1. Trình duyệt gửi thông tin đăng nhập tới Next.js `/api/auth/login`, Next.js gọi NestJS.
-2. `MFA_REQUIRED`: yêu cầu nhập OTP rồi gửi lại thông tin đăng nhập; mật khẩu chỉ ở bộ nhớ form, không lưu localStorage.
-3. `scope=mfa_setup`: chỉ được vào thiết lập 2FA, không được gọi dữ liệu quản trị.
-4. QR tạo ngay trên server Next.js, không gửi bí mật 2FA ra dịch vụ QR bên ngoài. Không tự tạo lại khóa khi render trang; người dùng chủ động bấm bắt đầu.
-5. Chỉ `OWNER` có `operatorId`, `scope=full` và `mfaEnabled=true` được đọc dữ liệu thật. Các vai trò khác bị từ chối trong giai đoạn này.
-6. Token chỉ trả qua cookie HttpOnly/SameSite=Strict; Secure khi `APP_ORIGIN` dùng HTTPS. Không trả Bearer token trong JSON cho client.
-7. Mỗi lần gọi API dữ liệu, Next.js xác minh lại `/auth/me`, lấy `operatorId` từ phản hồi đã xác thực; không nhận operatorId từ trình duyệt.
-8. Logout xóa cookie của dashboard. Backend chưa có endpoint thu hồi riêng từng token; hết hạn/khóa tài khoản/thu hồi backend khiến request tiếp theo bị từ chối. Không có tự động refresh token.
-
-Next.js là lớp trung gian, NestJS vẫn kiểm tra quyền nghiệp vụ và phạm vi nhà xe. Các Route Handler không có proxy tùy ý: GET `payments`, `users`, `trips`, `audit-logs`. Riêng `/api/trip-management`: POST tạo chuyến, PATCH `/:id/status` chỉ OPEN/CLOSED và GET `/options` lấy tuyến/xe/sơ đồ. Mọi thao tác ghi kiểm tra OWNER, MFA, UUID nhà xe được cấu hình, Origin và JSON strict; không nhận tenant từ client. NestJS kiểm tra quyền/tenant, bảng giá theo sơ đồ và ghi audit như API hiện có.
-
-API riêng tư dùng `Cache-Control: private, no-store`, và fetch tới NestJS dùng `cache: no-store`. Session lỗi kết nối không bị đổi thành phiên demo. Không truyền IP do client tự khai vào backend; backend hiện sẽ rate-limit đăng nhập theo địa chỉ của Next.js/proxy. Khi triển khai nhiều người dùng cần thống nhất trusted proxy và IP forwarding đáng tin cậy ở tầng hạ tầng.
-
-## Giới hạn API hiện có được thể hiện trên UI
-
-- Sổ thu: tối đa **200 khoản mới nhất** theo bộ lọc review, không có tổng toàn hệ thống. Tìm kiếm/phân trang trong tập đã tải; không suy ra doanh thu tháng/năm. Chi tiết lấy từ bản ghi và allocations trong phản hồi API.
-- Nhật ký: tối đa **100 dòng gần nhất**.
-- Nhân viên: API không trả `status` hoặc lần đăng nhập cuối, nên không hiển thị số liệu suy đoán.
-- Chuyến: lọc theo ngày khởi hành giờ Việt Nam; chỗ khả dụng không đồng nghĩa với vé đã bán.
-- Không có API tổng hợp tài chính, analytics thiết bị hoặc thông báo, nên những phần đó không xuất hiện ở chế độ thật.
-- Không mở đổi mật khẩu, sửa hồ sơ, tạo/sửa nhân viên, cấu hình nhà xe, ghi nhận tiền, phân bổ hay đối soát trong đợt này.
+- Token chỉ nằm trong cookie `HttpOnly`, `SameSite=Strict` (`Secure` khi chạy HTTPS); không trả token trong JSON cho trình duyệt.
+- Mỗi request dữ liệu xác minh lại phiên với API và lấy nhà xe từ phiên đã xác thực, không nhận từ trình duyệt.
+- Route Handler `/api/*` là danh sách đường dẫn cố định, không có proxy tùy ý. Thao tác ghi kiểm tra quyền, Origin và JSON theo schema strict; ghi tiền gửi `Idempotency-Key`.
+- Phản hồi riêng tư dùng `Cache-Control: private, no-store`. Mã QR 2FA tạo ngay trên server, không gửi bí mật ra dịch vụ ngoài.
 
 ## Kiểm tra
 
 ```sh
-npm run typecheck
-npm test
-npm run build
-npx playwright install chromium
-npm run test:e2e
+npm run format:check
 ```
 
-Test unit kiểm tra phân quyền, tenant, CSRF, schema dữ liệu, giờ Việt Nam, giá nguyên VND và bảng giá theo sơ đồ. Test E2E khởi chạy API fixture trên 3101 và Next.js trên 3102; chỉ dùng tài khoản kiểm thử, **không đăng nhập hay ghi vào API thật**. Không chạy test này khi các cổng 3101/3102 đang được ứng dụng khác sử dụng.
+```sh
+npm run typecheck
+```
 
-E2E kiểm tra: login/OTP, thiết lập MFA, chặn setup token, chặn non-OWNER, cookie HttpOnly, từ chối CSRF và thao tác ghi ngoài phạm vi, tenant isolation, API outage/response sai schema, phiên bị thu hồi, đường dẫn demo đã gỡ và mobile.
+```sh
+npm test
+```
+
+```sh
+npm run build && npx playwright install chromium && npm run test:e2e
+```
+
+E2E chạy API giả (`tests/fixture-api.mjs`) ở cổng 3101 và Next.js ở 3102, chỉ dùng tài khoản kiểm thử, **không gọi API thật**. Không chạy khi hai cổng này đang bận.
 
 ## Cấu trúc
 
-- `src/lib/server/session.ts`: cookie, phiên, xác thực mỗi request và phản hồi lỗi.
-- `src/lib/access-policy.ts`: OWNER policy, allowlist GET, kiểm tra Origin.
-- `src/lib/backend-client.ts`: fetch server tới backend, timeout và lỗi có kiểm soát.
-- `src/lib/live-contracts.ts`: schema phản hồi API và formatter VND/giờ Việt Nam.
-- `src/app/api/`: API trung gian với bề mặt ghi chỉ dành cho quản lý chuyến.
-- `src/components/live/`: giao diện thật; không có dữ liệu giả.
+- `src/app/` — trang (`admin/*`, `platform`, đăng nhập) và Route Handler `api/*`.
+- `src/components/live/` — giao diện từng màn, chỉ dùng dữ liệu thật từ API.
+- `src/lib/server/` — phiên/cookie, gọi API, xuất/nhập Excel, thương hiệu.
+- `src/lib/` — schema phản hồi API, quyền, định dạng VND/giờ Việt Nam.
+- `tests/` — API giả và test Playwright.
 
-Dùng Webpack cho dev/build để tương thích môi trường local. Tài liệu tham chiếu: [Next.js authentication](https://nextjs.org/docs/app/guides/authentication), [Backend for Frontend](https://nextjs.org/docs/app/guides/backend-for-frontend).
+## Triển khai
 
-## Quy tắc quản lý chuyến đợt 2A
+- Mọi thay đổi đi qua PR từ nhánh `hieufeature_<tên>`. CI (`.github/workflows/ci.yml`): Prettier, typecheck, unit test, build, rồi E2E Playwright và Claude review cho PR. Gõ `@claude` trong issue/PR để giao việc (`claude.yml`).
+- Railway tự deploy khi `main` đổi. Khi một tính năng cần API mới, merge và deploy API trước, dashboard sau.
+- Thiết lập secret cho Claude review và bảo vệ nhánh: mục CI/CD trong [DEPLOY.md của BusTicket-App](https://github.com/dinhxuanhieu97/BusTicket-App/blob/main/DEPLOY.md).
 
-- Tạo chuyến chọn tuyến và xe hoạt động thuộc nhà xe. Bảng giá sinh từ chỗ được bán theo tầng và số người (có xét seatOverrides). Sơ đồ không có trong API danh sách sẽ khóa xe đó, không đoán cấu hình giá.
-- Nhập datetime-local luôn được hiểu UTC+7 độc lập múi giờ máy; server nhận ISO UTC. Giá 0–20.000.000 VND, số nguyên. Mở bán < đóng bán ≤ khởi hành.
-- Màn hình kiểm tra lại trước khi ghi, khóa nút khi gửi. API hiện chưa hỗ trợ idempotency tạo chuyến: không tự retry; kết quả không xác định yêu cầu làm mới danh sách trước khi tạo lại. Đây chưa phải bảo đảm chống trùng giữa nhiều tab/thiết bị.
-- DRAFT → OPEN, OPEN ↔ CLOSED; CANCELLED không có thao tác. Đóng bán không hủy vé. OPEN chỉ nhận đặt vé trong cửa sổ bán.
-- Chi tiết gồm mã/tên chuyến, tuyến, xe, liên hệ, lịch bán và chỗ khả dụng theo lần tải danh sách. API quản trị hiện không cung cấp giá/sơ đồ của chuyến nháp; chưa hiển thị giá cũ suy đoán từ xe.
-- Chưa mở sửa thông tin, đổi xe, xóa/hủy chuyến. Không sửa backend hoặc triển khai backend trong đợt này.
+## Giấy phép
 
-## CI/CD
-
-- `.github/workflows/ci.yml`: Prettier, typecheck, unit test, build. Sau đó chạy song song E2E Playwright (API giả) và Claude review cho PR.
-- `.github/workflows/claude.yml`: gõ `@claude` trong issue hoặc PR để giao việc. Nhánh Claude tạo có dạng `hieufeature_...`.
-- Railway deploy `main` khi CI xanh ("Wait for CI"). Thiết lập secret `CLAUDE_CODE_OAUTH_TOKEN` (gói Claude Pro, khuyến nghị) hoặc `ANTHROPIC_API_KEY` và bảo vệ nhánh: xem mục CI/CD trong `DEPLOY.md` của repo `BusTicket-App`.
+Bản quyền © 2026 Hieu Dinh. Bảo lưu mọi quyền: không được sao chép, sửa đổi hay sử dụng lại mã nguồn khi chưa có sự đồng ý bằng văn bản. Xem [LICENSE](LICENSE).

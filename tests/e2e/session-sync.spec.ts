@@ -41,7 +41,7 @@ test("logging out in one tab sends the other tab to the login page", async ({
   const b = await context.newPage();
   await b.goto("/admin/trips");
   await expect(
-    b.getByRole("heading", { name: "Chuyến xe", exact: true }),
+    b.getByRole("heading", { name: "Chuyến xe", exact: true, level: 1 }),
   ).toBeVisible();
 
   await a.getByRole("button", { name: "Đăng xuất" }).click();
@@ -141,9 +141,11 @@ test("the menu follows the permissions returned by the server", async ({
   });
   await login(page);
   const nav = page.getByRole("navigation", { name: "Điều hướng quản trị" });
+  // "Chuyến xe" có thể kèm số chuyến sắp đóng bán (GF2) tùy lúc `counters` tải xong.
   await expect(nav.getByRole("link")).toHaveText([
     "Tổng quan",
-    "Chuyến xe",
+    /^Chuyến xe\d*$/,
+    "Sơ đồ chỗ",
     "Cài đặt",
   ]);
   await request.post("http://127.0.0.1:3101/__test/state", {

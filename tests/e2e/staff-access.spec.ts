@@ -36,7 +36,16 @@ const cases = [
   {
     role: "DISPATCHER",
     label: "Điều hành",
-    menu: ["Tổng quan", "Chuyến xe", "Lịch tự động", "Cài đặt"],
+    menu: [
+      "Tổng quan",
+      "Chuyến xe",
+      "Sơ đồ chỗ",
+      "Hành khách",
+      "Lịch tự động",
+      "Đội xe",
+      "Tuyến đường",
+      "Cài đặt",
+    ],
     readable: [tripQuery, "/api/trip-management/options"],
     forbidden: ["/api/live/payments", "/api/live/audit-logs"],
     deniedPage: "/admin/payments",
@@ -44,7 +53,19 @@ const cases = [
   {
     role: "ACCOUNTANT",
     label: "Kế toán",
-    menu: ["Tổng quan", "Chuyến xe", "Sổ thu", "Nhật ký", "Cài đặt"],
+    menu: [
+      "Tổng quan",
+      "Chuyến xe",
+      "Sơ đồ chỗ",
+      "Hành khách",
+      "Đội xe",
+      "Tuyến đường",
+      // Nhóm Tài chính nằm sau nhóm Vận hành.
+      "Sổ thu",
+      "Doanh thu",
+      "Nhật ký",
+      "Cài đặt",
+    ],
     readable: [tripQuery, "/api/live/payments", "/api/live/audit-logs"],
     forbidden: ["/api/trip-management/options"],
     deniedPage: "/admin/schedules",
@@ -52,7 +73,18 @@ const cases = [
   {
     role: "SELLER",
     label: "Bán vé",
-    menu: ["Tổng quan", "Chuyến xe", "Sổ thu", "Cài đặt"],
+    menu: [
+      "Tổng quan",
+      "Chuyến xe",
+      "Sơ đồ chỗ",
+      "Hành khách",
+      "Đội xe",
+      "Tuyến đường",
+      // Nhóm Tài chính nằm sau nhóm Vận hành.
+      "Sổ thu",
+      "Doanh thu",
+      "Cài đặt",
+    ],
     readable: [tripQuery, "/api/live/payments"],
     forbidden: [
       "/api/live/audit-logs",
@@ -119,6 +151,13 @@ for (const { role, label, menu, readable, forbidden, deniedPage } of cases) {
     await expect(
       page.getByRole("link", { name: "Thông tin chung" }),
     ).toHaveCount(0);
+    // Đầu trang Cài đặt theo page-hero; nhân viên không có quyền thấy mô tả không nhắc nhà xe (GF14).
+    await expect(
+      page.getByRole("heading", { name: "Tài khoản & nhà xe", level: 2 }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Hồ sơ và bảo mật đăng nhập của bạn."),
+    ).toBeVisible();
   });
 }
 

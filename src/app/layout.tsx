@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Be_Vietnam_Pro } from "next/font/google";
 import "./globals.css";
 import { loadBrand } from "@/lib/server/brand";
 
@@ -6,7 +7,16 @@ const initTheme = `try {
   if (localStorage.getItem("pnticket_live_theme") === "light") {
     document.documentElement.dataset.theme = "light";
   }
+  if (localStorage.getItem("pnticket_sidebar_collapsed") === "1") {
+    document.documentElement.dataset.sidebar = "collapsed";
+  }
 } catch {}`;
+const sans = Be_Vietnam_Pro({
+  subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-be-vietnam",
+});
 /** Biểu tượng mặc định khi nhà xe chưa có logo (đặt trong `public/` để metadata thay được). */
 const DEFAULT_ICON = { url: "/icon.svg", type: "image/svg+xml" };
 
@@ -31,7 +41,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi" data-theme="dark" suppressHydrationWarning>
+    <html
+      lang="vi"
+      data-theme="dark"
+      className={sans.variable}
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: initTheme }} />
       </head>

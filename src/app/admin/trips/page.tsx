@@ -1,4 +1,5 @@
 import { Trips } from "@/components/live/trips";
+import { hasPermission } from "@/lib/access-policy";
 import { requirePagePermission } from "@/lib/server/page-access";
 import { canManageTrips } from "@/lib/trip-management";
 import { tripPeriodRange, type TripPeriod } from "@/lib/trip-period";
@@ -25,6 +26,11 @@ export default async function Page({
     <Trips
       initialDate={initialDate}
       initialPeriod={initialPeriod}
+      initialCreate={query.create === "1"}
+      canReadPassengers={hasPermission(session, "booking.read")}
+      canCreateBookings={hasPermission(session, "booking.create")}
+      canBoard={hasPermission(session, "booking.board")}
+      canCancel={hasPermission(session, "booking.cancel")}
       canWrite={canManageTrips(
         session,
         process.env.PNTICKET_TRIP_WRITE_OPERATOR_ID,

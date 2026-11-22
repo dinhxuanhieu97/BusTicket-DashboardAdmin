@@ -1,21 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   roleLabels,
   staffListSchema,
   type StaffUser,
 } from "@/lib/live-contracts";
+import { LoadState, Notice, RefreshButton, StatusBadge } from "./shared";
 import {
-  EmptyRow,
-  LoadState,
-  Notice,
-  RefreshButton,
-  StatusBadge,
-  TableScroll,
-  thClass,
-  tdClass,
-} from "./shared";
+  DataTable,
+  TableFooter,
+  useTableState,
+  type Column,
+} from "./data-table";
+import { FilterTabs } from "@/components/ui/filter-tabs";
 import { StaffDialog, type StaffAction } from "./staff-dialog";
 import { Search, ShieldCheck, ShieldAlert, UserPlus } from "lucide-react";
 
@@ -74,52 +72,60 @@ function StaffMfa({ enabled }: { enabled: boolean }) {
   );
 }
 
-function StaffActions({
-  user,
-  self,
-  loading,
-  onAction,
-}: {
-  user: StaffUser;
-  self: boolean;
-  loading: boolean;
-  onAction: (action: StaffAction) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      <button
-        type="button"
-        className="btn"
-        aria-label={`Sửa ${user.fullName}`}
-        disabled={loading}
-        onClick={() => onAction({ kind: "edit", user })}
-      >
-        Sửa
-      </button>
-      {!self && (
-        <button
-          type="button"
-          className="btn pn-tone"
-          data-tone="danger"
-          aria-label={`Xóa ${user.fullName}`}
-          disabled={loading}
-          onClick={() => onAction({ kind: "delete", user })}
-        >
-          Xóa
-        </button>
-      )}
-    </div>
-  );
-}
+type StatusFilter = "" | StaffUser["status"];
 
-const staffCellClass = `${tdClass} max-lg:border-0 max-lg:py-1.5 lg:table-cell`;
-const staffLabeledCellClass =
-  "grid grid-cols-2 items-center justify-items-start gap-2 lg:table-cell";
+const statusLabels = { ACTIVE: "Hoạt động", DISABLED: "Đã khóa" } as const;
+
+function staffColumns(viewerId: string): Column<StaffUser>[] {
+  return [
+    {
+      key: "name",
+      header: "Họ tên",
+      render: (u) => (
+        <StaffName
+          user={u}
+          self={u.id.toLowerCase() === viewerId.toLowerCase()}
+        />
+      ),
+      sortValue: (u) => u.fullName,
+    },
+    {
+      key: "phone",
+      header: "Số điện thoại",
+      render: (u) => (
+        <span className="font-mono whitespace-nowrap text-muted">
+          {u.phone}
+        </span>
+      ),
+    },
+    {
+      key: "role",
+      header: "Vai trò",
+      render: (u) => roleLabels[u.role],
+      sortValue: (u) => roleLabels[u.role],
+      className: "whitespace-nowrap",
+    },
+    {
+      key: "status",
+      header: "Trạng thái",
+      render: (u) => <StaffStatus status={u.status} />,
+      sortValue: (u) => statusLabels[u.status],
+    },
+    {
+      key: "mfa",
+      header: "Xác thực 2FA",
+      render: (u) => <StaffMfa enabled={u.mfaEnabled} />,
+      sortValue: (u) => (u.mfaEnabled ? "Đã bật" : "Chưa bật"),
+    },
+  ];
+}
 
 export function Staff({ viewerId }: { viewerId: string }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const focusHeading = useRef(false);
   const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<StatusFilter>("");
+  const [role, setRole] = useState("");
   const [users, setUsers] = useState<StaffUser[] | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -170,41 +176,61 @@ export function Staff({ viewerId }: { viewerId: string }) {
 
   async function save(fields: Record<string, string>) {
     if (!action) return;
-    const creating = action.kind === "create";
-    const deleting = action.kind === "delete";
-    await staffRequest(creating ? "" : `/${action.user.id}`, {
-      method: creating ? "POST" : deleting ? "DELETE" : "PATCH",
+    const kind = action.kind;
+    const body =
+      kind === "lock"
+        ? { status: "DISABLED" }
+        : kind === "unlock"
+          ? { status: "ACTIVE" }
+          : fields;
+    await staffRequest(kind === "create" ? "" : `/${action.user.id}`, {
+      method:
+        kind === "create" ? "POST" : kind === "delete" ? "DELETE" : "PATCH",
       headers: { "Content-Type": "application/json" },
-      ...(deleting ? {} : { body: JSON.stringify(fields) }),
+      ...(kind === "delete" ? {} : { body: JSON.stringify(body) }),
     });
-    if (deleting) {
-      focusHeading.current = true;
-    }
+    if (kind === "delete") focusHeading.current = true;
     setAction(null);
+    const name = kind === "create" ? "" : action.user.fullName;
     setMessage(
-      creating
+      kind === "create"
         ? "Đã tạo tài khoản nhân viên."
-        : deleting
+        : kind === "delete"
           ? "Đã xóa tài khoản nhân viên."
-          : "Đã lưu thay đổi.",
+          : kind === "lock"
+            ? `Đã khóa tài khoản ${name}.`
+            : kind === "unlock"
+              ? `Đã mở khóa tài khoản ${name}.`
+              : "Đã lưu thay đổi.",
     );
     reload();
   }
 
+  const all = useMemo(() => users ?? [], [users]);
   const query = search.trim().toLowerCase();
-  const visibleUsers = (users ?? []).filter((user) =>
-    `${user.fullName} ${user.phone} ${roleLabels[user.role]}`
-      .toLowerCase()
-      .includes(query),
+  const rows = useMemo(
+    () =>
+      all.filter(
+        (user) =>
+          (!status || user.status === status) &&
+          (!role || user.role === role) &&
+          `${user.fullName} ${user.phone} ${roleLabels[user.role]}`
+            .toLowerCase()
+            .includes(query),
+      ),
+    [all, status, role, query],
   );
-  const empty = query
-    ? "Không tìm thấy nhân viên phù hợp."
-    : "Chưa có nhân viên.";
+  const columns = useMemo(() => staffColumns(viewerId), [viewerId]);
+  const table = useTableState(rows, columns);
+  const roles = [...new Set(all.map((u) => u.role))];
+  const countOf = (s?: StaffUser["status"]) =>
+    all.filter((u) => !s || u.status === s).length;
+  const filtered = !!(query || status || role);
 
   return (
     <div className="pn-page-stack">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 ref={heading} tabIndex={-1} className="pn-section-label">
+      <div className="pn-page-hero">
+        <h2 ref={heading} tabIndex={-1} className="pn-page-hero-title">
           Danh sách nhân viên
         </h2>
         <div className="flex flex-wrap gap-2">
@@ -221,20 +247,61 @@ export function Staff({ viewerId }: { viewerId: string }) {
         </div>
       </div>
 
-      <div className="relative max-w-sm">
-        <input
-          type="search"
-          className="field pl-9 font-medium"
-          aria-label="Tìm nhân viên"
-          placeholder="Tên, số điện thoại, vai trò…"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
+      <div className="flex flex-wrap items-center gap-3">
+        <FilterTabs<StatusFilter>
+          label="Trạng thái tài khoản"
+          value={status}
+          onChange={(next) => {
+            setStatus(next);
+            table.resetPage();
+          }}
+          items={[
+            {
+              value: "",
+              label: "Tất cả",
+              count: users ? countOf() : undefined,
+            },
+            ...(["ACTIVE", "DISABLED"] as const).map((s) => ({
+              value: s,
+              label: statusLabels[s],
+              count: users ? countOf(s) : undefined,
+            })),
+          ]}
         />
-        <Search
-          size={16}
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-          aria-hidden="true"
-        />
+        <select
+          className="field w-auto"
+          aria-label="Lọc theo vai trò"
+          value={role}
+          onChange={(e) => {
+            setRole(e.target.value);
+            table.resetPage();
+          }}
+        >
+          <option value="">Mọi vai trò</option>
+          {roles.map((r) => (
+            <option key={r} value={r}>
+              {roleLabels[r]}
+            </option>
+          ))}
+        </select>
+        <div className="relative min-w-0 basis-full sm:max-w-sm sm:basis-auto sm:flex-1">
+          <input
+            type="search"
+            className="field pl-9 font-medium"
+            aria-label="Tìm nhân viên"
+            placeholder="Tên, số điện thoại, vai trò…"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              table.resetPage();
+            }}
+          />
+          <Search
+            size={16}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+            aria-hidden="true"
+          />
+        </div>
       </div>
 
       {message && <Notice tone="success">{message}</Notice>}
@@ -244,124 +311,77 @@ export function Staff({ viewerId }: { viewerId: string }) {
         <section className="card overflow-hidden" aria-busy={loading}>
           <header className="pn-table-header">
             <h3 className="font-bold text-ink">
-              {visibleUsers.length} nhân viên
+              {rows.length} nhân viên
+              {filtered && (
+                <span className="font-normal text-muted"> / {all.length}</span>
+              )}
             </h3>
           </header>
-          <TableScroll label="Danh sách nhân viên">
-            <table
-              role="table"
-              aria-label="Nhân viên"
-              className="pn-table block w-full border-collapse text-left text-sm lg:table lg:min-w-[650px]"
-            >
-              <thead
-                role="rowgroup"
-                className="sr-only lg:not-sr-only lg:table-header-group"
-              >
-                <tr role="row">
-                  {[
-                    "Họ tên",
-                    "Số điện thoại",
-                    "Vai trò",
-                    "Trạng thái",
-                    "Xác thực 2FA",
-                    "Thao tác",
-                  ].map((label) => (
-                    <th
-                      role="columnheader"
-                      scope="col"
-                      className={thClass}
-                      key={label}
+          <DataTable
+            label="Danh sách nhân viên"
+            columns={columns}
+            rows={table.visible}
+            rowKey={(u) => u.id}
+            sort={table.sort}
+            onSort={table.onSort}
+            emptyText={
+              filtered
+                ? "Không tìm thấy nhân viên phù hợp."
+                : "Chưa có nhân viên."
+            }
+            actions={(user) => {
+              const self = user.id.toLowerCase() === viewerId.toLowerCase();
+              const locked = user.status === "DISABLED";
+              return (
+                <div className="inline-flex gap-2">
+                  <button
+                    type="button"
+                    className="btn py-1.5 text-xs"
+                    aria-label={`Chi tiết ${user.fullName}`}
+                    disabled={loading}
+                    onClick={() => openAction({ kind: "edit", user })}
+                  >
+                    Chi tiết
+                  </button>
+                  {!self && (
+                    <button
+                      type="button"
+                      className="btn pn-tone py-1.5 text-xs"
+                      data-tone={locked ? undefined : "danger"}
+                      aria-label={`${locked ? "Mở khóa" : "Khóa"} ${user.fullName}`}
+                      disabled={loading}
+                      onClick={() =>
+                        openAction({ kind: locked ? "unlock" : "lock", user })
+                      }
                     >
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody role="rowgroup" className="block lg:table-row-group">
-                {visibleUsers.map((user) => {
-                  const self = user.id.toLowerCase() === viewerId.toLowerCase();
-                  return (
-                    <tr
-                      role="row"
-                      key={user.id}
-                      className="block border-b border-line py-2 last:border-b-0 lg:table-row lg:border-0"
-                    >
-                      <td role="cell" className={`${staffCellClass} block`}>
-                        <StaffName user={user} self={self} />
-                      </td>
-                      <td
-                        role="cell"
-                        className={`${staffCellClass} ${staffLabeledCellClass}`}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="text-muted lg:hidden"
-                        >
-                          Số điện thoại
-                        </span>
-                        <span className="font-mono text-muted wrap-anywhere">
-                          {user.phone}
-                        </span>
-                      </td>
-                      <td
-                        role="cell"
-                        className={`${staffCellClass} ${staffLabeledCellClass}`}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="text-muted lg:hidden"
-                        >
-                          Vai trò
-                        </span>
-                        <span>{roleLabels[user.role]}</span>
-                      </td>
-                      <td
-                        role="cell"
-                        className={`${staffCellClass} ${staffLabeledCellClass}`}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="text-muted lg:hidden"
-                        >
-                          Trạng thái
-                        </span>
-                        <StaffStatus status={user.status} />
-                      </td>
-                      <td
-                        role="cell"
-                        className={`${staffCellClass} ${staffLabeledCellClass}`}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="text-muted lg:hidden"
-                        >
-                          Xác thực 2FA
-                        </span>
-                        <StaffMfa enabled={user.mfaEnabled} />
-                      </td>
-                      <td role="cell" className={`${staffCellClass} block`}>
-                        <StaffActions
-                          user={user}
-                          self={self}
-                          loading={loading}
-                          onAction={openAction}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-                {!visibleUsers.length && <EmptyRow columns={6} text={empty} />}
-              </tbody>
-            </table>
-          </TableScroll>
+                      {locked ? "Mở khóa" : "Khóa"}
+                    </button>
+                  )}
+                </div>
+              );
+            }}
+          />
+          <TableFooter
+            info={table.info}
+            noun="nhân viên"
+            setPage={table.setPage}
+            pageSize={table.pageSize}
+            setPageSize={table.setPageSize}
+          />
         </section>
       )}
       {action && (
         <StaffDialog
+          key={action.kind}
           action={action}
           viewerId={viewerId}
           onClose={() => setAction(null)}
           onSave={save}
+          onDelete={
+            action.kind === "edit"
+              ? () => setAction({ kind: "delete", user: action.user })
+              : undefined
+          }
         />
       )}
     </div>

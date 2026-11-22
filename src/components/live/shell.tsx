@@ -3,9 +3,11 @@ import { BrandMark } from "./brand";
 import { logoUrl } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import { createPortal } from "react-dom";
 import {
   LayoutDashboard,
+  Route,
   ReceiptText,
   Users,
   Bus,
@@ -13,17 +15,47 @@ import {
   History,
   ShieldCheck,
   Menu,
+  ChevronLeft,
+  Search,
+  Plus,
+  MoreHorizontal,
   Sun,
   Moon,
   Settings,
   ClipboardList,
+  Contact,
+  BusFront,
+  LayoutGrid,
+  LifeBuoy,
+  TrendingUp,
 } from "lucide-react";
-import { roleLabels, type AppUser } from "@/lib/live-contracts";
-import { visibleNav, type NavKey } from "@/lib/nav";
+import { roleLabels, type AppUser, type Counters } from "@/lib/live-contracts";
+import {
+  groupNav,
+  mobileNav,
+  sidebarGroups,
+  visibleNav,
+  type NavKey,
+} from "@/lib/nav";
 import { subscribeSessionEvents } from "@/lib/session-sync";
 import { LogoutButton } from "./auth-forms";
+import { AccountMenu } from "./account-menu";
 import { Modal } from "../modal";
-import { LoadState, StatusBadge } from "./shared";
+import { LoadState } from "./shared";
+import { CommandPalette } from "./command-palette";
+import { AttentionLinks, NotificationBell } from "./notification-bell";
+import { useResource } from "./use-resource";
+import {
+  ATTENTION_SEEN_KEY,
+  attentionItems,
+  badgeText,
+  markAllSeen,
+  navBadges,
+  parseSeen,
+  settleSeen,
+  unreadCount,
+  type AttentionSeen,
+} from "@/lib/attention";
 
 const icons: Record<NavKey, typeof LayoutDashboard> = {
   assigned: ClipboardList,
@@ -31,15 +63,16 @@ const icons: Record<NavKey, typeof LayoutDashboard> = {
   overview: LayoutDashboard,
   payments: ReceiptText,
   users: Users,
+  fleet: BusFront,
+  routes: Route,
   trips: Bus,
+  passengers: Contact,
   audit: History,
   settings: Settings,
+  revenue: TrendingUp,
+  seats: LayoutGrid,
+  help: LifeBuoy,
 };
-
-const navGroups: { title: string; keys: NavKey[] }[] = [
-  { title: "Vận hành", keys: ["assigned", "overview", "trips", "schedules"] },
-  { title: "Quản lý", keys: ["payments", "users", "audit", "settings"] },
-];
 
 export function LiveShell({
   children,
@@ -61,6 +94,50 @@ export function LiveShell({
       icon: icons[i.key],
     }));
   const canReadProfile = granted?.includes("policy.read") ?? true;
+  const canReadTrips = granted?.includes("trip.read") ?? true;
+  // Chuông + số trên menu (GF2). Backend cũ chưa có `counters` thì lỗi → ẩn chuông, không báo lỗi.
+  const counters = useResource<Counters>(canReadTrips ? "counters" : null);
+  const firstPath = useRef(true);
+  const reloadCounters = counters.reload;
+  useEffect(() => {
+    if (firstPath.current) {
+      firstPath.current = false;
+      return;
+    }
+    reloadCounters();
+    // Tải lại khi đổi trang (vd. vừa xử lý xong khoản thu); `reload` đổi mỗi lần render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path]);
+  const badges = navBadges(counters.data);
+  // Điện thoại không có chuông (GB7): việc cần chú ý nằm đầu ngăn "Thêm", tổng số hiện trên nút "Thêm".
+  const attention = counters.data ? attentionItems(counters.data) : [];
+  // "Đánh dấu đã đọc tất cả": huy hiệu chỉ đếm việc mới; mốc lưu trên máy người xem.
+  const [seen, setSeen] = useState<AttentionSeen>({});
+  useEffect(() => {
+    try {
+      setSeen(parseSeen(localStorage.getItem(ATTENTION_SEEN_KEY)));
+    } catch {
+      /* Không đọc được bộ nhớ trình duyệt: coi như chưa đọc. */
+    }
+  }, []);
+  const saveSeen = (next: AttentionSeen) => {
+    setSeen(next);
+    try {
+      localStorage.setItem(ATTENTION_SEEN_KEY, JSON.stringify(next));
+    } catch {
+      /* Chỉ mất mốc đã đọc khi tải lại trang. */
+    }
+  };
+  const attentionKey = JSON.stringify(attention);
+  useEffect(() => {
+    if (!counters.data) return;
+    const next = settleSeen(attention, seen);
+    if (next !== seen) saveSeen(next);
+    // Chỉ chạy khi số việc đổi.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attentionKey, seen]);
+  const attentionCount = unreadCount(attention, seen);
+  const markAttentionRead = () => saveSeen(markAllSeen(attention));
   const permissionKey = JSON.stringify(permissions ?? null);
   const [operatorName, setOperatorName] = useState("Nhà xe");
   const [operatorLogo, setOperatorLogo] = useState<string | null>(null);
@@ -80,17 +157,123 @@ export function LiveShell({
     return () => window.removeEventListener("operator-profile-updated", load);
   }, [canReadProfile]);
   const [menu, setMenu] = useState(false);
+  const [palette, setPalette] = useState(false);
+  const [now, setNow] = useState("");
   const [dark, setDark] = useState(true);
+  // Sidebar desktop thu gọn (chỉ icon). Trạng thái ban đầu do script trong layout đặt lên <html> để không nháy.
+  const [collapsed, setCollapsed] = useState(false);
+  // Nhãn nổi khi thanh bên thu gọn. Render qua portal: menu có thanh cuộn (cắt mất nhãn) và
+  // `backdrop-filter` của thanh bên làm `position: fixed` bên trong bị lệch (GF5).
+  const [tip, setTip] = useState<{
+    label: string;
+    top: number;
+    left: number;
+  } | null>(null);
+  const showTip = (e: SyntheticEvent) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>(
+      ".pn-nav-link, .btn-ghost, [data-tip]",
+    );
+    const label = el?.dataset.tip ?? el?.getAttribute("aria-label");
+    // Nút thu gọn luôn có nhãn; các mục khác chỉ cần khi chữ đang bị ẩn.
+    const always = el?.classList.contains("pn-sidebar-collapse");
+    if (
+      !el ||
+      !label ||
+      (!always && document.documentElement.dataset.sidebar !== "collapsed") ||
+      !window.matchMedia("(min-width: 64rem)").matches
+    )
+      return setTip(null);
+    const r = el.getBoundingClientRect();
+    setTip({ label, top: r.top + r.height / 2, left: r.right + 12 });
+  };
+  const hideTip = () => setTip(null);
+  useEffect(() => {
+    if (!tip) return;
+    // WCAG 1.4.13: đóng được bằng Esc mà không phải dời chuột/focus.
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setTip(null);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", hideTip, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", hideTip, true);
+    };
+  }, [tip]);
   const [sessionError, setSessionError] = useState("");
 
   useEffect(() => {
     setDark(document.documentElement.dataset.theme !== "light");
+    setCollapsed(document.documentElement.dataset.sidebar === "collapsed");
     const desktop = window.matchMedia("(min-width: 64rem)");
     const closeOnDesktop = () => {
       if (desktop.matches) setMenu(false);
     };
     desktop.addEventListener("change", closeOnDesktop);
     return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
+
+  function setSidebarCollapsed(next: boolean) {
+    if (next) document.documentElement.dataset.sidebar = "collapsed";
+    else delete document.documentElement.dataset.sidebar;
+    setTip(null);
+    setCollapsed(next);
+    try {
+      localStorage.setItem("pnticket_sidebar_collapsed", next ? "1" : "0");
+    } catch {}
+  }
+
+  // Phím "[" thu gọn/mở rộng sidebar trên desktop, trừ khi đang gõ trong ô nhập.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "[" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))
+      )
+        return;
+      if (!window.matchMedia("(min-width: 64rem)").matches) return;
+      e.preventDefault();
+      setSidebarCollapsed(
+        document.documentElement.dataset.sidebar !== "collapsed",
+      );
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Ngày giờ ở đầu trang theo giờ Việt Nam; chỉ tính ở trình duyệt để không lệch khi hydrate.
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date();
+      const date = d.toLocaleDateString("vi-VN", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        timeZone: "Asia/Ho_Chi_Minh",
+      });
+      const time = d.toLocaleTimeString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Ho_Chi_Minh",
+      });
+      setNow(`${date.charAt(0).toUpperCase()}${date.slice(1)} · ${time}`);
+    };
+    tick();
+    const timer = setInterval(tick, 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // ⌘K / Ctrl+K mở hộp tìm nhanh; bỏ qua khi giữ phím hoặc đang có hộp thoại khác.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "k") return;
+      if (e.repeat || document.querySelector("dialog[open]")) return;
+      e.preventDefault();
+      setPalette(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   function toggleTheme() {
@@ -171,6 +354,16 @@ export function LiveShell({
     };
   }, [user.id, user.operatorId, user.role, user.mfaEnabled, permissionKey]);
 
+  const groups = groupNav(items);
+  const quick = mobileNav(items);
+  const paletteItems = groups.flatMap((g) =>
+    g.items.map((i) => ({
+      href: i.href,
+      label: i.label,
+      group: g.title,
+      icon: i.icon,
+    })),
+  );
   const currentItem = items.find((item) => item.href === path);
   const pageTitle = currentItem?.label ?? "Quản trị";
   const accountName = user.fullName?.trim() || user.phone;
@@ -179,11 +372,12 @@ export function LiveShell({
     <>
       <Link
         href="/admin"
-        className="pn-panel-inline flex min-h-18 min-w-0 shrink-0 items-center gap-3 border-b border-line py-4"
+        className="pn-sidebar-brand flex min-h-18 min-w-0 shrink-0 items-center gap-3 px-5 pt-5 pb-3"
         onClick={() => setMenu(false)}
+        title={operatorName}
       >
         <BrandMark name={operatorName} logoUrl={operatorLogo} />
-        <span className="min-w-0">
+        <span className="pn-sidebar-text min-w-0">
           <strong className="block wrap-anywhere text-base font-semibold leading-tight text-ink">
             {operatorName}
           </strong>
@@ -192,40 +386,67 @@ export function LiveShell({
       </Link>
       <nav
         aria-label="Điều hướng quản trị"
-        className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4"
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-2"
       >
-        {navGroups.map(({ title, keys }) => {
-          const group = keys.flatMap((key) =>
-            items.filter((item) => item.key === key),
-          );
-          if (!group.length) return null;
-          return (
-            <div key={title} className="space-y-1">
-              <p className="px-3 pb-1 text-xs font-semibold text-muted">
-                {title}
-              </p>
-              {group.map(({ href, label, icon: Icon }) => (
+        {sidebarGroups(groups).map(({ id, title, items: group }) => (
+          <div key={id} className="space-y-1">
+            <p className="pn-nav-group">{title}</p>
+            {group.map(({ key, href, label, icon: Icon }) => {
+              const badge = badges[key] ?? 0;
+              return (
                 <Link
                   key={href}
                   href={href}
                   onClick={() => setMenu(false)}
                   aria-current={path === href ? "page" : undefined}
+                  aria-label={label}
+                  aria-description={
+                    badge
+                      ? `${badge} ${key === "trips" ? "chuyến đóng bán trong 2 giờ" : "khoản cần đối soát"}`
+                      : undefined
+                  }
+                  data-badge={badge || undefined}
                   className="pn-nav-link"
                 >
-                  <Icon size={17} className="shrink-0" aria-hidden="true" />
-                  {label}
+                  <Icon size={18} className="shrink-0" aria-hidden="true" />
+                  <span className="pn-sidebar-text">{label}</span>
+                  {badge > 0 && (
+                    <span className="pn-nav-badge" aria-hidden="true">
+                      {badgeText(badge)}
+                    </span>
+                  )}
                 </Link>
-              ))}
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        ))}
       </nav>
-      <div className="pn-panel-inset shrink-0 space-y-3 border-t border-line">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="pn-avatar size-9 text-sm" aria-hidden="true">
+      <div
+        className={`pn-sidebar-status mx-3 mt-2 flex shrink-0 items-center gap-3 rounded-2xl border border-line bg-surface/60 p-3 ${sessionError ? "text-warning" : ""}`}
+        data-tip={sessionError || "Phiên được bảo vệ · Giờ Việt Nam (UTC+7)"}
+      >
+        <span className="grid size-9 shrink-0 place-items-center rounded-[0.6875rem] bg-accent-soft text-accent">
+          <ShieldCheck size={18} aria-hidden="true" />
+        </span>
+        <span className="pn-sidebar-text min-w-0 text-xs leading-snug">
+          <b className="block text-sm font-medium text-ink">
+            {sessionError ? "Cần xác minh lại phiên" : "Phiên được bảo vệ"}
+          </b>
+          <span className="text-muted">Giờ Việt Nam (UTC+7)</span>
+        </span>
+      </div>
+      <div className="pn-sidebar-account shrink-0 space-y-3 px-5 pt-3 pb-5">
+        <div
+          className="pn-sidebar-who flex min-w-0 items-center gap-3"
+          data-tip={`${accountName} · ${roleLabels[user.role]}`}
+        >
+          <span
+            className="pn-avatar size-9 shrink-0 text-sm"
+            aria-hidden="true"
+          >
             {accountName.charAt(0).toUpperCase()}
           </span>
-          <div className="min-w-0">
+          <div className="pn-sidebar-text min-w-0">
             <p className="truncate text-sm font-semibold" title={accountName}>
               {accountName}
             </p>
@@ -238,77 +459,169 @@ export function LiveShell({
   );
 
   return (
-    <div className="min-h-dvh lg:pl-60">
+    <div className="pn-shell">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-xl focus:bg-panel focus:p-3"
       >
         Đến nội dung chính
       </a>
-      <aside className="pn-sidebar fixed inset-y-0 left-0 hidden w-60 flex-col border-r border-line lg:flex">
+      <aside
+        className="pn-sidebar pn-glass hidden flex-col lg:flex"
+        onMouseOver={showTip}
+        onFocus={showTip}
+        onMouseLeave={hideTip}
+        onBlur={hideTip}
+      >
+        <button
+          type="button"
+          className="pn-sidebar-collapse"
+          aria-label={collapsed ? "Mở rộng menu" : "Thu gọn menu"}
+          aria-expanded={!collapsed}
+          aria-keyshortcuts="["
+          data-tip={collapsed ? "Mở rộng menu  [" : "Thu gọn menu  ["}
+          onClick={() => setSidebarCollapsed(!collapsed)}
+        >
+          {/* Một mũi tên, xoay 180° theo trạng thái (CSS dựa vào aria-expanded). */}
+          <ChevronLeft size={15} strokeWidth={2.5} aria-hidden="true" />
+        </button>
         {navigation}
       </aside>
+      {tip &&
+        createPortal(
+          <div
+            role="tooltip"
+            className="pn-nav-tip"
+            style={{ top: tip.top, left: tip.left }}
+          >
+            {tip.label}
+          </div>,
+          document.body,
+        )}
       {menu && (
         <Modal drawer title="Điều hướng" onClose={() => setMenu(false)}>
+          {attention.length > 0 && (
+            <section
+              aria-label="Cần chú ý"
+              className="pn-drawer-attention mx-3 mt-3 rounded-2xl border border-line sm:hidden"
+            >
+              <p className="px-3 pt-2 pb-1 text-xs font-semibold tracking-[0.1em] text-faint uppercase">
+                Cần chú ý
+              </p>
+              <AttentionLinks items={attention} onPick={() => setMenu(false)} />
+              {attentionCount > 0 && (
+                <button
+                  type="button"
+                  className="pn-mark-read"
+                  onClick={markAttentionRead}
+                >
+                  Đánh dấu đã đọc tất cả
+                </button>
+              )}
+            </section>
+          )}
           {navigation}
         </Modal>
       )}
-      <header className="border-b border-line bg-panel">
-        <div className="mx-auto flex min-h-16 max-w-[96rem] items-center justify-between gap-3 pn-page-inline">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              type="button"
-              className="icon-btn lg:hidden"
-              aria-label="Mở menu"
-              aria-expanded={menu}
-              aria-haspopup="dialog"
-              onClick={() => setMenu(true)}
-            >
-              <Menu size={18} aria-hidden="true" />
-            </button>
-            <p className="min-w-0 truncate text-sm text-muted">
-              {operatorName}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-3">
-            {!sessionError && (
-              <span className="hidden sm:inline-flex">
-                <StatusBadge
-                  tone="success"
-                  label="Phiên được bảo vệ"
-                  icon={ShieldCheck}
-                />
-              </span>
-            )}
-            <button
-              type="button"
-              className="icon-btn"
-              aria-label="Đổi giao diện"
-              aria-pressed={!dark}
-              onClick={toggleTheme}
-              title={
-                dark
-                  ? "Chuyển sang giao diện sáng"
-                  : "Chuyển sang giao diện tối"
-              }
-            >
-              {dark ? (
-                <Sun size={17} aria-hidden="true" />
-              ) : (
-                <Moon size={17} aria-hidden="true" />
-              )}
-            </button>
-          </div>
+      {palette && (
+        <CommandPalette
+          items={paletteItems}
+          searchData={granted?.includes("trip.read") ?? true}
+          onClose={() => setPalette(false)}
+        />
+      )}
+      <header className="pn-topbar pn-glass flex min-h-16 items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 lg:pl-6">
+        <button
+          type="button"
+          className="icon-btn lg:hidden"
+          aria-label="Mở menu"
+          aria-expanded={menu}
+          aria-haspopup="dialog"
+          onClick={() => setMenu(true)}
+        >
+          <Menu size={18} aria-hidden="true" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-lg font-semibold tracking-tight">
+            {pageTitle}
+          </h1>
+          <p className="hidden truncate text-xs text-muted sm:block">
+            {now || "\u00a0"}
+          </p>
         </div>
+        <button
+          type="button"
+          className="hidden min-h-11 w-60 items-center gap-2.5 rounded-[0.8125rem] border border-line bg-surface px-3 text-sm text-muted transition-colors hover:text-ink md:flex xl:w-72"
+          aria-label="Tìm nhanh"
+          aria-keyshortcuts="Meta+K Control+K"
+          aria-haspopup="dialog"
+          onClick={() => setPalette(true)}
+        >
+          <Search size={17} aria-hidden="true" />
+          <span className="flex-1 text-left">
+            {(granted?.includes("trip.read") ?? true)
+              ? "Tìm trang, vé, chuyến…"
+              : "Tìm trang…"}
+          </span>
+          <kbd className="pn-kbd font-sans">⌘K</kbd>
+        </button>
+        <button
+          type="button"
+          className="icon-btn md:hidden"
+          aria-label="Tìm nhanh"
+          aria-haspopup="dialog"
+          onClick={() => setPalette(true)}
+        >
+          <Search size={17} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          // Điện thoại: đổi giao diện trong menu tài khoản để topbar đủ chỗ cho tiêu đề (GF20).
+          className="icon-btn max-sm:hidden"
+          aria-label="Đổi giao diện"
+          aria-pressed={!dark}
+          onClick={toggleTheme}
+          title={
+            dark ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối"
+          }
+        >
+          {dark ? (
+            <Sun size={17} aria-hidden="true" />
+          ) : (
+            <Moon size={17} aria-hidden="true" />
+          )}
+        </button>
+        {/* Trang Chuyến xe đã có nút "+ Thêm chuyến" ở đầu trang (GF6). */}
+        {tripWrite && path !== "/admin/trips" && (
+          <Link
+            href="/admin/trips?create=1"
+            className="btn btn-primary max-sm:w-[var(--control-height)] max-sm:px-0"
+            aria-label="Tạo chuyến"
+          >
+            <Plus size={17} aria-hidden="true" />
+            <span className="hidden sm:inline">Tạo chuyến</span>
+          </Link>
+        )}
+        {counters.data && (
+          <NotificationBell
+            items={attention}
+            unread={attentionCount}
+            onMarkRead={markAttentionRead}
+          />
+        )}
+        <AccountMenu
+          name={accountName}
+          role={roleLabels[user.role]}
+          phone={user.phone}
+          dark={dark}
+          toggleTheme={toggleTheme}
+        />
       </header>
       <main
         id="main"
         tabIndex={-1}
-        className="mx-auto max-w-[96rem] pn-page-inline py-4 sm:py-6"
+        className="mx-auto mt-4 max-w-[96rem] outline-none sm:mt-6"
       >
-        <h1 className="mb-4 text-xl font-semibold tracking-tight sm:mb-6">
-          {pageTitle}
-        </h1>
         {sessionError ? (
           <LoadState
             error={sessionError}
@@ -318,10 +631,46 @@ export function LiveShell({
         ) : (
           children
         )}
-        <footer className="mt-6 border-t border-line pt-4 sm:mt-8 text-xs text-muted">
+        <footer className="mt-6 border-t border-line pt-4 text-xs text-muted sm:mt-8">
           {operatorName} · Giờ Việt Nam (UTC+7)
         </footer>
       </main>
+      {!menu && quick.length > 0 && (
+        <nav aria-label="Điều hướng nhanh" className="pn-bottom-nav pn-glass">
+          {quick.map(({ href, label, short, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              aria-label={short ? label : undefined}
+              aria-current={path === href ? "page" : undefined}
+            >
+              <Icon size={19} aria-hidden="true" />
+              <span>{short ?? label}</span>
+            </Link>
+          ))}
+          {items.length > quick.length && (
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              aria-label={
+                attentionCount
+                  ? `Thêm, ${attentionCount.toLocaleString("vi-VN")} việc mới cần chú ý`
+                  : undefined
+              }
+              className="relative"
+              onClick={() => setMenu(true)}
+            >
+              <MoreHorizontal size={19} aria-hidden="true" />
+              {attentionCount > 0 && (
+                <b className="pn-bell-badge pn-more-badge" aria-hidden="true">
+                  {badgeText(attentionCount)}
+                </b>
+              )}
+              <span>Thêm</span>
+            </button>
+          )}
+        </nav>
+      )}
     </div>
   );
 }

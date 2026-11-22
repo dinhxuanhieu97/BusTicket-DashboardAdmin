@@ -1,0 +1,342 @@
+import { z } from "zod";
+import {
+  passengerBookingSchema,
+  tripPassengersSchema,
+} from "./trip-assistants";
+import { stopTime, type TripDetail } from "./trip-detail";
+
+/**
+ * Danh sách khách theo chuyến cho nhân viên nhà xe (khớp `apps/api/src/trips/trip-passengers.ts`).
+ * Quyền: `booking.read` để xem, `booking.export` để xuất file.
+ */
+export const passengerScopeSchema = z.enum(["active", "all"]);
+export type PassengerScope = z.infer<typeof passengerScopeSchema>;
+export const exportFormatSchema = z.enum(["xlsx", "csv"]);
+export type ExportFormat = z.infer<typeof exportFormatSchema>;
+
+const legSchema = z.object({
+  tripId: z.string(),
+  departAt: z.string(),
+  routeCode: z.string(),
+});
+
+export const adminPassengerBookingSchema = passengerBookingSchema.extend({
+  channel: z.string(),
+  contactErased: z.boolean(),
+  holdUntil: z.string().nullable(),
+  createdAt: z.string(),
+  /** Họ tên nhân viên tạo đơn tại quầy/nhập file (API cũ không có). */
+  createdBy: z.string().nullable().optional(),
+  /** Tổng tiền phụ xe đã thu trên xe (ghi qua file nhập lại). */
+  onboardCollected: z.number().int().nonnegative().optional(),
+  /** Lý do nhân viên hủy đơn. */
+  cancelReason: z.string().nullable().optional(),
+  /** Lúc khách báo đã chuyển khoản trên Mini App (gửi ảnh lệnh chuyển); API cũ không có. */
+  transferClaimedAt: z.string().nullable().optional(),
+  /** Số ảnh lệnh chuyển khoản khách đã gửi. */
+  paymentProofCount: z.number().int().nonnegative().optional(),
+  /** Vé khứ hồi (tính 2 vé, mỗi lượt một vé): ngày giờ lượt đi và lượt về; API cũ không có. */
+  roundTrip: z
+    .object({ outbound: legSchema, return: legSchema })
+    .nullable()
+    .optional(),
+});
+export const adminTripPassengersSchema = tripPassengersSchema.extend({
+  bookings: z.array(adminPassengerBookingSchema).max(500),
+  holding: z.object({
+    bookings: z.number().int().nonnegative(),
+    seats: z.number().int().nonnegative(),
+  }),
+});
+export type AdminPassengerBooking = z.infer<typeof adminPassengerBookingSchema>;
+export type AdminTripPassengers = z.infer<typeof adminTripPassengersSchema>;
+
+export const bookingStatusLabels: Record<string, string> = {
+  HOLDING: "Đang giữ chỗ",
+  CONFIRMED: "Đã xác nhận",
+  COMPLETED: "Đã hoàn tất",
+  EXPIRED: "Hết hạn giữ chỗ",
+  CANCELLED: "Đã hủy",
+};
+export const channelLabels: Record<string, string> = {
+  ONLINE: "Mini App",
+  STAFF: "Tại quầy",
+};
+export const ERASED_LABEL = "Khách đã xóa thông tin";
+
+/** Lọc theo mã đơn, tên, SĐT hoặc chỗ (không phân biệt hoa thường, bỏ dấu cách trong SĐT). */
+export function filterPassengers(
+  bookings: readonly AdminPassengerBooking[],
+  query: string,
+) {
+  const q = query.trim().toLowerCase();
+  if (!q) return [...bookings];
+  const digits = q.replace(/\D/g, "");
+  return bookings.filter((b) => {
+    if (b.code.toLowerCase().includes(q)) return true;
+    if (b.seats.some((s) => s.code.toLowerCase() === q)) return true;
+    if (b.contactErased) return false;
+    if (b.contactName.toLowerCase().includes(q)) return true;
+    if (digits.length >= 3) {
+      const phone = b.contactPhone.replace(/\D/g, "");
+      const local = phone.startsWith("84") ? "0" + phone.slice(2) : phone;
+      return phone.includes(digits) || local.includes(digits);
+    }
+    return false;
+  });
+}
+
+/** SĐT dạng +84… → 0… để đọc và gọi quen thuộc với nhân viên. */
+export function localPhone(phone: string) {
+  return phone.startsWith("+84") ? "0" + phone.slice(3) : phone;
+}
+
+/** 17 cột của sheet `DanhSachKhach` theo `templates/mau-danh-sach-khach-theo-chuyen.xlsx`. */
+export const MANIFEST_COLUMNS = [
+  "STT",
+  "Mã vé",
+  "Phòng/Chỗ",
+  "Loại",
+  "Số người",
+  "Trẻ <2 tuổi",
+  "Họ tên khách",
+  "SĐT",
+  "Điểm đón",
+  "Giờ đón dự kiến",
+  "Điểm trả",
+  "Tổng tiền",
+  "Đã trả",
+  "Còn phải thu",
+  "Ghi chú",
+  "Đã lên xe",
+  "Thực thu trên xe",
+] as const;
+
+export type ManifestCell = string | number | null;
+
+const vnFormat = (iso: string, opts: Intl.DateTimeFormatOptions) =>
+  new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hourCycle: "h23",
+    ...opts,
+  }).format(new Date(iso));
+export const vnDate = (iso: string) =>
+  vnFormat(iso, { day: "2-digit", month: "2-digit", year: "numeric" });
+export const vnTime = (iso: string) =>
+  vnFormat(iso, { hour: "2-digit", minute: "2-digit" });
+
+/** "Khứ hồi · Đi 18:00 01/02/2027 (HCM-HA) · Về 17:30 03/02/2027 (HA-HCM)"; vé một chiều → null. */
+export function roundTripText(b: Pick<AdminPassengerBooking, "roundTrip">) {
+  const r = b.roundTrip;
+  if (!r) return null;
+  const leg = (l: { departAt: string; routeCode: string }) =>
+    `${vnTime(l.departAt)} ${vnDate(l.departAt)} (${l.routeCode})`;
+  return `Khứ hồi · Đi ${leg(r.outbound)} · Về ${leg(r.return)}`;
+}
+
+/** Mã chuyến trên file: tuyến + ngày + giờ đi (giờ Việt Nam), ví dụ `HCM-HA-20270201-1800`. */
+export function manifestTripCode(routeCode: string, departAt: string) {
+  const [d, m, y] = vnDate(departAt).split("/");
+  return `${routeCode}-${y}${m}${d}-${vnTime(departAt).replace(":", "")}`;
+}
+
+function seatType(detail: TripDetail, seatCode: string, floor: string) {
+  const seat = detail.seats.find((s) => s.code === seatCode);
+  const floorLabel =
+    detail.layout.floors.find((f) => f.code === floor)?.label ?? floor;
+  const unit = detail.layout.unit.trim();
+  const unitName = unit.charAt(0).toUpperCase() + unit.slice(1);
+  if (detail.layout.kind === "room" && seat)
+    return `${unitName} ${seat.maxOccupancy > 1 ? "đôi" : "đơn"}`;
+  return floorLabel;
+}
+
+/**
+ * Một dòng cho mỗi chỗ, giống file mẫu. Tiền của đơn nhiều chỗ chỉ ghi ở dòng đầu để cộng cột không bị trùng.
+ * Đơn đang giữ chỗ ghi rõ ở cột ghi chú; khách đã xóa thông tin không có tên/SĐT.
+ */
+export function manifestRows(
+  data: AdminTripPassengers,
+  detail: TripDetail,
+): ManifestCell[][] {
+  const rows: ManifestCell[][] = [];
+  for (const b of data.bookings) {
+    const notes = [
+      b.status === "HOLDING" && b.holdUntil
+        ? `Đang giữ chỗ đến ${vnTime(b.holdUntil)} ${vnDate(b.holdUntil)}`
+        : b.status !== "CONFIRMED" && b.status !== "COMPLETED"
+          ? (bookingStatusLabels[b.status] ?? b.status)
+          : "",
+      b.status === "CANCELLED" && b.cancelReason
+        ? `Lý do hủy: ${b.cancelReason}`
+        : "",
+      roundTripText(b) ?? "",
+      b.note ?? "",
+    ].filter(Boolean);
+    b.seats.forEach((s, i) => {
+      const extra = s.occupancy > 1 ? ` (+${s.occupancy - 1})` : "";
+      rows.push([
+        rows.length + 1,
+        b.code,
+        s.code,
+        seatType(detail, s.code, s.floor),
+        s.occupancy,
+        s.infantCount || null,
+        b.contactErased ? ERASED_LABEL : b.contactName + extra,
+        b.contactErased ? null : localPhone(b.contactPhone),
+        b.pickupStop?.name ?? null,
+        b.pickupStop ? stopTime(b.pickupStop) : null,
+        b.dropoffStop?.name ?? null,
+        i === 0 ? b.totalAmount : null,
+        i === 0 ? b.paidAmount : null,
+        i === 0 ? b.dueAmount : null,
+        i === 0 ? notes.join(" · ") || null : null,
+        s.boardedAt ? "x" : null,
+        // Tổng đã thu trên xe của cả đơn, ở dòng đầu: nhập lại file không đổi gì.
+        i === 0 && b.onboardCollected ? b.onboardCollected : null,
+      ]);
+    });
+  }
+  return rows;
+}
+
+/**
+ * Ô CSV an toàn: bọc ngoặc kép khi cần và chặn công thức (ô bắt đầu bằng = + - @ tab CR) bị Excel thực thi.
+ * Số giữ nguyên để cộng được.
+ */
+export function csvCell(value: ManifestCell) {
+  if (value === null) return "";
+  if (typeof value === "number") return String(value);
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return /[",\r\n;]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+}
+
+/** CSV UTF-8 có BOM (Excel tiếng Việt mở đúng dấu), xuống dòng CRLF. */
+export function toCsv(
+  header: readonly string[],
+  rows: readonly ManifestCell[][],
+) {
+  const lines = [header, ...rows].map((r) => r.map(csvCell).join(","));
+  return "﻿" + lines.join("\r\n") + "\r\n";
+}
+
+/** Tên file an toàn cho header `Content-Disposition` (ASCII) kèm bản UTF-8. */
+export function attachmentHeader(fileName: string) {
+  const ascii = fileName
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .replace(/[^A-Za-z0-9._-]+/g, "-");
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+}
+
+/** Số chỗ đã lên xe / tổng chỗ của một đơn. */
+export function boardedCount(b: Pick<AdminPassengerBooking, "seats">) {
+  return b.seats.filter((s) => s.boardedAt).length;
+}
+
+/** Bộ lọc thanh toán của danh sách khách (lọc trên dữ liệu đã tải). */
+export type PaymentFilter = "all" | "due" | "paid";
+export const paymentFilterLabels: Record<PaymentFilter, string> = {
+  all: "Tất cả thanh toán",
+  due: "Còn phải thu",
+  paid: "Đã thu đủ",
+};
+export const NO_PICKUP = "__none__";
+
+/** Lọc theo trạng thái tiền và điểm đón (`""` = mọi điểm, `NO_PICKUP` = chưa chọn điểm đón). */
+export function filterBookings(
+  bookings: readonly AdminPassengerBooking[],
+  payment: PaymentFilter,
+  pickup: string,
+) {
+  return bookings.filter(
+    (b) =>
+      (payment === "all" ||
+        (payment === "due" ? b.dueAmount > 0 : b.dueAmount === 0)) &&
+      (!pickup ||
+        (pickup === NO_PICKUP ? !b.pickupStop : b.pickupStop?.name === pickup)),
+  );
+}
+
+/** Các điểm đón có trong danh sách, theo giờ đón. */
+export function pickupOptions(bookings: readonly AdminPassengerBooking[]) {
+  const seen = new Map<string, string>();
+  for (const b of bookings)
+    if (b.pickupStop && !seen.has(b.pickupStop.name))
+      seen.set(b.pickupStop.name, `${b.pickupStop.day}-${b.pickupStop.time}`);
+  return [...seen.entries()]
+    .sort((a, b) => a[1].localeCompare(b[1]) || a[0].localeCompare(b[0], "vi"))
+    .map(([name]) => name);
+}
+
+export const PAGE_SIZES = [10, 20, 50] as const;
+
+/** Cắt trang (trang bắt đầu từ 1, tự kẹp khi danh sách ngắn lại sau khi lọc). */
+export function paginate<T>(rows: readonly T[], page: number, size: number) {
+  const pages = Math.max(1, Math.ceil(rows.length / size));
+  const current = Math.min(Math.max(1, page), pages);
+  const start = (current - 1) * size;
+  return {
+    rows: rows.slice(start, start + size),
+    page: current,
+    pages,
+    from: rows.length ? start + 1 : 0,
+    to: Math.min(start + size, rows.length),
+  };
+}
+
+/** Ký hiệu chỗ gọn cho ô đầu dòng: "A1", "A7 +1", kèm số người/em bé. */
+export function seatSummary(b: Pick<AdminPassengerBooking, "seats">) {
+  const [first, ...rest] = b.seats;
+  return first ? first.code + (rest.length ? ` +${rest.length}` : "") : "—";
+}
+
+/** Cột sắp xếp được của danh sách khách (T3). */
+export const passengerSortLabels = {
+  seat: "Chỗ",
+  pickup: "Giờ đón",
+  due: "Còn thu",
+  status: "Trạng thái",
+} as const;
+export type PassengerSortKey = keyof typeof passengerSortLabels;
+
+/** Thứ tự trạng thái khi sắp xếp: việc cần làm (đang giữ) lên trước, đơn hết hiệu lực xuống cuối. */
+const statusOrder: Record<string, number> = {
+  HOLDING: 0,
+  CONFIRMED: 1,
+  COMPLETED: 2,
+  CANCELLED: 3,
+  EXPIRED: 4,
+};
+
+/**
+ * Giá trị sắp xếp của một đơn. Chỗ theo chỗ đầu tiên (so số tự nhiên: A2 < A10); giờ đón tính cả ngày lệch;
+ * đơn chưa chọn điểm đón trả `null` để luôn nằm cuối; còn thu của đơn đã hủy/hết hạn là 0.
+ */
+export function passengerSortValue(
+  b: Pick<
+    AdminPassengerBooking,
+    "seats" | "pickupStop" | "dueAmount" | "status"
+  >,
+  key: string,
+): string | number | null {
+  switch (key) {
+    case "seat":
+      return b.seats[0]?.code ?? null;
+    case "pickup": {
+      if (!b.pickupStop) return null;
+      const [h, m] = b.pickupStop.time.split(":").map(Number);
+      return (b.pickupStop.day ?? 0) * 1440 + h * 60 + m;
+    }
+    case "due":
+      return b.status === "CANCELLED" || b.status === "EXPIRED"
+        ? 0
+        : b.dueAmount;
+    case "status":
+      return statusOrder[b.status] ?? 9;
+    default:
+      return null;
+  }
+}

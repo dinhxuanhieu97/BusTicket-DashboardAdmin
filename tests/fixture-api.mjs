@@ -38,6 +38,13 @@ const OWNER_PERMISSIONS = [
   "payment.record",
   "payment.manage",
   "trip.assigned.read",
+  "booking.read",
+  "booking.export",
+  "booking.create",
+  "booking.board",
+  "booking.cancel",
+  "booking.update",
+  "trip.assigned.board",
 ];
 const STAFF_PERMISSIONS = {
   PLATFORM_ADMIN: [
@@ -55,6 +62,12 @@ const STAFF_PERMISSIONS = {
     "route.write",
     "trip.read",
     "trip.write",
+    "booking.read",
+    "booking.export",
+    "booking.create",
+    "booking.board",
+    "booking.cancel",
+    "booking.update",
   ],
   ACCOUNTANT: [
     "policy.read",
@@ -65,6 +78,8 @@ const STAFF_PERMISSIONS = {
     "payment.read",
     "payment.record",
     "payment.manage",
+    "booking.read",
+    "booking.export",
   ],
   SELLER: [
     "policy.read",
@@ -73,8 +88,13 @@ const STAFF_PERMISSIONS = {
     "trip.read",
     "payment.read",
     "payment.record",
+    "booking.read",
+    "booking.export",
+    "booking.create",
+    "booking.board",
+    "booking.update",
   ],
-  ASSISTANT: ["trip.assigned.read"],
+  ASSISTANT: ["trip.assigned.read", "trip.assigned.board"],
 };
 const ASSIGNABLE_TRIP = "44444444-4444-4444-8444-444444444444";
 const OTHER_TRIP = "55555555-5555-4555-8555-555555555555";
@@ -85,6 +105,8 @@ let mustChange = new Set();
 let permissions = OWNER_PERMISSIONS;
 let createdTrips = [];
 let schedules = [];
+let fleet = null;
+let routeRows = null; // null = tuyến mặc định; tạo lại khi reset // null = xe mặc định; tạo lại khi reset
 const defaultPolicy = () => ({
   operatorId: op,
   version: 1,
@@ -114,12 +136,42 @@ let paymentAccount = null;
 // Logo nhà xe (khớp operators.service.ts) và công tắc "chưa cấu hình thương hiệu".
 let logo = null; // { data: Buffer, mime, version }
 let brandMissing = false;
+/** T1: thêm N khoản thu đã khớp để thử phân trang/sắp xếp Sổ thu. */
+let extraPayments = 0;
+/** Số bản ghi nhật ký thêm (T5): khác nhóm, người và ngày; bản ghi i lùi i ngày. */
+let extraAudit = 0;
 let staff = [];
 // Nhà xe do quản trị nền tảng tạo trong test, và chủ xe của chúng (opId -> danh sách).
 let createdOperators = [];
 let createdOwners = new Map();
 const staffPasswords = new Map();
 let idempotent = {};
+// Idempotency-Key của các lần nhập file đã ghi (để trả replayed).
+let importKeys = new Set();
+// Vận hành hành khách (D3): "MÃ:CHỖ" -> giờ lên xe; mã -> lý do hủy; mã -> tổng thu trên xe; khoản cần hoàn.
+let boardedSeats = new Map();
+let cancelledCodes = new Map();
+let onboardTotals = new Map();
+// Ảnh lệnh chuyển khoản khách gửi (Mini App) cho đơn TESTH1; chỉ dữ liệu giả.
+const PROOF_ID = "66666666-6666-4666-8666-666666666666";
+const PROOF_PNG = Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  Buffer.alloc(32, 7),
+]);
+// Sửa đơn (PATCH bookings/:code) và tiền ghi tay (payments/manual) theo mã đơn.
+let bookingEdits = new Map();
+let manualPaid = new Map();
+let manualKeys = new Map();
+let refunds = [];
+// Giả backend cũ chưa có API báo cáo/đếm/tìm (trả 404) để kiểm tra đường dự phòng.
+let reportsOff = false;
+const TRIP_STOPS = {
+  pickup: [
+    { name: "Bến xe Miền Đông", time: "17:30", day: 0 },
+    { name: "Ngã tư Thủ Đức", time: "18:15", day: 0 },
+  ],
+  dropoff: [{ name: "Hoài Ân", time: "05:30", day: 1 }],
+};
 let statusOverrides = {};
 let revoked = false,
   down = false,
@@ -231,6 +283,8 @@ http
       permissions = OWNER_PERMISSIONS;
       createdTrips = [];
       schedules = [];
+      fleet = null;
+      routeRows = null;
       policy = null;
       profile = {
         id: op,
@@ -241,6 +295,8 @@ http
       paymentAccount = null;
       logo = null;
       brandMissing = false;
+      extraPayments = 0;
+      extraAudit = 0;
       staff = [];
       createdOperators = [];
       createdOwners = new Map();
@@ -248,6 +304,15 @@ http
       mustChange = new Set();
       staffPasswords.clear();
       idempotent = {};
+      importKeys = new Set();
+      boardedSeats = new Map();
+      cancelledCodes = new Map();
+      onboardTotals = new Map();
+      bookingEdits = new Map();
+      manualPaid = new Map();
+      manualKeys = new Map();
+      refunds = [];
+      reportsOff = false;
       statusOverrides = {};
       down = false;
       malformed = false;
@@ -274,6 +339,9 @@ http
         refreshDown = body.refreshDown ?? refreshDown;
         refreshMalformed = body.refreshMalformed ?? refreshMalformed;
         brandMissing = body.brandMissing ?? brandMissing;
+        extraPayments = body.extraPayments ?? extraPayments;
+        extraAudit = body.extraAudit ?? extraAudit;
+        reportsOff = body.reportsOff ?? reportsOff;
         requireMfa = body.requireMfa ?? requireMfa;
         if (body.revokeSessions)
           for (const sess of sessions.values()) sess.revoked = true;
@@ -292,7 +360,11 @@ http
       method: req.method,
       path: url.pathname,
       query: url.search,
-      ...(path.includes("/trips") ? { body } : {}),
+      ...(path.includes("/trips") ||
+      path.endsWith("/reinstate") ||
+      path.endsWith("/stops")
+        ? { body }
+        : {}),
     });
     if (down) return fail(res, 503, "SERVICE_UNAVAILABLE", "Test outage");
     // Thương hiệu công khai theo mã nhà xe.
@@ -605,6 +677,67 @@ http
       }
     }
     const tripBase = `/api/v1/admin/operators/${op}/`;
+    // Tiền về muộn — khớp apps/api/src/payments/payments.service.ts (reinstateContext / reinstateLate).
+    const LATE_PAYMENT = "55555555-5555-4555-8555-555555555555";
+    if (path === `${tripBase}payments/${LATE_PAYMENT}/reinstate`) {
+      if (req.method === "GET")
+        return send(res, 200, {
+          paymentId: LATE_PAYMENT,
+          unallocatedAmount: 380000,
+          eligible: true,
+          booking: {
+            code: "TESTLATE",
+            status: "EXPIRED",
+            previousTotal: 380000,
+            paidAmount: 0,
+            pickupStop: null,
+            dropoffStop: null,
+          },
+          legs: [
+            {
+              tripId: "44444444-4444-4444-8444-444444444444",
+              tripName: "Chuyến kiểm thử",
+              tripCode: "PN050227-TEST",
+              departAt: "2027-02-05T10:30:00.000Z",
+              departed: false,
+              cancelled: false,
+              seats: [
+                {
+                  seatCode: "A1",
+                  occupancy: 1,
+                  infantCount: 0,
+                  available: true,
+                },
+              ],
+            },
+          ],
+        });
+      if (req.method === "POST") {
+        const seats = body.legs?.[0]?.items ?? [];
+        if (seats.some((i) => i.seatCode === "B1"))
+          return fail(
+            res,
+            409,
+            "SEAT_UNAVAILABLE",
+            "Chỗ B1 đã có người giữ hoặc không bán.",
+          );
+        const total = seats.length * 380000;
+        return send(res, 200, {
+          booking: {
+            code: "TESTLATE",
+            status: total > 380000 ? "HOLDING" : "CONFIRMED",
+            tripId: body.legs[0].tripId,
+            totalAmount: total,
+            depositAmount: total,
+            paidAmount: Math.min(total, 380000),
+            paymentStatus: total > 380000 ? "PARTIAL" : "PAID",
+            holdExpiresAt: total > 380000 ? "2027-02-01T03:10:00.000Z" : null,
+            items: [],
+          },
+          payment: {},
+        });
+      }
+    }
     // Phân công phụ xe (khớp apps/api/src/trips/trip-assistants.service.ts).
     const can = (perm) => !grants || grants.includes(perm);
     const assistantRef = (m) => ({
@@ -682,6 +815,403 @@ http
     const assignedTo = (tripId) =>
       activeAssistant(actor) &&
       (tripAssistants.get(tripId) ?? []).some((a) => a.userId === actor.id);
+    // ---- Vận hành hành khách (khớp apps/api/src/bookings/passenger-ops.service.ts) ----
+    const OPS_BOOKINGS = {
+      TESTA1: {
+        status: "CONFIRMED",
+        name: "Khách Kiểm Thử Một",
+        phone: "+84912000001",
+        seats: ["A1", "A2"],
+        total: 840000,
+        paid: 400000,
+      },
+      TESTB1: {
+        status: "CONFIRMED",
+        name: "Khách Kiểm Thử Hai",
+        phone: "+84912000002",
+        seats: ["B1"],
+        total: 420000,
+        paid: 420000,
+      },
+      TESTE1: {
+        status: "CONFIRMED",
+        name: "Khách đã xóa thông tin",
+        phone: "",
+        seats: ["B1"],
+        total: 420000,
+        paid: 420000,
+      },
+      TESTH1: {
+        status: "HOLDING",
+        name: "Khách Đang Giữ",
+        phone: "+84912000003",
+        seats: ["A3"],
+        total: 420000,
+        paid: 0,
+      },
+    };
+    const opsStatus = (code) =>
+      cancelledCodes.has(code) ? "CANCELLED" : OPS_BOOKINGS[code]?.status;
+    const opsPaid = (code) =>
+      (OPS_BOOKINGS[code]?.paid ?? 0) + (onboardTotals.get(code) ?? 0);
+    const boardedAt = (code, seat) =>
+      boardedSeats.get(`${code}:${seat}`) ?? null;
+    const boardingView = (code) => {
+      const b = OPS_BOOKINGS[code];
+      return {
+        code,
+        status: opsStatus(code),
+        contactName: b.name,
+        dueAmount: Math.max(b.total - opsPaid(code), 0),
+        seats: b.seats.map((seat) => ({
+          code: seat,
+          occupancy: 1,
+          boardedAt: boardedAt(code, seat),
+        })),
+      };
+    };
+    const boardingMatch = new RegExp(
+      `^${tripBase}(trips|my-trips)/([0-9a-f-]{36})/boarding$`,
+    ).exec(path);
+    if (boardingMatch && req.method === "POST") {
+      const mine = boardingMatch[1] === "my-trips";
+      if (!can(mine ? "trip.assigned.board" : "booking.board"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const tripId = boardingMatch[2];
+      if (mine ? !assignedTo(tripId) : tripId !== ASSIGNABLE_TRIP)
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy chuyến.");
+      let code = body.bookingCode;
+      if (body.qr) {
+        const m =
+          /\/tickets\/([A-Z0-9]{4,12})\/verify\?proof=([A-Za-z0-9_-]{43})$/.exec(
+            body.qr,
+          );
+        if (!m)
+          return fail(
+            res,
+            400,
+            "VALIDATION_FAILED",
+            "Mã QR không phải vé của hệ thống.",
+          );
+        if (m[2].startsWith("bad"))
+          return fail(
+            res,
+            404,
+            "NOT_FOUND",
+            "Vé không hợp lệ hoặc đã được cấp lại.",
+          );
+        code = m[1];
+      }
+      if (!OPS_BOOKINGS[code])
+        return fail(
+          res,
+          404,
+          "NOT_FOUND",
+          `Vé ${code} không thuộc chuyến này.`,
+        );
+      const st = opsStatus(code);
+      if (st !== "CONFIRMED")
+        return fail(
+          res,
+          409,
+          "CONFLICT",
+          st === "CANCELLED"
+            ? `Đơn ${code} đã hủy.`
+            : `Đơn ${code} chưa được xác nhận.`,
+        );
+      let changed = 0;
+      for (const seat of body.seatCodes ?? OPS_BOOKINGS[code].seats) {
+        const k = `${code}:${seat}`;
+        if (
+          body.boarded === false ? boardedSeats.delete(k) : !boardedSeats.has(k)
+        ) {
+          if (body.boarded !== false)
+            boardedSeats.set(k, "2027-02-05T10:30:00.000Z");
+          changed += 1;
+        }
+      }
+      return send(res, 200, { booking: boardingView(code), changed });
+    }
+    const editMatch = new RegExp(`^${tripBase}bookings/([A-Z0-9]{4,12})$`).exec(
+      path,
+    );
+    if (editMatch && req.method === "PATCH") {
+      if (!can("booking.update"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const code = editMatch[1];
+      if (!OPS_BOOKINGS[code])
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy đơn.");
+      if (opsStatus(code) === "CANCELLED" || !OPS_BOOKINGS[code].phone)
+        return fail(res, 409, "CONFLICT", "Đơn này không sửa được.");
+      const prev = bookingEdits.get(code) ?? {};
+      const next = { ...prev };
+      if (body.contactName !== undefined) next.contactName = body.contactName;
+      if (body.contactPhone !== undefined) {
+        const m = /^0([35789]\d{8})$/.exec(
+          body.contactPhone.replace(/\s/g, ""),
+        );
+        if (!m)
+          return fail(
+            res,
+            400,
+            "VALIDATION_FAILED",
+            "Số điện thoại di động không hợp lệ.",
+            {
+              field: "contactPhone",
+            },
+          );
+        next.contactPhone = `+84${m[1]}`;
+      }
+      for (const [field, kind] of [
+        ["pickupStop", "pickup"],
+        ["dropoffStop", "dropoff"],
+      ])
+        if (body[field] !== undefined) {
+          const stop = body[field]
+            ? TRIP_STOPS[kind].find((x) => x.name === body[field])
+            : null;
+          if (body[field] && !stop)
+            return fail(
+              res,
+              400,
+              "VALIDATION_FAILED",
+              "Điểm không có trong tuyến.",
+            );
+          next[field] = stop;
+        }
+      if (body.note !== undefined) next.note = body.note || null;
+      bookingEdits.set(code, next);
+      return send(res, 200, {
+        booking: {
+          code,
+          contactName: next.contactName ?? OPS_BOOKINGS[code].name,
+          contactPhone: next.contactPhone ?? OPS_BOOKINGS[code].phone,
+          note: next.note ?? null,
+          pickupStop: next.pickupStop ?? null,
+          dropoffStop: next.dropoffStop ?? null,
+        },
+        changed: Object.keys(body),
+      });
+    }
+    if (path === tripBase + "payments/manual" && req.method === "POST") {
+      if (!can("payment.record"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const code = body.bookingCode;
+      if (!OPS_BOOKINGS[code])
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy đơn.");
+      const key = req.headers["idempotency-key"];
+      if (!key)
+        return fail(res, 400, "VALIDATION_FAILED", "Thiếu Idempotency-Key.");
+      if (manualKeys.has(key))
+        return send(res, 200, { ...manualKeys.get(key), replayed: true });
+      manualPaid.set(code, (manualPaid.get(code) ?? 0) + body.amount);
+      const view = {
+        id: crypto.randomUUID(),
+        method: body.method,
+        amount: body.amount,
+        allocatedAmount: body.amount,
+      };
+      manualKeys.set(key, view);
+      return send(res, 200, view);
+    }
+    const cancelMatch = new RegExp(
+      `^${tripBase}bookings/([A-Z0-9]{4,12})/cancel$`,
+    ).exec(path);
+    if (cancelMatch && req.method === "POST") {
+      if (!can("booking.cancel"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const code = cancelMatch[1];
+      if (!OPS_BOOKINGS[code])
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy đơn.");
+      if (!body.reason || body.reason.trim().length < 3)
+        return fail(
+          res,
+          400,
+          "VALIDATION_FAILED",
+          "Vui lòng ghi lý do hủy (ít nhất 3 ký tự).",
+        );
+      const refundOf = () =>
+        refunds.find((x) => x.bookingCode === code) ?? null;
+      if (cancelledCodes.has(code))
+        return send(res, 200, {
+          booking: { code, status: "CANCELLED", paidAmount: opsPaid(code) },
+          refund: refundOf(),
+          alreadyCancelled: true,
+        });
+      if (OPS_BOOKINGS[code].seats.some((seat) => boardedAt(code, seat)))
+        return fail(
+          res,
+          409,
+          "CONFLICT",
+          "Khách đã lên xe: bỏ đánh dấu lên xe trước khi hủy.",
+        );
+      cancelledCodes.set(code, body.reason.trim());
+      if (opsPaid(code) > 0)
+        refunds.push({
+          id: crypto.randomUUID(),
+          bookingCode: code,
+          amount: opsPaid(code),
+          reason: body.reason.trim(),
+          status: "OPEN",
+          createdAt: "2027-02-05T10:00:00.000Z",
+          createdBy: actor?.fullName ?? "Chủ xe kiểm thử",
+          resolvedAt: null,
+          resolvedBy: null,
+          resolveNote: null,
+          contactName: OPS_BOOKINGS[code].name,
+          contactPhone: OPS_BOOKINGS[code].phone,
+          contactErased: !OPS_BOOKINGS[code].phone,
+        });
+      return send(res, 200, {
+        booking: { code, status: "CANCELLED", paidAmount: opsPaid(code) },
+        refund: refundOf(),
+        alreadyCancelled: false,
+      });
+    }
+    if (path === tripBase + "refunds" && req.method === "GET") {
+      if (!can("payment.read"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const all = url.searchParams.get("status") === "ALL";
+      return send(res, 200, {
+        refunds: refunds.filter((x) => all || x.status === "OPEN"),
+      });
+    }
+    const refundMatch = new RegExp(
+      `^${tripBase}refunds/([0-9a-f-]{36})/resolve$`,
+    ).exec(path);
+    if (refundMatch && req.method === "POST") {
+      if (!can("payment.manage"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const item = refunds.find((x) => x.id === refundMatch[1]);
+      if (!item)
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy khoản cần hoàn.");
+      if (item.status !== "OPEN")
+        return item.status === body.status
+          ? send(res, 200, { refund: item, replayed: true })
+          : fail(res, 409, "CONFLICT", "Khoản này đã được xử lý.");
+      Object.assign(item, {
+        status: body.status,
+        resolvedAt: "2027-02-05T11:00:00.000Z",
+        resolvedBy: actor?.fullName ?? "Chủ xe kiểm thử",
+        resolveNote: body.note ?? null,
+      });
+      return send(res, 200, { refund: item, replayed: false });
+    }
+    const boardImportMatch = new RegExp(
+      `^${tripBase}trips/([0-9a-f-]{36})/passengers/boarding-import$`,
+    ).exec(path);
+    if (boardImportMatch && req.method === "POST") {
+      if (!can("booking.board"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      if (boardImportMatch[1] !== ASSIGNABLE_TRIP)
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy chuyến.");
+      const dryRun = url.searchParams.get("dryRun") === "true";
+      const key = req.headers["idempotency-key"];
+      if (!dryRun && !key)
+        return fail(res, 400, "VALIDATION_FAILED", "Thiếu Idempotency-Key.");
+      if (!dryRun && importKeys.has(key))
+        return send(res, 200, { ...idempotent[key], replayed: true });
+      const issues = [];
+      const acc = new Map();
+      let unchanged = 0;
+      for (const row of body.rows) {
+        const code = String(row.code).trim().toUpperCase();
+        if (!OPS_BOOKINGS[code]) {
+          issues.push({
+            rows: [row.row],
+            message: `Dòng ${row.row}: mã vé không thuộc chuyến này.`,
+          });
+          continue;
+        }
+        if (opsStatus(code) !== "CONFIRMED") {
+          if (row.boarded || row.collected)
+            issues.push({
+              rows: [row.row],
+              message: `Dòng ${row.row}: đơn ${code} chưa được xác nhận, không ghi lên xe/thực thu được.`,
+            });
+          else unchanged += 1;
+          continue;
+        }
+        const a = acc.get(code) ?? {
+          rows: [],
+          board: new Set(),
+          collected: null,
+        };
+        acc.set(code, a);
+        a.rows.push(row.row);
+        const yes = /^(x|có|1|true)$/i.test(String(row.boarded ?? "").trim());
+        if (yes)
+          for (const seat of row.seatCode
+            ? [row.seatCode]
+            : OPS_BOOKINGS[code].seats)
+            a.board.add(seat);
+        const money = Number(String(row.collected ?? "").replace(/\D/g, ""));
+        if (
+          row.collected !== null &&
+          row.collected !== "" &&
+          Number.isFinite(money)
+        )
+          a.collected = (a.collected ?? 0) + money;
+      }
+      const updates = [];
+      for (const [code, a] of acc) {
+        const boardSeats = [...a.board].filter(
+          (seat) => !boardedAt(code, seat),
+        );
+        const prior = onboardTotals.get(code) ?? 0;
+        const collect = a.collected === null ? 0 : a.collected - prior;
+        const due = OPS_BOOKINGS[code].total - opsPaid(code);
+        if (collect > due) {
+          issues.push({
+            rows: a.rows,
+            message: `Dòng ${a.rows.join(", ")}: thực thu thêm lớn hơn số còn phải thu của đơn ${code}.`,
+          });
+          continue;
+        }
+        if (!boardSeats.length && collect <= 0) {
+          unchanged += a.rows.length;
+          continue;
+        }
+        updates.push({
+          code,
+          rows: a.rows,
+          boardSeats,
+          collectAmount: Math.max(collect, 0),
+          dueAfter: due - Math.max(collect, 0),
+        });
+      }
+      const plan = {
+        issues,
+        updates,
+        unchanged,
+        totals: {
+          bookings: updates.length,
+          boardSeats: updates.reduce((n, u) => n + u.boardSeats.length, 0),
+          collectAmount: updates.reduce((n, u) => n + u.collectAmount, 0),
+        },
+      };
+      if (dryRun) return send(res, 200, { ok: !issues.length, ...plan });
+      if (issues.length)
+        return send(res, 400, {
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "File còn dòng lỗi. Chưa cập nhật dòng nào.",
+            details: { issues },
+          },
+        });
+      for (const u of updates) {
+        for (const seat of u.boardSeats)
+          boardedSeats.set(`${u.code}:${seat}`, "2027-02-05T10:30:00.000Z");
+        if (u.collectAmount)
+          onboardTotals.set(
+            u.code,
+            (onboardTotals.get(u.code) ?? 0) + u.collectAmount,
+          );
+      }
+      importKeys.add(key);
+      idempotent[key] = plan;
+      return send(res, 200, { ...plan, replayed: false });
+    }
     if (path === tripBase + "my-trips" && req.method === "GET") {
       if (!can("trip.assigned.read"))
         return fail(res, 403, "FORBIDDEN", "Không có quyền.");
@@ -736,6 +1266,9 @@ http
               },
             ]
           : [];
+      for (const b of bookings)
+        for (const seat of b.seats)
+          seat.boardedAt = boardedAt(b.code, seat.code);
       return send(res, 200, {
         trip: tripRef(tripId),
         bookings,
@@ -745,8 +1278,303 @@ http
           people: tripId === ASSIGNABLE_TRIP ? 4 : 0,
           infants: tripId === ASSIGNABLE_TRIP ? 1 : 0,
           dueAmount: bookings.reduce((n, b) => n + b.dueAmount, 0),
+          boarded: bookings.reduce(
+            (n, b) => n + b.seats.filter((x) => x.boardedAt).length,
+            0,
+          ),
         },
         fetchedAt: new Date().toISOString(),
+      });
+    }
+    const staffBookingMatch = new RegExp(
+      `^${tripBase}trips/([0-9a-f-]{36})/(bookings|passengers/import)$`,
+    ).exec(path);
+    if (staffBookingMatch && req.method === "POST") {
+      if (!can("booking.create"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      if (staffBookingMatch[1] !== ASSIGNABLE_TRIP)
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy chuyến.");
+      const dryRun = url.searchParams.get("dryRun") === "true";
+      const key = req.headers["idempotency-key"];
+      if (!dryRun && !key)
+        return fail(res, 400, "VALIDATION_FAILED", "Thiếu Idempotency-Key.");
+      const price = (occ) => (occ === 2 ? 700000 : 450000);
+      const preview = (rows, b, items) => {
+        const total = items.reduce((n, i) => n + price(i.occupancy ?? 1), 0);
+        const paid = Number(b.paidAmount ?? 0) || 0;
+        return {
+          rows,
+          contactName: b.contactName,
+          contactPhone: "+84" + String(b.contactPhone).replace(/^0/, ""),
+          note: b.note ?? null,
+          pickupStop:
+            TRIP_STOPS.pickup.find((x) => x.name === b.pickupStop) ?? null,
+          dropoffStop:
+            TRIP_STOPS.dropoff.find((x) => x.name === b.dropoffStop) ?? null,
+          seats: items.map((i) => ({
+            code: i.seatCode,
+            occupancy: i.occupancy ?? 1,
+            infantCount: i.infantCount ?? 0,
+            lineTotal: price(i.occupancy ?? 1),
+          })),
+          status:
+            b.confirm === false && paid < 200000 ? "HOLDING" : "CONFIRMED",
+          totalAmount: total,
+          depositAmount: 200000,
+          paidAmount: paid,
+          dueAmount: total - paid,
+          paymentStatus:
+            paid >= total ? "PAID" : paid > 0 ? "PARTIAL" : "UNPAID",
+        };
+      };
+      const summary = (code, p) => ({
+        code,
+        rows: p.rows,
+        status: p.status,
+        seats: p.seats.map((x) => x.code),
+        totalAmount: p.totalAmount,
+        depositAmount: p.depositAmount,
+        paidAmount: p.paidAmount,
+        dueAmount: p.dueAmount,
+        paymentStatus: p.paymentStatus,
+        holdUntil: p.status === "HOLDING" ? "2027-02-05T05:00:00.000Z" : null,
+      });
+      if (staffBookingMatch[2] === "bookings") {
+        const taken = body.items.filter((i) => i.seatCode !== "A1");
+        const issues = taken.map((i) => ({
+          rows: [],
+          message: `Chỗ ${i.seatCode} đã có đơn TESTBK1.`,
+        }));
+        const p = preview([], body, body.items);
+        if (dryRun)
+          return send(res, 200, {
+            ok: !issues.length,
+            issues,
+            quote: issues.length ? null : p,
+          });
+        // SĐT này giả lập trường hợp chỗ vừa bị đặt giữa lúc xem giá và lúc bán.
+        if (issues.length || body.contactPhone === "0912999999")
+          return send(res, 409, {
+            error: {
+              code: "SEAT_UNAVAILABLE",
+              message: "Chỗ vừa được đặt. Vui lòng chọn chỗ khác.",
+              details: {
+                issues: issues.length
+                  ? issues
+                  : [{ rows: [], message: "Chỗ A1 đã có đơn TESTZZ." }],
+                internal: "không được chuyển ra trình duyệt",
+              },
+            },
+          });
+        return send(res, 200, {
+          booking: summary("TESTC1", p),
+          replayed: false,
+        });
+      }
+      const issues = [];
+      const bookings = [];
+      for (const r of body.rows) {
+        if (r.seatCode === "A2")
+          issues.push({
+            rows: [r.row],
+            message: `Dòng ${r.row}: chỗ A2 đã có đơn TESTBK1.`,
+          });
+        else
+          bookings.push(
+            preview([r.row], { ...r, confirm: body.confirm }, [
+              { seatCode: r.seatCode, occupancy: Number(r.occupancy ?? 1) },
+            ]),
+          );
+      }
+      if (dryRun)
+        return send(res, 200, {
+          ok: !issues.length,
+          issues,
+          warnings: [],
+          bookings,
+          totals: {
+            bookings: bookings.length,
+            seats: bookings.length,
+            totalAmount: bookings.reduce((n, b) => n + b.totalAmount, 0),
+            paidAmount: bookings.reduce((n, b) => n + b.paidAmount, 0),
+          },
+        });
+      if (issues.length)
+        return send(res, 409, {
+          error: {
+            code: "SEAT_UNAVAILABLE",
+            message: "File còn dòng lỗi. Chưa nhập dòng nào.",
+            details: { issues },
+          },
+        });
+      const replayed = importKeys.has(key);
+      importKeys.add(key);
+      return send(res, 200, {
+        bookings: bookings.map((b, i) => summary(`TESTI${i + 1}`, b)),
+        replayed,
+      });
+    }
+    const proofListMatch = new RegExp(
+      `^${tripBase}bookings/([A-Z0-9]{4,12})/payment-proofs$`,
+    ).exec(path);
+    if (proofListMatch && req.method === "GET") {
+      if (!can("payment.read"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      if (proofListMatch[1] !== "TESTH1")
+        return send(res, 200, { transferClaimedAt: null, proofs: [] });
+      return send(res, 200, {
+        transferClaimedAt: "2027-02-05T03:00:00.000Z",
+        proofs: [
+          {
+            id: PROOF_ID,
+            mime: "image/png",
+            bytes: PROOF_PNG.length,
+            createdAt: "2027-02-05T03:00:00.000Z",
+          },
+        ],
+      });
+    }
+    const proofImageMatch = new RegExp(
+      `^${tripBase}payment-proofs/([0-9a-f-]{36})$`,
+    ).exec(path);
+    if (proofImageMatch && req.method === "GET") {
+      if (!can("payment.read"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      if (proofImageMatch[1] !== PROOF_ID)
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy ảnh.");
+      res.writeHead(200, { "Content-Type": "image/png" });
+      return res.end(PROOF_PNG);
+    }
+    const adminPassengerMatch = new RegExp(
+      `^${tripBase}trips/([0-9a-f-]{36})/passengers(/export)?$`,
+    ).exec(path);
+    if (adminPassengerMatch && req.method === "GET") {
+      const exporting = !!adminPassengerMatch[2];
+      if (!can(exporting ? "booking.export" : "booking.read"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const tripId = adminPassengerMatch[1];
+      if (tripId !== ASSIGNABLE_TRIP)
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy chuyến.");
+      const status = url.searchParams.get("status") ?? "active";
+      if (!["active", "all"].includes(status))
+        return fail(res, 400, "VALIDATION_FAILED", "Bộ lọc không hợp lệ.");
+      const at = "2027-02-01T03:00:00.000Z";
+      const booking = (code, extra) => ({
+        code,
+        status: "CONFIRMED",
+        channel: "ONLINE",
+        contactErased: false,
+        holdUntil: null,
+        createdAt: at,
+        note: null,
+        ...extra,
+      });
+      const bookings = [
+        booking("TESTA1", {
+          contactName: "Khách Kiểm Thử Một",
+          contactPhone: "+84912000001",
+          note: "=Đón ở ngã tư",
+          pickupStop: TRIP_STOPS.pickup[0],
+          dropoffStop: TRIP_STOPS.dropoff[0],
+          totalAmount: 840000,
+          paidAmount: 400000,
+          dueAmount: 440000,
+          paymentStatus: "PARTIAL",
+          seats: [
+            { code: "A1", floor: "1", occupancy: 2, infantCount: 0 },
+            { code: "A2", floor: "1", occupancy: 1, infantCount: 1 },
+          ],
+        }),
+        booking("TESTH1", {
+          status: "HOLDING",
+          channel: "STAFF",
+          holdUntil: "2027-02-05T05:00:00.000Z",
+          transferClaimedAt: "2027-02-05T03:00:00.000Z",
+          paymentProofCount: 1,
+          createdBy: "Test SELLER",
+          contactName: "Khách Đang Giữ",
+          contactPhone: "+84912000003",
+          totalAmount: 420000,
+          paidAmount: 0,
+          dueAmount: 420000,
+          paymentStatus: "UNPAID",
+          seats: [{ code: "A3", floor: "1", occupancy: 1, infantCount: 0 }],
+        }),
+        booking("TESTE1", {
+          contactErased: true,
+          contactName: "Khách đã xóa thông tin",
+          contactPhone: "",
+          totalAmount: 420000,
+          paidAmount: 420000,
+          dueAmount: 0,
+          paymentStatus: "PAID",
+          // Vé khứ hồi (GB4): chuyến này là lượt đi.
+          roundTrip: {
+            outbound: {
+              tripId,
+              departAt: "2027-02-05T10:30:00.000Z",
+              routeCode: "TEST",
+            },
+            return: {
+              tripId: "33333333-3333-4333-8333-333333333333",
+              departAt: "2027-02-07T01:00:00.000Z",
+              routeCode: "TEST-R",
+            },
+          },
+          seats: [{ code: "B1", floor: "2", occupancy: 1, infantCount: 0 }],
+        }),
+        ...(status === "all"
+          ? [
+              booking("TESTX1", {
+                status: "CANCELLED",
+                contactName: "Khách Đã Hủy",
+                contactPhone: "+84912000004",
+                totalAmount: 420000,
+                paidAmount: 0,
+                dueAmount: 420000,
+                paymentStatus: "UNPAID",
+                seats: [
+                  { code: "B2", floor: "2", occupancy: 1, infantCount: 0 },
+                ],
+              }),
+            ]
+          : []),
+      ];
+      const visible = bookings
+        .map((b) => {
+          const st = cancelledCodes.has(b.code) ? "CANCELLED" : b.status;
+          const extra =
+            (onboardTotals.get(b.code) ?? 0) + (manualPaid.get(b.code) ?? 0);
+          return {
+            ...b,
+            ...bookingEdits.get(b.code),
+            status: st,
+            cancelReason: cancelledCodes.get(b.code) ?? null,
+            onboardCollected: onboardTotals.get(b.code) ?? 0,
+            paidAmount: b.paidAmount + extra,
+            dueAmount: Math.max(b.dueAmount - extra, 0),
+            seats: b.seats.map((x) => ({
+              ...x,
+              boardedAt: boardedAt(b.code, x.code),
+            })),
+          };
+        })
+        .filter((b) => status === "all" || b.status !== "CANCELLED");
+      return send(res, 200, {
+        trip: tripRef(tripId),
+        bookings: visible,
+        summary: {
+          bookings: 2,
+          seats: 3,
+          people: 4,
+          infants: 1,
+          dueAmount: 440000,
+          boarded: visible
+            .filter((b) => b.status === "CONFIRMED")
+            .reduce((n, b) => n + b.seats.filter((x) => x.boardedAt).length, 0),
+        },
+        holding: { bookings: 1, seats: 1 },
+        fetchedAt: "2027-02-05T03:00:00.000Z",
       });
     }
     if (path === tripBase + "users" || path.startsWith(tripBase + "users/")) {
@@ -920,6 +1748,7 @@ http
       const rows = body.trips.map((v, i) => ({
         id: crypto.randomUUID(),
         name: v.name,
+        code: i ? "PN050227-BACK" : "PN050227-TEST",
         status: v.status,
         depart_at: v.departAt,
         sales_open_at: v.salesOpenAt,
@@ -934,42 +1763,154 @@ http
       createdTrips.push(...rows);
       return send(res, 201, { trips: rows });
     }
-    if (path === tripBase + "routes")
-      return send(res, 200, {
-        routes: [
-          {
-            id: routeId,
-            code: "TEST",
-            origin: "TP. Hồ Chí Minh",
-            destination: "Đà Lạt",
-          },
-          {
-            id: reverseRouteId,
-            code: "BACK",
-            origin: "Đà Lạt",
-            destination: "TP. Hồ Chí Minh",
-          },
-        ],
+    routeRows ??= [
+      {
+        id: routeId,
+        code: "TEST",
+        origin: "TP. Hồ Chí Minh",
+        destination: "Đà Lạt",
+        stops: { pickup: [], dropoff: [] },
+      },
+      {
+        id: reverseRouteId,
+        code: "BACK",
+        origin: "Đà Lạt",
+        destination: "TP. Hồ Chí Minh",
+        stops: { pickup: [], dropoff: [] },
+      },
+    ];
+    if (path === tripBase + "routes" && req.method === "GET")
+      return send(res, 200, { routes: routeRows });
+    if (path === tripBase + "route-pairs" && req.method === "POST") {
+      const made = [
+        [body.code, body.origin, body.destination],
+        [body.reverseCode, body.destination, body.origin],
+      ].map(([code, origin, destination]) => {
+        let r = routeRows.find((x) => x.code === code);
+        if (!r) {
+          r = {
+            id: crypto.randomUUID(),
+            code,
+            origin,
+            destination,
+            stops: { pickup: [], dropoff: [] },
+          };
+          routeRows.push(r);
+        }
+        return r;
       });
-    if (path === tripBase + "vehicles")
-      return send(res, 200, {
-        vehicles: [
-          {
-            id: vehicleId,
-            code: "TEST01",
-            name: "Xe kiểm thử",
-            seat_layout_id: layoutId,
-            status: "ACTIVE",
-          },
-          {
-            id: oldVehicleId,
-            code: "TEST02",
-            name: "Xe sơ đồ cũ",
-            seat_layout_id: oldLayoutId,
-            status: "ACTIVE",
-          },
-        ],
-      });
+      return send(res, 201, { routes: made });
+    }
+    if (path === tripBase + "places" && req.method === "PUT") {
+      const hit = routeRows.filter(
+        (r) => r.origin === body.from || r.destination === body.from,
+      );
+      if (!hit.length)
+        return fail(res, 404, "NOT_FOUND", "Không tìm thấy điểm đi/đến.");
+      for (const r of hit) {
+        if (r.origin === body.from) r.origin = body.to;
+        if (r.destination === body.from) r.destination = body.to;
+      }
+      return send(res, 200, { updated: hit.length });
+    }
+    const routeMatch = path.match(/routes\/([0-9a-f-]{36})(\/stops)?$/);
+    if (routeMatch && path.startsWith(tripBase + "routes/")) {
+      const r = routeRows.find((x) => x.id === routeMatch[1]);
+      if (!r) return fail(res, 404, "NOT_FOUND", "Không tìm thấy tuyến.");
+      if (routeMatch[2] && req.method === "PUT") {
+        // Như API thật: mỗi danh sách phải theo thứ tự (ngày, giờ).
+        const ordered = (list) =>
+          list.every(
+            (s, i) =>
+              i === 0 ||
+              s.day > list[i - 1].day ||
+              (s.day === list[i - 1].day && s.time >= list[i - 1].time),
+          );
+        if (!ordered(body.pickup ?? []) || !ordered(body.dropoff ?? []))
+          return fail(
+            res,
+            400,
+            "VALIDATION_FAILED",
+            "Các điểm cần theo thứ tự thời gian.",
+          );
+        r.stops = body;
+        return send(res, 200, { id: r.id });
+      }
+      if (!routeMatch[2] && req.method === "DELETE") {
+        // Tuyến mặc định đã có chuyến kiểm thử → API thật trả 409.
+        if (r.id === routeId || r.id === reverseRouteId)
+          return fail(
+            res,
+            409,
+            "CONFLICT",
+            `Tuyến ${r.code} đã có chuyến nên không xóa được.`,
+          );
+        routeRows = routeRows.filter((x) => x !== r);
+        return send(res, 200, { ok: true });
+      }
+    }
+    fleet ??= [
+      {
+        id: vehicleId,
+        code: "TEST01",
+        name: "Xe kiểm thử",
+        type: "LIMOUSINE",
+        plate_number: null,
+        seat_layout_id: layoutId,
+        status: "ACTIVE",
+      },
+      {
+        id: oldVehicleId,
+        code: "TEST02",
+        name: "Xe sơ đồ cũ",
+        type: "LIMOUSINE",
+        plate_number: "77B-000.02",
+        seat_layout_id: oldLayoutId,
+        status: "ACTIVE",
+      },
+    ];
+    if (path === tripBase + "vehicles" && req.method === "GET")
+      return send(res, 200, { vehicles: fleet });
+    if (path === tripBase + "vehicles" && req.method === "POST") {
+      if (fleet.some((v) => v.code === body.code))
+        return fail(res, 409, "CONFLICT", "Mã xe đã tồn tại.");
+      const v = {
+        id: crypto.randomUUID(),
+        code: body.code,
+        name: body.name,
+        type: body.type,
+        plate_number: body.plateNumber ?? null,
+        seat_layout_id: body.seatLayoutId,
+        status: "ACTIVE",
+      };
+      fleet.push(v);
+      return send(res, 201, v);
+    }
+    const vehicleMatch = path.match(/vehicles\/([0-9a-f-]{36})$/);
+    if (vehicleMatch && path === tripBase + "vehicles/" + vehicleMatch[1]) {
+      const v = fleet.find((x) => x.id === vehicleMatch[1]);
+      if (!v) return fail(res, 404, "NOT_FOUND", "Không tìm thấy xe.");
+      if (req.method === "PATCH") {
+        if (body.name !== undefined) v.name = body.name;
+        if (body.plateNumber !== undefined) v.plate_number = body.plateNumber;
+        if (body.status !== undefined) v.status = body.status;
+        if (body.seatLayoutId !== undefined)
+          v.seat_layout_id = body.seatLayoutId;
+        return send(res, 200, v);
+      }
+      if (req.method === "DELETE") {
+        // Xe mặc định đã gắn với chuyến kiểm thử → API thật trả 409.
+        if (v.id === vehicleId || v.id === oldVehicleId)
+          return fail(
+            res,
+            409,
+            "CONFLICT",
+            "Xe đã có chuyến hoặc lịch chạy; hãy chuyển sang Ngừng chạy.",
+          );
+        fleet = fleet.filter((x) => x !== v);
+        return send(res, 200, { ok: true });
+      }
+    }
     if (path === tripBase + "seat-layouts/" + oldLayoutId)
       return send(res, 200, {
         layout: {
@@ -987,6 +1928,8 @@ http
           {
             id: layoutId,
             name: "Sơ đồ kiểm thử",
+            kind: "room",
+            capacity: 2,
             definition: {
               floors: [{ code: "1", label: "Tầng dưới", rows: ["A1 A2"] }],
               defaultMaxOccupancy: 1,
@@ -1006,6 +1949,7 @@ http
         sales_open_at: body.salesOpenAt,
         sales_close_at: body.salesCloseAt,
         contact_phone: body.contactPhone ?? null,
+        code: "PN050227-TEST",
         route_code: "TEST",
         vehicle_code: "TEST01",
         vehicle_name: "Xe kiểm thử",
@@ -1038,6 +1982,163 @@ http
     if (malformed) return send(res, 200, { wrong: true });
     const resource = path.slice(prefix.length);
     const when = new Date().toISOString();
+    if (
+      reportsOff &&
+      ["reports/revenue", "reports/bookings", "counters", "search"].includes(
+        resource,
+      )
+    )
+      return fail(res, 404, "NOT_FOUND", "Cannot GET");
+    // Ngày theo giờ VN: khớp apps/api/src/reports (ngày nghiệp vụ Asia/Ho_Chi_Minh).
+    const vnDay = (d) =>
+      new Date(d.getTime() + 7 * 3600000).toISOString().slice(0, 10);
+    const today = vnDay(new Date());
+    const yesterday = vnDay(new Date(Date.now() - 86400000));
+    const daysOf = (from, to) => {
+      const out = [];
+      for (let t = Date.parse(from); t < Date.parse(to); t += 86400000)
+        out.push(new Date(t).toISOString().slice(0, 10));
+      return out;
+    };
+    if (resource === "reports/revenue") {
+      const from = url.searchParams.get("from"),
+        to = url.searchParams.get("to");
+      // Hôm nay: nhận 630.000 (2 chuyển khoản), hoàn 100.000. Hôm qua: nhận 200.000 tiền mặt.
+      const byDay = daysOf(from, to).map((date) => {
+        const received =
+          date === today ? 630000 : date === yesterday ? 200000 : 0;
+        const refunded = date === today ? 100000 : 0;
+        return {
+          date,
+          received,
+          refunded,
+          net: received - refunded,
+          payments: date === today ? 2 : date === yesterday ? 1 : 0,
+          refunds: refunded ? 1 : 0,
+        };
+      });
+      const sum = (k) => byDay.reduce((t, d) => t + d[k], 0);
+      const hasToday = byDay.some((d) => d.date === today);
+      const hasYesterday = byDay.some((d) => d.date === yesterday);
+      return send(res, 200, {
+        from,
+        to,
+        totals: {
+          received: sum("received"),
+          refunded: sum("refunded"),
+          net: sum("net"),
+          payments: sum("payments"),
+          refunds: sum("refunds"),
+        },
+        byDay,
+        byMethod: [
+          ...(hasToday
+            ? [{ method: "BANK_TRANSFER", amount: 630000, count: 2 }]
+            : []),
+          ...(hasYesterday
+            ? [{ method: "CASH", amount: 200000, count: 1 }]
+            : []),
+        ],
+        byHour: hasToday ? [{ hour: 9, amount: 630000, count: 2 }] : [],
+        byRoute: hasToday
+          ? [
+              {
+                code: "TEST",
+                origin: "TP. Hồ Chí Minh",
+                destination: "Đà Lạt",
+                received: 530000,
+                refunded: 100000,
+                net: 430000,
+                bookings: 2,
+              },
+            ]
+          : [],
+        unallocated: hasToday ? 100000 : 0,
+      });
+    }
+    if (resource === "reports/bookings") {
+      const from = url.searchParams.get("from"),
+        to = url.searchParams.get("to");
+      // Hôm nay 6 chỗ (4 đơn, 1 hủy); hôm qua 4 chỗ (2 đơn).
+      const byDay = daysOf(from, to).map((date) => ({
+        date,
+        bookings: date === today ? 4 : date === yesterday ? 2 : 0,
+        cancelled: date === today ? 1 : 0,
+        abandoned: 0,
+        holding: 0,
+        seats: date === today ? 6 : date === yesterday ? 4 : 0,
+      }));
+      const sum = (k) => byDay.reduce((t, d) => t + d[k], 0);
+      return send(res, 200, {
+        from,
+        to,
+        totals: {
+          bookings: sum("bookings"),
+          cancelled: sum("cancelled"),
+          abandoned: 0,
+          holding: 0,
+          seats: sum("seats"),
+          cancelRate: sum("bookings")
+            ? sum("cancelled") / sum("bookings")
+            : null,
+        },
+        byDay,
+      });
+    }
+    if (resource === "counters") {
+      const money = (permissions ?? OWNER_PERMISSIONS).includes("payment.read");
+      return send(res, 200, {
+        tripsClosingSoon: 1,
+        payments: money
+          ? { total: 412, NONE: 405, NEEDS_REVIEW: 5, RESOLVED: 2 }
+          : null,
+        refundsOpen: money
+          ? refunds.filter((r) => r.status === "OPEN").length + 1
+          : null,
+      });
+    }
+    if (resource === "search") {
+      const q = (url.searchParams.get("q") ?? "").toLowerCase();
+      const trip = {
+        id: "44444444-4444-4444-8444-444444444444",
+        code: "PN050227-TEST",
+        name: "Chuyến kiểm thử",
+        status: "OPEN",
+        departAt: "2027-02-05T10:30:00.000Z",
+        routeCode: "TEST",
+      };
+      const booking = {
+        code: "TEST123",
+        status: "CONFIRMED",
+        contactName: "Nguyễn Văn Khách",
+        contactPhone: "+84912345678",
+        totalAmount: 450000,
+        trip: {
+          id: trip.id,
+          code: trip.code,
+          name: trip.name,
+          departAt: trip.departAt,
+        },
+      };
+      const digits = q.replace(/\D/g, "").replace(/^0/, "");
+      const bookingHit =
+        booking.code.toLowerCase().startsWith(q.replace(/\s/g, "")) ||
+        booking.contactName.toLowerCase().includes(q) ||
+        (digits.length >= 4 && booking.contactPhone.includes(digits));
+      return send(res, 200, {
+        q,
+        trips:
+          trip.code.toLowerCase().startsWith(q) ||
+          trip.name.toLowerCase().includes(q)
+            ? [trip]
+            : [],
+        bookings: (permissions ?? OWNER_PERMISSIONS).includes("booking.read")
+          ? bookingHit
+            ? [booking]
+            : []
+          : null,
+      });
+    }
     if (resource === "payments")
       return send(res, 200, {
         payments: [
@@ -1056,6 +2157,40 @@ http
             recordedBy: null,
             allocations: [{ bookingCode: "TEST123", amount: 200000, at: when }],
           },
+          {
+            id: "55555555-5555-4555-8555-555555555555",
+            method: "BANK_TRANSFER",
+            amount: 380000,
+            allocatedAmount: 0,
+            unallocatedAmount: 380000,
+            content: "TESTLATE",
+            bankReference: "TEST-LATE",
+            transactionAt: when,
+            receivedAt: when,
+            matchedBookingCode: "TESTLATE",
+            review: { status: "NEEDS_REVIEW", reason: "LATE", note: null },
+            recordedBy: null,
+            allocations: [],
+          },
+          ...Array.from({ length: extraPayments }, (_, i) => {
+            const n = i + 1;
+            const at = new Date(Date.parse(when) - n * 3_600_000).toISOString();
+            return {
+              id: `66666666-6666-4666-8666-${String(n).padStart(12, "0")}`,
+              method: n % 3 ? "BANK_TRANSFER" : "CASH",
+              amount: 100_000 + ((n * 37) % 30) * 10_000,
+              allocatedAmount: 100_000 + ((n * 37) % 30) * 10_000,
+              unallocatedAmount: 0,
+              content: `TESTP${n}`,
+              bankReference: `TEST-P${n}`,
+              transactionAt: at,
+              receivedAt: at,
+              matchedBookingCode: `TESTP${String(n).padStart(2, "0")}`,
+              review: { status: "NONE", reason: null, note: null },
+              recordedBy: null,
+              allocations: [],
+            };
+          }),
         ],
       });
     const detailMatch = /^trips\/([0-9a-f-]{36})$/.exec(resource);
@@ -1086,6 +2221,7 @@ http
       return send(res, 200, {
         trip: {
           id,
+          code: "PN050227-TEST",
           name: base.name,
           status: statusOverrides[id] ?? base.status,
           departAt: base.depart_at,
@@ -1130,10 +2266,20 @@ http
           { floor: "2", floorLabel: "Tầng trên", occupancy: 2, price: 650000 },
         ],
         seats,
+        stops: TRIP_STOPS,
         summary: { capacity: 4, available: 1, held: 1, booked: 1, blocked: 1 },
         fetchedAt: when,
       });
     }
+    // Ngày cố định không có chuyến, để kiểm thử trạng thái rỗng.
+    if (resource === "trips" && url.searchParams.get("date") === "2027-03-09")
+      return send(res, 200, { trips: [] });
+    // Backend cũ (`reportsOff`) chưa biết tham số `route` → 400 như schema strict thật.
+    if (resource === "trips" && url.searchParams.has("route") && reportsOff)
+      return fail(res, 400, "VALIDATION_FAILED", "Unrecognized key: route");
+    // Backend cũ chưa có `sort`/`order` (T2) → 400 như schema strict thật.
+    if (resource === "trips" && url.searchParams.has("sort") && reportsOff)
+      return fail(res, 400, "VALIDATION_FAILED", "Unrecognized key: sort");
     if (resource === "trips")
       return send(res, 200, {
         trips: [
@@ -1150,6 +2296,7 @@ http
             sales_open_at: when,
             sales_close_at: when,
             contact_phone: null,
+            code: "PN050227-TEST",
             route_code: "TEST",
             vehicle_code: "TEST01",
             vehicle_name: "Xe kiểm thử",
@@ -1171,6 +2318,22 @@ http
             actor_name: "Test OWNER",
             actor_role: "OWNER",
           },
+          ...Array.from({ length: extraAudit }, (_, i) => ({
+            id: `x${i + 1}`,
+            action: [
+              "payment.manual",
+              "user.update",
+              "vehicle.create",
+              "policy.update",
+              "trip.status",
+            ][i % 5],
+            entity: "test",
+            entity_id: null,
+            data: { n: i + 1 },
+            at: new Date(Date.parse(when) - (i + 1) * 86_400_000).toISOString(),
+            actor_name: ["Kế toán Lan", null, "Test OWNER"][i % 3],
+            actor_role: null,
+          })),
         ],
       });
     return fail(res, 404, "NOT_FOUND", "Không tồn tại.");

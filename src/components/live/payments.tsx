@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Payment,
+  type Counters,
   methodLabels,
   reviewLabels,
   reasonLabels,
@@ -9,84 +10,172 @@ import {
   vnDateTime,
 } from "@/lib/live-contracts";
 import { Modal } from "../modal";
+import { LateReinstateDialog } from "./late-reinstate";
 import { useResource } from "./use-resource";
+import { paymentTabCounts } from "@/lib/payment-tabs";
+import { PageHero } from "../ui/page-hero";
+import { FilterTabs } from "../ui/filter-tabs";
+import { LoadState, RefreshButton, StatusBadge } from "./shared";
 import {
-  LoadState,
-  RefreshButton,
-  EmptyRow,
-  TableScroll,
-  StatusBadge,
-  tableClass,
-  thClass,
-  tdClass,
-} from "./shared";
-import {
-  Search,
-  Receipt,
-  ArrowRight,
-  CheckCircle2,
-  AlertCircle,
-} from "lucide-react";
+  DataTable,
+  TableFooter,
+  useTableState,
+  type Column,
+} from "./data-table";
+import { Search, Receipt } from "lucide-react";
 
-export function Payments() {
+/** Cột Sổ thu; sắp xếp được theo thời gian, số tiền, chưa phân bổ, trạng thái kiểm tra. */
+const paymentColumns: Column<Payment>[] = [
+  {
+    key: "code",
+    header: "Khoản thu / mã đơn",
+    sortValue: (p) => p.matchedBookingCode || p.id,
+    render: (p) => (
+      <>
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-accent/10 px-2.5 py-1 font-mono text-xs font-semibold text-accent">
+          <Receipt size={13} aria-hidden="true" />
+          {p.matchedBookingCode || p.id.slice(0, 8)}
+        </span>
+        <p className="mt-1 max-w-44 truncate font-mono text-[11px] text-muted">
+          {p.bankReference || "Không có tham chiếu"}
+        </p>
+      </>
+    ),
+  },
+  {
+    key: "at",
+    header: "Thời gian giao dịch",
+    sortValue: (p) => Date.parse(p.transactionAt),
+    className: "whitespace-nowrap font-mono text-xs text-muted",
+    render: (p) => vnDateTime(p.transactionAt),
+  },
+  {
+    key: "method",
+    header: "Phương thức",
+    sortValue: (p) => methodLabels[p.method],
+    className: "text-xs font-medium text-ink",
+    render: (p) => (
+      <span className="rounded bg-surface px-2 py-1">
+        {methodLabels[p.method]}
+      </span>
+    ),
+  },
+  {
+    key: "amount",
+    header: "Số tiền",
+    align: "right",
+    sortValue: (p) => p.amount,
+    className: "whitespace-nowrap font-mono text-sm font-bold text-ink",
+    render: (p) => vnd(p.amount),
+  },
+  {
+    key: "unallocated",
+    header: "Chưa phân bổ",
+    align: "right",
+    sortValue: (p) => p.unallocatedAmount,
+    className: "whitespace-nowrap font-mono text-sm",
+    render: (p) => (
+      <span
+        className={
+          p.unallocatedAmount > 0 ? "font-semibold text-warning" : "text-muted"
+        }
+      >
+        {vnd(p.unallocatedAmount)}
+      </span>
+    ),
+  },
+  {
+    key: "review",
+    header: "Kiểm tra",
+    sortValue: (p) => reviewLabels[p.review.status],
+    className: "whitespace-nowrap",
+    render: (p) => (
+      <StatusBadge
+        tone={p.review.status === "NEEDS_REVIEW" ? "warning" : "success"}
+        label={reviewLabels[p.review.status]}
+      />
+    ),
+  },
+];
+
+export function Payments({
+  canReinstate = false,
+  afterHero,
+}: {
+  canReinstate?: boolean;
+  /** Khối hiện ngay dưới đầu trang (vd. "Khoản cần hoàn"). */
+  afterHero?: ReactNode;
+}) {
   const [review, setReview] = useState("");
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Payment | null>(null);
+  const [reinstating, setReinstating] = useState<string | null>(null);
   const { data, error, loading, reload } = useResource<{
     payments: Payment[];
     meta: { fetchedAt: string; limit: number };
   }>("payments" + (review ? "?review=" + review : ""));
+  // Số đếm của tab: đủ từ API `counters`; backend cũ chưa có thì đếm trong tập không lọc (200 khoản gần nhất).
+  const counters = useResource<Counters>("counters");
+  const exact = counters.data?.payments ?? null;
+  const unfiltered = useResource<{
+    payments: Payment[];
+    meta: { fetchedAt: string; limit: number };
+  }>(review && counters.error ? "payments" : null);
+  const all = exact ? null : review ? unfiltered.data : data;
+  const { count: countOf, partial } = paymentTabCounts(exact, all ?? null);
 
   const rows = (data?.payments || []).filter((p) =>
     `${p.id} ${p.matchedBookingCode || ""} ${p.bankReference || ""} ${p.content || ""}`
       .toLowerCase()
       .includes(search.toLowerCase().trim()),
   );
-  const pages = Math.max(1, Math.ceil(rows.length / 12));
-  const current = Math.min(page, pages);
+  const table = useTableState(rows, paymentColumns);
 
   const refresh = () => {
     setSelected(null);
     reload();
+    counters.reload();
+    if (review) unfiltered.reload();
   };
 
   return (
     <div className="pn-page-stack">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="pn-section-label">Sổ thu tài chính</h2>
-          <p className="text-sm text-muted">
-            Các khoản thu thực tế · Đơn vị VND
-          </p>
-          <p className="mt-0.5 text-xs text-muted/80">
-            API trả tối đa 200 khoản gần nhất theo bộ lọc. Tìm kiếm và phân
-            trang chỉ trong tập đã tải.
-          </p>
-        </div>
-        <RefreshButton reload={refresh} loading={loading} />
-      </div>
+      <PageHero
+        title="Sổ thu tài chính"
+        description="Các khoản thu thực tế · Đơn vị VND"
+        note={
+          exact
+            ? "Danh sách hiện tối đa 200 khoản gần nhất theo bộ lọc; số trên tab là tổng của cả sổ thu. Tìm kiếm và phân trang tính trong danh sách đã tải."
+            : "API trả tối đa 200 khoản gần nhất theo bộ lọc. Số trên tab, tìm kiếm và phân trang chỉ tính trong tập đã tải."
+        }
+        actions={<RefreshButton reload={refresh} loading={loading} />}
+      />
+      {afterHero}
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative">
-          <select
-            className="field w-auto max-w-full"
-            aria-label="Trạng thái kiểm tra"
-            value={review}
-            onChange={(e) => {
-              setReview(e.target.value);
-              setPage(1);
-              setSelected(null);
-            }}
-          >
-            <option value="">Tất cả trạng thái kiểm tra</option>
-            {Object.entries(reviewLabels).map(([key, value]) => (
-              <option key={key} value={key}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FilterTabs
+          label="Trạng thái kiểm tra"
+          value={review}
+          onChange={(next) => {
+            setReview(next);
+            table.resetPage();
+            setSelected(null);
+          }}
+          items={[
+            { value: "", label: "Tất cả", count: countOf(), partial },
+            ...(
+              Object.entries(reviewLabels) as [
+                keyof typeof reviewLabels,
+                string,
+              ][]
+            ).map(([key, label]) => ({
+              value: key as string,
+              label,
+              count: countOf(key),
+              partial,
+            })),
+          ]}
+        />
 
         <div className="relative min-w-0 basis-full sm:max-w-sm sm:basis-auto sm:flex-1">
           <input
@@ -96,7 +185,7 @@ export function Payments() {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
-              setPage(1);
+              table.resetPage();
             }}
           />
           <Search
@@ -117,118 +206,33 @@ export function Payments() {
             </span>
             <span>Cập nhật: {vnDateTime(data.meta.fetchedAt)}</span>
           </header>
-          <TableScroll label="Danh sách khoản thu">
-            <table className={tableClass} data-pin-first>
-              <thead>
-                <tr>
-                  {[
-                    "Khoản thu / mã đơn",
-                    "Thời gian giao dịch",
-                    "Phương thức",
-                    "Số tiền",
-                    "Chưa phân bổ",
-                    "Kiểm tra",
-                  ].map((h) => (
-                    <th className={thClass} key={h}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line/40">
-                {rows.slice((current - 1) * 12, current * 12).map((p) => (
-                  <tr key={p.id} className="transition-colors">
-                    <td className={tdClass}>
-                      <button
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-accent/10 px-2.5 py-1 text-left font-mono text-xs font-semibold text-accent transition-colors hover:bg-accent/20"
-                        onClick={() => setSelected(p)}
-                        aria-label={`Chi tiết khoản thu ${p.id}`}
-                      >
-                        <Receipt size={13} aria-hidden="true" />
-                        <span>{p.matchedBookingCode || p.id.slice(0, 8)}</span>
-                      </button>
-                      <p className="mt-1 max-w-44 truncate font-mono text-[11px] text-muted">
-                        {p.bankReference || "Không có tham chiếu"}
-                      </p>
-                    </td>
-                    <td
-                      className={
-                        tdClass +
-                        " whitespace-nowrap text-xs font-mono text-muted"
-                      }
-                    >
-                      {vnDateTime(p.transactionAt)}
-                    </td>
-                    <td className={tdClass + " text-xs font-medium text-ink"}>
-                      <span className="rounded bg-surface px-2 py-1">
-                        {methodLabels[p.method]}
-                      </span>
-                    </td>
-                    <td
-                      className={
-                        tdClass +
-                        " whitespace-nowrap font-mono text-sm font-bold text-ink"
-                      }
-                    >
-                      {vnd(p.amount)}
-                    </td>
-                    <td
-                      className={
-                        tdClass + " whitespace-nowrap font-mono text-sm"
-                      }
-                    >
-                      <span
-                        className={
-                          p.unallocatedAmount > 0
-                            ? "text-warning font-semibold"
-                            : "text-muted"
-                        }
-                      >
-                        {vnd(p.unallocatedAmount)}
-                      </span>
-                    </td>
-                    <td className={tdClass}>
-                      <StatusBadge
-                        tone={
-                          p.review.status === "NEEDS_REVIEW"
-                            ? "warning"
-                            : "success"
-                        }
-                        label={reviewLabels[p.review.status]}
-                      />
-                    </td>
-                  </tr>
-                ))}
-                {!rows.length && (
-                  <EmptyRow
-                    columns={6}
-                    text="Không có khoản thu phù hợp trong dữ liệu đã tải."
-                  />
-                )}
-              </tbody>
-            </table>
-          </TableScroll>
-          <footer className="pn-table-footer">
-            <span className="font-medium">
-              Trang {current}/{pages} · Trong dữ liệu đã tải
-            </span>
-            <div className="flex gap-2">
+          <DataTable
+            label="Danh sách khoản thu"
+            columns={paymentColumns}
+            rows={table.visible}
+            rowKey={(p) => p.id}
+            sort={table.sort}
+            onSort={table.onSort}
+            emptyText="Không có khoản thu phù hợp trong dữ liệu đã tải."
+            actions={(p) => (
               <button
+                type="button"
                 className="btn py-1.5 text-xs"
-                disabled={current === 1}
-                onClick={() => setPage(current - 1)}
+                onClick={() => setSelected(p)}
+                aria-label={`Chi tiết khoản thu ${p.id}`}
               >
-                Trước
+                Chi tiết
               </button>
-              <button
-                className="btn py-1.5 text-xs"
-                disabled={current === pages}
-                onClick={() => setPage(current + 1)}
-              >
-                Sau
-              </button>
-            </div>
-          </footer>
+            )}
+          />
+          <TableFooter
+            info={table.info}
+            noun="khoản thu"
+            note="trong dữ liệu đã tải"
+            setPage={table.setPage}
+            pageSize={table.pageSize}
+            setPageSize={table.setPageSize}
+          />
         </section>
       )}
 
@@ -301,11 +305,43 @@ export function Payments() {
               )}
             </div>
 
+            {canReinstate &&
+              selected.review.status === "NEEDS_REVIEW" &&
+              selected.review.reason === "LATE" &&
+              selected.matchedBookingCode &&
+              selected.unallocatedAmount > 0 && (
+                <div className="space-y-2 rounded-xl border border-warning/40 p-4">
+                  <p className="text-sm text-ink">
+                    Tiền về sau khi đơn đã nhả chỗ. Cấp lại chỗ cũ nếu còn
+                    trống, hoặc đổi sang chỗ/chuyến khác đã thỏa thuận với
+                    khách. Không thỏa thuận được thì hoàn tiền.
+                  </p>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => setReinstating(selected.id)}
+                  >
+                    Cấp lại chỗ
+                  </button>
+                </div>
+              )}
+
             <p className="border-t border-line/60 pt-3 text-xs leading-relaxed text-muted">
-              Chế độ chỉ đọc. Chưa mở phân bổ, ghi nhận tiền hoặc đối soát.
+              Phân bổ thủ công, ghi nhận tiền và đối soát chưa mở trên
+              dashboard.
             </p>
           </div>
         </Modal>
+      )}
+
+      {reinstating && (
+        <LateReinstateDialog
+          paymentId={reinstating}
+          onClose={() => setReinstating(null)}
+          onDone={() => {
+            setReinstating(null);
+            refresh();
+          }}
+        />
       )}
     </div>
   );

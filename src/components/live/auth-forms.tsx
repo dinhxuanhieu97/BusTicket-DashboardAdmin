@@ -235,26 +235,35 @@ export function AuthFrame({
   );
 }
 
-export function LogoutButton() {
+// Dùng chung cho nút ở thanh bên và mục "Đăng xuất" trong menu tài khoản.
+export function useLogout() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  async function logout() {
+    setBusy(true);
+    setError("");
+    try {
+      await authPost("logout");
+      publishSessionEvent("logout");
+      window.location.assign("/login");
+    } catch {
+      setError("Chưa đăng xuất được. Vui lòng thử lại.");
+      setBusy(false);
+    }
+  }
+  return { busy, error, logout };
+}
+
+export function LogoutButton() {
+  const { busy, error, logout } = useLogout();
 
   return (
     <div>
       <button
         className="btn btn-ghost w-full justify-start text-muted"
+        aria-label="Đăng xuất"
         disabled={busy}
-        onClick={async () => {
-          setBusy(true);
-          try {
-            await authPost("logout");
-            publishSessionEvent("logout");
-            window.location.assign("/login");
-          } catch {
-            setError("Chưa đăng xuất được. Vui lòng thử lại.");
-            setBusy(false);
-          }
-        }}
+        onClick={logout}
       >
         <LogOut size={16} aria-hidden="true" />
         <span>{busy ? "Đang đăng xuất…" : "Đăng xuất"}</span>
