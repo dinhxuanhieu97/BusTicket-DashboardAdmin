@@ -138,6 +138,8 @@ let logo = null; // { data: Buffer, mime, version }
 let brandMissing = false;
 /** T1: thêm N khoản thu đã khớp để thử phân trang/sắp xếp Sổ thu. */
 let extraPayments = 0;
+/** Số bản ghi nhật ký thêm (T5): khác nhóm, người và ngày; bản ghi i lùi i ngày. */
+let extraAudit = 0;
 let staff = [];
 const staffPasswords = new Map();
 let idempotent = {};
@@ -291,6 +293,7 @@ http
       logo = null;
       brandMissing = false;
       extraPayments = 0;
+      extraAudit = 0;
       staff = [];
       tripAssistants = new Map();
       mustChange = new Set();
@@ -332,6 +335,7 @@ http
         refreshMalformed = body.refreshMalformed ?? refreshMalformed;
         brandMissing = body.brandMissing ?? brandMissing;
         extraPayments = body.extraPayments ?? extraPayments;
+        extraAudit = body.extraAudit ?? extraAudit;
         reportsOff = body.reportsOff ?? reportsOff;
         requireMfa = body.requireMfa ?? requireMfa;
         if (body.revokeSessions)
@@ -2248,6 +2252,22 @@ http
             actor_name: "Test OWNER",
             actor_role: "OWNER",
           },
+          ...Array.from({ length: extraAudit }, (_, i) => ({
+            id: `x${i + 1}`,
+            action: [
+              "payment.manual",
+              "user.update",
+              "vehicle.create",
+              "policy.update",
+              "trip.status",
+            ][i % 5],
+            entity: "test",
+            entity_id: null,
+            data: { n: i + 1 },
+            at: new Date(Date.parse(when) - (i + 1) * 86_400_000).toISOString(),
+            actor_name: ["Kế toán Lan", null, "Test OWNER"][i % 3],
+            actor_role: null,
+          })),
         ],
       });
     return fail(res, 404, "NOT_FOUND", "Không tồn tại.");

@@ -298,16 +298,77 @@ test("route chips fall back to filtering the loaded page on an older API", async
   await expect(table).toContainText("Chuyến chiều về");
 });
 
-test("audit log is a list of rows with a detail button", async ({ page }) => {
+test("audit log is a shared table with a detail button", async ({ page }) => {
   await page.goto("/admin/audit-logs");
-  const list = page.getByRole("list", { name: "Nhật ký hoạt động" });
-  await expect(list.getByRole("listitem")).toHaveCount(1);
-  await expect(list).toContainText("Tạo chuyến");
-  await expect(list).toContainText("Test OWNER");
-  await list.getByRole("button", { name: "Xem nhật ký 1" }).click();
+  const table = page.getByRole("region", { name: "Nhật ký hoạt động" });
+  await expect(table.getByRole("row")).toHaveCount(2);
+  await expect(table).toContainText("Tạo chuyến");
+  await expect(table).toContainText("Test OWNER");
+  await table.getByRole("button", { name: "Chi tiết nhật ký 1" }).click();
   await expect(
     page.getByRole("dialog", { name: "Chi tiết nhật ký" }),
-  ).toBeVisible();
+  ).toContainText("Chuyến kiểm thử");
+});
+
+test("audit log filters by group, actor and Vietnam date range, sorts and pages", async ({
+  page,
+  request,
+}) => {
+  await request.post("http://127.0.0.1:3101/__test/state", {
+    data: { extraAudit: 30 },
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/audit-logs");
+  const table = page.getByRole("region", { name: "Nhật ký hoạt động" });
+  // Mặc định theo thứ tự API (mới nhất trước), 25 dòng/trang.
+  await expect(page.getByText("1–25 trên 31 bản ghi")).toBeVisible();
+  await expect(
+    table.getByRole("columnheader", { name: /Thời gian/ }),
+  ).toHaveAttribute("aria-sort", "none");
+  await expect(table.getByRole("row").nth(1)).toContainText("Tạo chuyến");
+
+  const groups = page.getByRole("group", { name: "Nhóm thao tác" });
+  await expect(groups.getByRole("button", { name: /Tất cả/ })).toContainText(
+    "31",
+  );
+  // 30 bản ghi thêm chia đều 5 loại → 6 mỗi loại; Chuyến có thêm bản ghi gốc.
+  await expect(groups.getByRole("button", { name: /Chuyến/ })).toContainText(
+    "7",
+  );
+  await groups.getByRole("button", { name: /Thanh toán/ }).click();
+  await expect(page.getByText("1–6 trên 6 bản ghi")).toBeVisible();
+  await expect(table).not.toContainText("Tạo chuyến");
+
+  // Người thực hiện: "Hệ thống" cho bản ghi không có người.
+  await page.getByLabel("Người thực hiện").selectOption("Hệ thống");
+  await expect(page.getByText("1–2 trên 2 bản ghi")).toBeVisible();
+  await page.getByRole("button", { name: "Bỏ lọc" }).click();
+  await expect(page.getByText("1–25 trên 31 bản ghi")).toBeVisible();
+
+  // Khoảng ngày theo giờ Việt Nam: bản ghi x1..x3 lùi 1..3 ngày.
+  const vnDay = (offset: number) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+      new Date(Date.now() - offset * 86_400_000),
+    );
+  await page.getByLabel("Từ ngày").fill(vnDay(3));
+  await page.getByLabel("Đến ngày").fill(vnDay(1));
+  await expect(page.getByText("1–3 trên 3 bản ghi")).toBeVisible();
+  await page.getByLabel("Từ ngày").fill(vnDay(0));
+  await expect(page.getByText(/không có bản\s+ghi nào/)).toBeVisible();
+  await expect(table).toContainText("Không có bản ghi phù hợp bộ lọc.");
+  await page.getByRole("button", { name: "Bỏ lọc" }).click();
+
+  // Cũ nhất trước, rồi sang trang 2.
+  await table.getByRole("button", { name: /Thời gian/ }).click();
+  await expect(
+    table.getByRole("columnheader", { name: /Thời gian/ }),
+  ).toHaveAttribute("aria-sort", "ascending");
+  await expect(table.getByRole("row").nth(1)).toContainText(
+    "Cập nhật trạng thái chuyến",
+  );
+  await page.getByRole("button", { name: "Sau" }).click();
+  await expect(page.getByText("26–31 trên 31 bản ghi")).toBeVisible();
+  await expect(table.getByRole("row").last()).toContainText("Tạo chuyến");
 });
 
 test("table pages do not scroll sideways on a phone", async ({ page }) => {
