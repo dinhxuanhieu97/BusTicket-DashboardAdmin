@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { axisTicks, tickPercent } from "@/lib/chart-ticks";
 
 export type ChartSeries = {
   name: string;
@@ -33,8 +34,8 @@ export function AreaChart({
     (values.length === 1 ? [values[0], values[0]] : values)
       .map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`)
       .join(" ");
-  // Nhãn trục X thưa dần khi nhiều ngày để không chồng lên nhau.
-  const step = labels.length > 10 ? Math.ceil(labels.length / 6) : 1;
+  // Nhãn trục X: chỉ vài mốc, đặt đúng vị trí điểm dữ liệu (không dàn đều theo flex để khỏi tràn khung).
+  const ticks = axisTicks(labels.length);
 
   return (
     <figure className="relative min-w-0" data-area-chart>
@@ -86,15 +87,29 @@ export function AreaChart({
           ))}
         </svg>
       </div>
-      <div className="mt-2 flex justify-between gap-1 text-[11px] text-muted tabular-nums">
-        {labels.map((label, i) => (
-          <span
-            key={label + i}
-            className={i % step && i !== labels.length - 1 ? "invisible" : ""}
-          >
-            {label}
-          </span>
-        ))}
+      <div
+        className="relative mt-2 h-4 text-[11px] text-muted tabular-nums"
+        data-axis-x
+      >
+        {ticks.map((i) => {
+          const at = tickPercent(i, labels.length);
+          return (
+            <span
+              key={i}
+              className="absolute top-0 whitespace-nowrap"
+              style={
+                // Nhãn đầu bám mép trái, nhãn cuối bám mép phải, còn lại căn giữa điểm dữ liệu.
+                at === 0
+                  ? { left: 0 }
+                  : at === 100
+                    ? { right: 0 }
+                    : { left: `${at}%`, transform: "translateX(-50%)" }
+              }
+            >
+              {labels[i]}
+            </span>
+          );
+        })}
       </div>
       <figcaption className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
         {series.map((s) => (
