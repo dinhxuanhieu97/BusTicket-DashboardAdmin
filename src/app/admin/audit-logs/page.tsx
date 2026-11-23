@@ -1,6 +1,8 @@
+import { redirect } from "next/navigation";
 import { requirePagePermission } from "@/lib/server/page-access";
-import { Audit } from "@/components/live/audit";
+
+/** Nhật ký đã chuyển vào Cài đặt; giữ đường dẫn cũ để bookmark và liên kết còn dùng được. */
 export default async function Page() {
   if (!(await requirePagePermission("audit.read"))) return null;
-  return <Audit />;
+  redirect("/admin/settings?tab=audit");
 }

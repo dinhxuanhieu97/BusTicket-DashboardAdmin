@@ -172,7 +172,8 @@ test("phones get a bottom bar that never covers the page and a Thêm drawer", as
 
   await bar.getByRole("button", { name: "Thêm" }).click();
   const drawer = page.getByRole("dialog", { name: "Điều hướng" });
-  await expect(drawer.getByRole("link", { name: "Nhật ký" })).toBeVisible();
+  await expect(drawer.getByRole("link", { name: "Cài đặt" })).toBeVisible();
+  await expect(drawer.getByRole("link", { name: "Nhật ký" })).toHaveCount(0);
   await expect(bar).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(bar).toBeVisible();
@@ -461,8 +462,9 @@ test("the bell stays hidden on an API without counters", async ({
     data: { reportsOff: true },
   });
   await page.goto("/admin/audit-logs");
+  await expect(page).toHaveURL(/\/admin\/settings\?tab=audit$/);
   await expect(
-    page.getByRole("heading", { name: "Nhật ký", level: 1 }),
+    page.getByRole("heading", { name: "Nhật ký hoạt động", level: 2 }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: /^Thông báo/ })).toHaveCount(0);
 });

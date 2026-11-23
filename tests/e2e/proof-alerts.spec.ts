@@ -55,7 +55,7 @@ test("the bell lists transfer proofs first and opens the ticket in place (QS01)"
   await list.getByRole("button", { name: /TESTA1/ }).click();
   const ticket = page.getByRole("dialog", { name: "Vé TESTA1" });
   await expect(ticket).toBeVisible();
-  await expect(page).toHaveURL(/\/admin\/audit-logs$/);
+  await expect(page).toHaveURL(/\/admin\/settings\?tab=audit$/);
   await expect(
     ticket.getByRole("link", { name: "Xem cả danh sách chuyến" }),
   ).toHaveAttribute(

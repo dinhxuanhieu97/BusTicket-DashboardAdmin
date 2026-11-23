@@ -22,7 +22,6 @@ export const HELP: Record<NavKey, string> = {
     "Doanh thu 7 hoặc 30 ngày so với kỳ trước, theo phương thức thanh toán và giờ thu nhiều nhất.",
   users:
     "Thêm nhân viên, đổi vai trò, khóa hoặc mở lại tài khoản và đặt lại mật khẩu.",
-  audit: "100 thao tác gần nhất trong nhà xe; bấm Xem để đọc dữ liệu chi tiết.",
   settings:
     "Thông tin tài khoản, đổi mật khẩu, xác thực hai lớp và thông tin chung của nhà xe.",
   help: "Trang này.",
