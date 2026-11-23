@@ -106,7 +106,7 @@ test("settings save shows a dismissible toast that clears after five seconds", a
   await page.clock.install();
   await page.goto("/admin/settings?tab=general");
   const name = page.getByRole("textbox", { name: "Tên nhà xe" });
-  const save = page.getByRole("button", { name: "Lưu thông tin nhà xe" });
+  const save = page.getByRole("button", { name: "Lưu hồ sơ" });
   const toast = page.getByRole("group", { name: "Thông báo lưu thành công" });
   await name.fill("Nhà xe thử thông báo");
   await save.click();
