@@ -87,123 +87,112 @@ export function GeneralInformation({
     : null;
   const showOperations = canReadFleet || canReadRoutes;
   return (
-    <div className="pn-settings-groups">
+    <div className="pn-page-stack">
       {error && <Notice tone="danger">{error}</Notice>}
       <SuccessToast message={notice} dismiss={dismissSuccess} />
       {!profile && !error && <p>Đang tải thông tin nhà xe…</p>}
       {profile && (
-        <SettingsGroup
-          id="profile"
-          title="Hồ sơ nhà xe"
-          description="Tên hiển thị cho khách và giờ xuất bến gợi ý khi tạo lịch chạy."
+        <form
+          aria-labelledby="profile-heading"
+          className="card space-y-4 pn-panel-inset"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save(() =>
+              operation("profile", "PUT", {
+                name: profile.name,
+                defaultDepartureTime: profile.defaultDepartureTime,
+              }),
+            );
+          }}
         >
-          <form
-            aria-labelledby="group-profile-heading"
-            className="card space-y-4 pn-panel-inset"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void save(() =>
-                operation("profile", "PUT", {
-                  name: profile.name,
-                  defaultDepartureTime: profile.defaultDepartureTime,
-                }),
-              );
-            }}
-          >
-            <div className="pn-form-grid sm:grid-cols-[minmax(0,1fr)_8rem_11rem]">
-              <label className="label">
-                Tên nhà xe
-                <input
-                  required
-                  maxLength={120}
-                  className="field"
-                  value={profile.name}
-                  onChange={(e) =>
-                    setProfile({ ...profile, name: e.target.value })
-                  }
-                />
-              </label>
-              <label className="label">
-                Mã nhà xe
-                <input
-                  readOnly
-                  className="field font-mono text-muted"
-                  value={profile.code}
-                  aria-describedby="profile-code-hint"
-                />
-              </label>
-              <label className="label">
-                Giờ xuất bến mặc định
-                <input
-                  required
-                  type="time"
-                  className="field"
-                  value={profile.defaultDepartureTime}
-                  onChange={(e) =>
-                    setProfile({
-                      ...profile,
-                      defaultDepartureTime: e.target.value,
-                    })
-                  }
-                />
-              </label>
-            </div>
-            <p id="profile-code-hint" className="text-xs text-muted">
-              Mã nhà xe không đổi được. Giờ mặc định chỉ áp dụng cho form tạo
-              mới; lịch đã lưu giữ giờ riêng, dùng ngoại lệ để đổi một ngày cụ
-              thể.
-            </p>
-            <div className="flex justify-end">
-              <button className="btn btn-primary" disabled={busy}>
-                Lưu hồ sơ
-              </button>
-            </div>
-          </form>
-        </SettingsGroup>
+          <h2 id="profile-heading" className="text-base font-semibold">
+            Hồ sơ nhà xe
+          </h2>
+          <div className="pn-form-grid sm:grid-cols-[minmax(0,1fr)_8rem_11rem]">
+            <label className="label">
+              Tên nhà xe
+              <input
+                required
+                maxLength={120}
+                className="field"
+                value={profile.name}
+                onChange={(e) =>
+                  setProfile({ ...profile, name: e.target.value })
+                }
+              />
+            </label>
+            <label className="label">
+              Mã nhà xe
+              <input
+                readOnly
+                className="field font-mono text-muted"
+                value={profile.code}
+                aria-describedby="profile-code-hint"
+              />
+            </label>
+            <label className="label">
+              Giờ xuất bến mặc định
+              <input
+                required
+                type="time"
+                className="field"
+                value={profile.defaultDepartureTime}
+                onChange={(e) =>
+                  setProfile({
+                    ...profile,
+                    defaultDepartureTime: e.target.value,
+                  })
+                }
+              />
+            </label>
+          </div>
+          <p id="profile-code-hint" className="text-xs text-muted">
+            Mã nhà xe không đổi được. Giờ mặc định chỉ áp dụng cho form tạo mới;
+            lịch đã lưu giữ giờ riêng, dùng ngoại lệ để đổi một ngày cụ thể.
+          </p>
+          <div className="flex justify-end">
+            <button className="btn btn-primary" disabled={busy}>
+              Lưu hồ sơ
+            </button>
+          </div>
+        </form>
       )}
       {profile && (
-        <SettingsGroup
-          id="identity"
-          title="Nhận diện"
-          description="Logo và màu giao diện hiển thị ở trang đăng nhập, menu và mọi tài khoản của nhà xe."
-        >
-          <div className="card pn-panel-inset pn-identity">
-            <LogoSettings
-              profile={profile}
-              busy={busy}
-              onChange={save}
-              onError={setError}
-            />
-            <BrandColorSettings
-              key={JSON.stringify(profile.brandColors ?? null)}
-              saved={profile.brandColors ?? null}
-              name={profile.name}
-              logoUrl={logo}
-              busy={busy}
-              onChange={save}
-            />
-          </div>
-        </SettingsGroup>
+        <div className="card pn-panel-inset pn-identity">
+          <LogoSettings
+            profile={profile}
+            busy={busy}
+            onChange={save}
+            onError={setError}
+          />
+          <BrandColorSettings
+            key={JSON.stringify(profile.brandColors ?? null)}
+            saved={profile.brandColors ?? null}
+            name={profile.name}
+            logoUrl={logo}
+            busy={busy}
+            onChange={save}
+          />
+        </div>
       )}
       {canConfigurePayments && (
-        <SettingsGroup
-          id="payments"
-          title="Thanh toán"
-          description="Khách chuyển khoản đặt cọc vào tài khoản này qua mã QR trong Mini App."
-        >
-          <PaymentAccountSettings
-            mfaEnabled={mfaEnabled}
-            onSuccess={showSuccess}
-          />
-        </SettingsGroup>
+        <PaymentAccountSettings
+          mfaEnabled={mfaEnabled}
+          onSuccess={showSuccess}
+        />
       )}
       {showOperations && (
-        <SettingsGroup
-          id="operations"
-          title="Dữ liệu vận hành"
-          description="Xe và tuyến dùng trong lịch chạy và đặt vé; quản lý ở trang riêng."
+        <section
+          aria-labelledby="operations-heading"
+          className="card pn-link-list"
         >
-          <ul className="card pn-link-list">
+          <h2
+            id="operations-heading"
+            className="pn-panel-inset pb-2 text-base font-semibold"
+          >
+            Dữ liệu vận hành
+          </h2>
+          <ul>
             {canReadFleet && (
               <li>
                 <Link href="/admin/vehicles" className="pn-link-row">
@@ -235,37 +224,9 @@ export function GeneralInformation({
               </li>
             )}
           </ul>
-        </SettingsGroup>
+        </section>
       )}
     </div>
-  );
-}
-
-/** Một nhóm cài đặt: tên và mô tả bên trái (màn rộng), nội dung bên phải. */
-function SettingsGroup({
-  id,
-  title,
-  description,
-  children,
-}: {
-  id: string;
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section
-      className="pn-settings-group"
-      aria-labelledby={`group-${id}-heading`}
-    >
-      <div className="space-y-1">
-        <h2 id={`group-${id}-heading`} className="text-base font-semibold">
-          {title}
-        </h2>
-        <p className="text-sm text-muted">{description}</p>
-      </div>
-      <div className="min-w-0">{children}</div>
-    </section>
   );
 }
 
@@ -295,9 +256,9 @@ function LogoSettings({
   }
   return (
     <section aria-labelledby="logo-heading" className="space-y-3">
-      <h3 id="logo-heading" className="text-sm font-semibold">
+      <h2 id="logo-heading" className="text-base font-semibold">
         Logo nhà xe
-      </h3>
+      </h2>
       <div className="flex flex-wrap items-center gap-4">
         <BrandMark name={profile.name} logoUrl={url} />
         <p className="min-w-0 flex-1 text-sm text-muted">
@@ -413,9 +374,9 @@ function BrandColorSettings({
       }}
     >
       <div className="space-y-1">
-        <h3 id="brand-colors-heading" className="text-sm font-semibold">
+        <h2 id="brand-colors-heading" className="text-base font-semibold">
           Màu giao diện
-        </h3>
+        </h2>
         <p className="text-sm text-muted">
           Áp dụng cho logo chữ, nút chính, liên kết và nền Dashboard. Mặc định
           là dải tím chàm → xanh lơ như biểu tượng trang.

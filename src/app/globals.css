@@ -1160,34 +1160,14 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-/* Thông tin chung: nhóm cài đặt có tên/mô tả bên trái (màn rộng), nội dung bên phải. */
-.pn-settings-groups > .pn-settings-group + .pn-settings-group {
-  border-top: 1px solid var(--border);
-}
-.pn-settings-groups > * + * {
-  margin-top: 1rem;
-}
-.pn-settings-group {
-  display: grid;
-  gap: 0.75rem;
-  padding-top: 1.25rem;
-}
-.pn-settings-groups > .pn-settings-group:first-of-type {
-  padding-top: 0;
-}
-@media (min-width: 64rem) {
-  .pn-settings-group {
-    grid-template-columns: 15rem minmax(0, 1fr);
-    gap: 2rem;
-    padding-top: 1.5rem;
-  }
-}
+/* Thông tin chung: logo và màu chung một card; danh sách liên kết Xe/Tuyến. */
 .pn-identity > * + * {
   margin-top: 1.25rem;
   padding-top: 1.25rem;
   border-top: 1px solid var(--border);
 }
-.pn-link-list > li + li {
+.pn-link-list li + li,
+.pn-link-list ul {
   border-top: 1px solid var(--border);
 }
 .pn-link-row {
