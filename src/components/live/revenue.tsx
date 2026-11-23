@@ -36,7 +36,7 @@ import { useResource } from "./use-resource";
 import { LoadState, Notice, RefreshButton } from "./shared";
 import { PageHero } from "../ui/page-hero";
 import { StatCard } from "../ui/stat-card";
-import { AreaChart } from "../ui/area-chart";
+import { BarTrendChart } from "../ui/bar-trend-chart";
 
 const methodIcons = {
   BANK_TRANSFER: Landmark,
@@ -219,25 +219,14 @@ export function Revenue() {
                 Theo ngày
               </h3>
               <p className="mb-4 text-sm text-muted">
-                Đường liền: {label} · nét đứt: {days} ngày liền trước
+                Cột: {label} · nét đứt: {days} ngày liền trước
               </p>
-              <AreaChart
+              <BarTrendChart
                 caption={`Doanh thu theo ngày, ${label} và kỳ trước`}
                 labels={report.current.map((p) => dayLabel(p.date))}
+                current={report.current.map((p) => p.amount)}
+                previous={report.previous.map((p) => p.amount)}
                 format={(v) => shortVnd(v).value + " " + shortVnd(v).unit}
-                series={[
-                  {
-                    name: "Kỳ này",
-                    values: report.current.map((p) => p.amount),
-                    color: "var(--accent)",
-                  },
-                  {
-                    name: "Kỳ trước",
-                    values: report.previous.map((p) => p.amount),
-                    color: "var(--muted)",
-                    dashed: true,
-                  },
-                ]}
               />
             </section>
 
