@@ -35,6 +35,7 @@ export function NotificationBell({
   seen,
   unread,
   onMarkRead,
+  onReadItem,
   onOpenProofs,
   onOpenPanel,
 }: {
@@ -43,6 +44,8 @@ export function NotificationBell({
   seen: AttentionSeen;
   unread: number;
   onMarkRead: () => void;
+  /** Bấm vào một thông báo: đánh dấu đã đọc riêng loại việc đó. */
+  onReadItem?: (item: AttentionItem) => void;
   /** Mở danh sách: ẩn thông báo bật lên đang che phía trên. */
   onOpenPanel?: () => void;
   /** Mục "ảnh chuyển khoản chờ kiểm" mở hộp danh sách tại chỗ. */
@@ -67,7 +70,10 @@ export function NotificationBell({
     return () => document.removeEventListener("pointerdown", onDown);
   }, [open]);
 
-  const pick = () => setOpen(false);
+  const pick = (item: AttentionItem) => {
+    if (unreadOf(item, seen) > 0) onReadItem?.(item);
+    setOpen(false);
+  };
   const group = (title: string, list: AttentionItem[]) =>
     list.length > 0 && (
       <div className="pn-notif-group" role="group" aria-label={title}>
@@ -205,7 +211,7 @@ function NotificationItem({
 }: {
   item: AttentionItem;
   fresh: number;
-  onPick: () => void;
+  onPick: (item: AttentionItem) => void;
   onOpenProofs?: () => void;
 }) {
   const Icon = icons[item.key];
@@ -241,7 +247,7 @@ function NotificationItem({
       className="pn-notif-item"
       data-unread={fresh > 0 || undefined}
       onClick={() => {
-        onPick();
+        onPick(item);
         onOpenProofs();
       }}
     >
@@ -252,7 +258,7 @@ function NotificationItem({
       href={item.href}
       className="pn-notif-item"
       data-unread={fresh > 0 || undefined}
-      onClick={onPick}
+      onClick={() => onPick(item)}
     >
       {body}
     </Link>
@@ -266,12 +272,13 @@ export function AttentionLinks({
   onOpenProofs,
 }: {
   items: AttentionItem[];
-  onPick: () => void;
+  onPick: (item: AttentionItem) => void;
   onOpenProofs?: () => void;
 }) {
   return (
     <ul>
-      {items.map(({ key, count, label, href, opens }) => {
+      {items.map((item) => {
+        const { key, count, label, href, opens } = item;
         const Icon = icons[key];
         const body = (
           <>
@@ -289,14 +296,18 @@ export function AttentionLinks({
                 type="button"
                 className="pn-account-item w-full text-left"
                 onClick={() => {
-                  onPick();
+                  onPick(item);
                   onOpenProofs();
                 }}
               >
                 {body}
               </button>
             ) : (
-              <Link href={href} className="pn-account-item" onClick={onPick}>
+              <Link
+                href={href}
+                className="pn-account-item"
+                onClick={() => onPick(item)}
+              >
                 {body}
               </Link>
             )}

@@ -130,3 +130,9 @@ export const attentionPlace = (item: AttentionItem) =>
       : item.href.startsWith("/admin/trips")
         ? "Chuyến xe"
         : "Mở trang xử lý";
+
+/** Bấm vào một thông báo: chỉ loại việc đó được tính là đã đọc (ghi nhận số việc hiện tại). */
+export const markSeen = (
+  seen: AttentionSeen,
+  item: AttentionItem,
+): AttentionSeen => ({ ...seen, [item.key]: item.count });

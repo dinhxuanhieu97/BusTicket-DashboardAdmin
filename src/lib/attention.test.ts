@@ -11,6 +11,7 @@ import {
   settleSeen,
   unreadCount,
   unreadOf,
+  markSeen,
   attentionPlace,
   type AttentionItem,
 } from "./attention";
@@ -164,4 +165,16 @@ test("each notification knows its own new count and where it opens", () => {
       ["closing", 0, "Chuyến xe"],
     ],
   );
+});
+
+test("opening one notification marks only that kind as read", () => {
+  const items = attentionItems({
+    payments: { NEEDS_REVIEW: 5 },
+    refundsOpen: 1,
+    tripsClosingSoon: 1,
+  } as unknown as Counters);
+  const seen = markSeen({ closing: 1 }, items[0]);
+  assert.deepEqual(seen, { closing: 1, review: 5 });
+  assert.equal(unreadCount(items, seen), 1);
+  assert.equal(unreadOf(items[0], seen), 0);
 });

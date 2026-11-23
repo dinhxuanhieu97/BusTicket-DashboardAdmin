@@ -62,12 +62,14 @@ import {
   attentionItems,
   badgeText,
   markAllSeen,
+  markSeen,
   navBadges,
   newProofs,
   parseSeen,
   settleSeen,
   unreadCount,
   type AttentionSeen,
+  type AttentionItem,
 } from "@/lib/attention";
 
 /** Chu kỳ làm mới chuông (ms). */
@@ -186,6 +188,8 @@ export function LiveShell({
   }, [attentionKey, seen]);
   const attentionCount = unreadCount(attention, seen);
   const markAttentionRead = () => saveSeen(markAllSeen(attention));
+  const markAttentionItemRead = (item: AttentionItem) =>
+    saveSeen(markSeen(seen, item));
   const permissionKey = JSON.stringify(permissions ?? null);
   const [operatorName, setOperatorName] = useState("Nhà xe");
   const [operatorLogo, setOperatorLogo] = useState<string | null>(null);
@@ -575,7 +579,10 @@ export function LiveShell({
               </p>
               <AttentionLinks
                 items={attention}
-                onPick={() => setMenu(false)}
+                onPick={(item) => {
+                  markAttentionItemRead(item);
+                  setMenu(false);
+                }}
                 onOpenProofs={() => setProofsOpen(true)}
               />
               {attentionCount > 0 && (
@@ -716,6 +723,7 @@ export function LiveShell({
             seen={seen}
             unread={attentionCount}
             onMarkRead={markAttentionRead}
+            onReadItem={markAttentionItemRead}
             onOpenProofs={() => setProofsOpen(true)}
             onOpenPanel={() => setProofAlert(null)}
           />
