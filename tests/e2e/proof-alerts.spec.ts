@@ -222,6 +222,9 @@ test("owner sets up Gmail alerts in Cài đặt › Thông báo email and sends 
   await form.getByLabel("Nhà cung cấp").selectOption("custom");
   await expect(form.getByLabel("Máy chủ SMTP")).toBeVisible();
   await expect(form.getByLabel("Cổng")).toBeVisible();
+  // Máy chủ là smtp.gmail.com nên vẫn là mật khẩu ứng dụng Gmail.
+  await expect(form.getByLabel("Mật khẩu ứng dụng")).toBeVisible();
+  await form.getByLabel("Máy chủ SMTP").fill("mail.nhaxe.vn");
   await expect(form.getByLabel("Mật khẩu email")).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
