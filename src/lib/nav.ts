@@ -9,7 +9,6 @@ export type NavKey =
   | "routes"
   | "trips"
   | "passengers"
-  | "audit"
   | "settings"
   | "revenue"
   | "seats"
@@ -85,12 +84,6 @@ export const NAV: {
     short: "Khách",
     perm: "booking.read",
   },
-  {
-    key: "audit",
-    href: "/admin/audit-logs",
-    label: "Nhật ký",
-    perm: "audit.read",
-  },
   { key: "settings", href: "/admin/settings", label: "Cài đặt" },
   // Báo cáo tính từ sổ thu nên dùng chung quyền xem sổ thu.
   {
@@ -146,7 +139,7 @@ export const NAV_GROUPS: { id: string; title: string; keys: NavKey[] }[] = [
   {
     id: "manage",
     title: "Quản lý",
-    keys: ["users", "audit", "settings", "help"],
+    keys: ["users", "settings", "help"],
   },
 ];
 

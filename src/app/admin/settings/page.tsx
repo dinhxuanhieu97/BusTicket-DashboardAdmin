@@ -4,6 +4,7 @@ import { GeneralInformation } from "@/components/live/general-information";
 import { AlertSettingsPanel } from "@/components/live/alert-settings";
 import { TwoFactorSettings } from "@/components/live/two-factor-settings";
 import { ChangePasswordForm } from "@/components/live/password-forms";
+import { Audit } from "@/components/live/audit";
 import { canManageTrips } from "@/lib/trip-management";
 import { redirect } from "next/navigation";
 import { operatorSession } from "@/lib/server/session";
@@ -37,8 +38,11 @@ export default async function Page({
   const { tab } = await searchParams;
   const canReadGeneral = hasPermission(access.session, "policy.write");
   const canConfigureAlerts = hasPermission(access.session, "alert.configure");
+  const canReadAudit = hasPermission(access.session, "audit.read");
   const showAlerts = canConfigureAlerts && tab === "alerts";
   const showGeneral = !showAlerts && canReadGeneral && tab === "general";
+  const showAudit =
+    !showAlerts && !showGeneral && canReadAudit && tab === "audit";
   const user = access.session.user;
   const initial = user.fullName
     ? user.fullName.trim().charAt(0).toUpperCase()
@@ -153,7 +157,9 @@ export default async function Page({
         <Link
           className="pn-tab"
           href="/admin/settings"
-          aria-current={showGeneral || showAlerts ? undefined : "page"}
+          aria-current={
+            showGeneral || showAlerts || showAudit ? undefined : "page"
+          }
         >
           Tài khoản
         </Link>
@@ -175,11 +181,22 @@ export default async function Page({
             Thông báo email
           </Link>
         )}
+        {canReadAudit && (
+          <Link
+            className="pn-tab"
+            href="/admin/settings?tab=audit"
+            aria-current={showAudit ? "page" : undefined}
+          >
+            Nhật ký
+          </Link>
+        )}
       </nav>
       {showAlerts ? (
         <div className="max-w-3xl">
           <AlertSettingsPanel mfaEnabled={user.mfaEnabled} />
         </div>
+      ) : showAudit ? (
+        <Audit embedded />
       ) : showGeneral ? (
         <GeneralInformation
           mfaEnabled={user.mfaEnabled}
