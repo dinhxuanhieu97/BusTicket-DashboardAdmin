@@ -17,9 +17,15 @@ test("date range persists across reload and the default creation flow is both di
 }) => {
   await page.goto("/admin/trips?date=2027-12-01&period=day");
   await page.getByRole("button", { name: "Tháng", exact: true }).click();
-  await expect(page.getByLabel("Tháng khởi hành")).toHaveValue("2027-12");
+  await expect(page.getByLabel("Tháng khởi hành")).toHaveAttribute(
+    "data-value",
+    "2027-12-01",
+  );
+  await expect(page.getByLabel("Tháng khởi hành")).toContainText(
+    "Tháng 12/2027",
+  );
   await page.getByRole("button", { name: "Năm", exact: true }).click();
-  await expect(page.getByLabel("Năm khởi hành")).toHaveValue("2027");
+  await expect(page.getByLabel("Năm khởi hành")).toContainText("Năm 2027");
   await page.reload();
   await expect(
     page.getByRole("button", { name: "Năm", exact: true }),
@@ -128,4 +134,53 @@ test("settings save shows a dismissible toast that clears after five seconds", a
   await expect(toast).toHaveCount(0);
   await page.reload();
   await expect(name).toHaveValue("Nhà xe thử thông báo trên mobile");
+});
+
+test("trip period picker opens a popup to pick a day, month or year", async ({
+  page,
+}) => {
+  await page.goto("/admin/trips?date=2027-12-15&period=day");
+  const day = page.getByLabel("Ngày khởi hành · Giờ Việt Nam");
+  await expect(day).toContainText("15/12/2027");
+  await day.click();
+  const pop = page.getByRole("dialog", {
+    name: "Ngày khởi hành · Giờ Việt Nam",
+  });
+  await expect(pop).toContainText("Thg 12 2027");
+  await expect(pop.locator('[data-date="2027-12-15"]')).toBeFocused();
+  // Mũi tên phải chuyển ô focus; sang tháng sau rồi chọn ngày 03/01/2028.
+  await page.keyboard.press("ArrowRight");
+  await expect(pop.locator('[data-date="2027-12-16"]')).toBeFocused();
+  await pop.getByRole("button", { name: "Tháng sau" }).click();
+  await pop.locator('[data-date="2028-01-03"]').click();
+  await expect(pop).toHaveCount(0);
+  await expect(day).toHaveAttribute("data-value", "2028-01-03");
+  await expect(day).toBeFocused();
+  await expect(page).toHaveURL(/date=2028-01-03/);
+
+  // Escape đóng popup, giữ nguyên ngày.
+  await day.click();
+  await page.keyboard.press("Escape");
+  await expect(pop).toHaveCount(0);
+  await expect(day).toHaveAttribute("data-value", "2028-01-03");
+
+  // Tháng: lưới 12 tháng theo năm.
+  await page.getByRole("button", { name: "Tháng", exact: true }).click();
+  const month = page.getByLabel("Tháng khởi hành");
+  await month.click();
+  const monthPop = page.getByRole("dialog", { name: "Tháng khởi hành" });
+  await expect(monthPop).toContainText("Năm 2028");
+  await monthPop.getByRole("button", { name: "Năm trước" }).click();
+  await monthPop.getByRole("button", { name: "Tháng 3 năm 2027" }).click();
+  await expect(month).toHaveAttribute("data-value", "2027-03-01");
+  await expect(month).toContainText("Tháng 3/2027");
+
+  // Năm: lưới 12 năm.
+  await page.getByRole("button", { name: "Năm", exact: true }).click();
+  const year = page.getByLabel("Năm khởi hành");
+  await year.click();
+  const yearPop = page.getByRole("dialog", { name: "Năm khởi hành" });
+  await expect(yearPop).toContainText("2016 – 2027");
+  await yearPop.getByRole("button", { name: "Năm 2025" }).click();
+  await expect(year).toContainText("Năm 2025");
 });

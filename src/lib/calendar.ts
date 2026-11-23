@@ -97,3 +97,21 @@ export function dayDisabled(
   }
   return false;
 }
+
+/** Chế độ của bộ chọn một kỳ (ngày / tháng / năm). */
+export type PeriodMode = "day" | "month" | "year";
+
+/** Số năm trên một trang của lưới chọn năm (3 cột × 4 hàng). */
+export const YEAR_PAGE = 12;
+
+/** Năm đầu trang lưới năm chứa `year` (2016–2027, 2028–2039...). */
+export const yearPageStart = (year: number) =>
+  year - (((year % YEAR_PAGE) + YEAR_PAGE) % YEAR_PAGE);
+
+/** Chữ trên nút: "23/11/2026", "Tháng 11/2026", "Năm 2026". */
+export function periodText(mode: PeriodMode, d: string) {
+  if (mode === "year") return `Năm ${d.slice(0, 4)}`;
+  if (mode === "month")
+    return `Tháng ${Number(d.slice(5, 7))}/${d.slice(0, 4)}`;
+  return vnDate(d);
+}

@@ -46,9 +46,9 @@ test("OWNER creates draft in Vietnam time, views detail and opens/closes sales",
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const row = page.getByRole("row").filter({ hasText: "Chuyến mới PN" });
   await expect(row).toContainText("Bản nháp");
-  await expect(page.getByLabel("Ngày khởi hành · Giờ Việt Nam")).toHaveValue(
-    "2027-12-01",
-  );
+  await expect(
+    page.getByLabel("Ngày khởi hành · Giờ Việt Nam"),
+  ).toHaveAttribute("data-value", "2027-12-01");
   await row.getByRole("button", { name: "Chi tiết", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("00:30");
@@ -236,7 +236,9 @@ test("trip detail reads fares and seat map; read-only and mobile friendly", asyn
   });
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/admin/trips?date=2027-02-05");
-  await page.getByLabel("Ngày khởi hành · Giờ Việt Nam").fill("2027-02-05");
+  await expect(
+    page.getByLabel("Ngày khởi hành · Giờ Việt Nam"),
+  ).toHaveAttribute("data-value", "2027-02-05");
   await page
     .getByRole("button", { name: "Chi tiết", exact: true })
     .first()

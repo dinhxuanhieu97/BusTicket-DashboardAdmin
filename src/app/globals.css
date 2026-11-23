@@ -1175,6 +1175,7 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
   min-width: 6rem;
   height: 0.5rem;
   border-radius: 999px;
+}
 
 /* Bộ chọn khoảng ngày dùng chung (DateRangePicker): nút giống ô nhập, popup cùng kiểu menu tài khoản/chuông. */
 .pn-date-trigger {
@@ -1371,5 +1372,27 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
 @media (prefers-reduced-motion: reduce) {
   .pn-date-trigger-chevron {
     transition: none;
+  }
+}
+
+/* Bộ chọn một kỳ (PeriodPicker): một lịch tháng, hoặc lưới 12 tháng / 12 năm; cùng ô chọn với DateRangePicker. */
+.pn-period-pop .pn-date-main {
+  @apply w-[17.5rem];
+}
+.pn-period-pop .pn-date-month-head {
+  @apply mb-2;
+}
+.pn-period-grid {
+  @apply grid grid-cols-3 gap-1 text-sm tabular-nums;
+}
+.pn-date-day.pn-period-cell {
+  @apply h-11;
+}
+.pn-period-foot {
+  @apply mt-2 flex justify-end border-t border-line pt-2;
+}
+@media (max-width: 639.98px) {
+  .pn-period-pop .pn-date-main {
+    @apply w-full;
   }
 }

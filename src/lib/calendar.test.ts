@@ -7,6 +7,8 @@ import {
   monthGrid,
   monthTitle,
   orderedRange,
+  periodText,
+  yearPageStart,
   spanDays,
   vnRange,
   weekdayMon,
@@ -60,4 +62,13 @@ test("days after max, before min or beyond maxDays from the first click are disa
   assert.equal(dayDisabled("2026-11-17", picking), true); // 8 ngày
   assert.equal(dayDisabled("2026-11-04", picking), false); // ngược chiều, 7 ngày
   assert.equal(dayDisabled("2026-11-03", picking), true);
+});
+
+test("period picker labels and year pages", () => {
+  assert.equal(periodText("day", "2026-11-23"), "23/11/2026");
+  assert.equal(periodText("month", "2026-03-01"), "Tháng 3/2026");
+  assert.equal(periodText("year", "2026-01-01"), "Năm 2026");
+  assert.equal(yearPageStart(2026), 2016);
+  assert.equal(yearPageStart(2027), 2016);
+  assert.equal(yearPageStart(2028), 2028);
 });
