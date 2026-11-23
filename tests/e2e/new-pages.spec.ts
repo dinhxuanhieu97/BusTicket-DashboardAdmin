@@ -65,7 +65,7 @@ test("revenue shows net income, refunds and routes from the report API (GF8, GF1
     "100.000",
   );
   // Bảng ẩn cho trình đọc màn hình: ngày cuối là thu thuần hôm nay.
-  const table = page.locator("[data-area-chart] table");
+  const table = page.locator("[data-bar-chart] table");
   await expect(table.locator("tbody tr")).toHaveCount(7);
   await expect(table.locator("tbody tr").last()).toContainText("530.000");
 });
@@ -94,7 +94,7 @@ test("revenue falls back to summing the payment list on an API without reports",
   });
   await expect(methods.getByRole("listitem").first()).toContainText("100%");
   // Bảng ẩn cho trình đọc màn hình có đủ 7 ngày, ngày cuối là 630.000.
-  const table = page.locator("[data-area-chart] table");
+  const table = page.locator("[data-bar-chart] table");
   await expect(table.locator("tbody tr")).toHaveCount(7);
   await expect(table.locator("tbody tr").last()).toContainText("630.000");
 
@@ -140,7 +140,7 @@ test("revenue range picker: presets, calendar range and keyboard", async ({
   await page.goto("/admin/revenue");
   const trigger = page.getByRole("button", { name: /^Khoảng thời gian:/ });
   await expect(trigger).toContainText("7 ngày qua");
-  const table = page.locator("[data-area-chart] table");
+  const table = page.locator("[data-bar-chart] table");
 
   // Popup mở ngay dưới nút, hai tháng, mốc nhanh bên trái.
   const pop = await openRange(page);
@@ -386,4 +386,8 @@ test("revenue chart axis labels stay inside the chart card and never overlap", a
   }
   for (let i = 1; i < spans.length; i++)
     expect(spans[i].left).toBeGreaterThan(spans[i - 1].right);
+
+  // Cột: chỉ ngày có doanh thu mới có cột (ngày 0 không vẽ cột), nét kỳ trước luôn có.
+  await expect(card.locator("[data-bar-chart] svg rect")).not.toHaveCount(0);
+  await expect(card.locator("[data-bar-chart] svg path")).toHaveCount(1);
 });
