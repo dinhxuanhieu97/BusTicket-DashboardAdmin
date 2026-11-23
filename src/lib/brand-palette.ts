@@ -73,8 +73,8 @@ const rgba = (hex: string, alpha: number) =>
   `rgb(${toRgb(hex).join(" ")} / ${alpha})`;
 
 /** Nền đặc của hai theme (khớp `globals.css`): chữ accent phải đọc được trên cả nền trang, thẻ và ô nhập. */
-const DARK_BACKGROUNDS = ["#17191a", "#262828", "#2f3131", "#383a3a"];
-const LIGHT_BACKGROUNDS = ["#efebe4", "#fbfaf7", "#f2efe9", "#e9e5dd"];
+const DARK_BACKGROUNDS = ["#14161b", "#1e2128", "#262a32", "#2f343d"];
+const LIGHT_BACKGROUNDS = ["#eef0f4", "#fbfcfd", "#f2f4f7", "#e7eaf0"];
 
 export type PaletteTokens = Record<string, string>;
 
@@ -108,8 +108,8 @@ export function brandPalette(colors: BrandColors) {
     "--primary-hover": mix(darkAccent, "#ffffff", 0.18),
     "--on-primary": darkOnPrimary,
     "--accent-glow": rgba(darkAccent, 0.14),
-    "--bg-glow-1": rgba(from, 0.2),
-    "--bg-glow-2": rgba(to, 0.14),
+    "--bg-glow-1": rgba(from, 0.12),
+    "--bg-glow-2": rgba(to, 0.06),
     ...button,
   };
 
@@ -125,8 +125,8 @@ export function brandPalette(colors: BrandColors) {
     "--primary-hover": mix(lightPrimary, "#000000", 0.18),
     "--on-primary": "#ffffff",
     "--accent-glow": rgba(lightAccent, 0.13),
-    "--bg-glow-1": rgba(from, 0.18),
-    "--bg-glow-2": rgba(to, 0.16),
+    "--bg-glow-1": rgba(from, 0.08),
+    "--bg-glow-2": rgba(to, 0.05),
     ...button,
   };
   return { dark, light };

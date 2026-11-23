@@ -1,93 +1,152 @@
 @import "tailwindcss";
 
-/* Bảng màu "kính mờ": nền ấm có hai vệt sáng, khối nổi trong suốt nhẹ.
-   Màu thương hiệu mặc định là dải tím chàm #6366f1 → xanh lơ #06b6d4 (giống favicon). Các token
-   --brand-*, --accent, --primary*, --on-primary, --accent-glow, --bg-glow-* là kết quả của
-   brandPalette(DEFAULT_BRAND_COLORS) trong src/lib/brand-palette.ts (test kiểm hai nơi khớp nhau);
-   nhà xe chọn màu riêng trong Cài đặt thì layout/shell ghi đè bằng thẻ <style>.
-   --panel/--surface giữ màu đặc để cột ghim của bảng, hộp thoại và ô nhập không lộ nội dung phía sau;
-   --glass là nền trong suốt của thẻ và khung trang. */
+/* ============================================================================
+   MÀU DASHBOARD — HAI LỚP BIẾN
+   1. Bảng màu gốc (--white, --gray-*, --green-*, --amber-*, --red-*, --blue-*):
+      muốn đổi cả bảng màu thì sửa ở đây.
+   2. Biến theo vai trò (--bg, --panel, --text, --success...): trỏ vào bảng gốc,
+      khác nhau giữa theme tối (:root) và sáng (html[data-theme="light"]).
+   Component CHỈ dùng biến vai trò (hoặc class Tailwind bg-panel, text-muted...).
+   Mã màu (#hex, rgb()) chỉ được viết trong vùng này, trước dòng @end-color-tokens;
+   test src/lib/color-tokens.test.ts chặn mã màu ở mọi chỗ khác.
+   Màu thương hiệu (--brand-*, --accent, --primary*, --on-primary, --accent-glow,
+   --bg-glow-*) là kết quả brandPalette(DEFAULT_BRAND_COLORS) trong
+   src/lib/brand-palette.ts (test kiểm hai nơi khớp nhau); nhà xe đổi trong Cài đặt.
+   Quy tắc dùng màu: README.md, mục "Màu".
+   ========================================================================== */
 :root {
+  /* ---- 1. Bảng màu gốc ---- */
+  --white: #ffffff;
+  --black: #000000;
+  /* Xám hơi lạnh (slate), sáng → tối. */
+  --gray-25: #fbfcfd;
+  --gray-50: #f2f4f7;
+  --gray-100: #eef0f4;
+  --gray-150: #e7eaf0;
+  --gray-200: #cfd4dc;
+  --gray-300: #a3a9b5;
+  --gray-400: #8b92a0;
+  --gray-500: #626978;
+  --gray-600: #555c69;
+  --gray-700: #2f343d;
+  --gray-750: #262a32;
+  --gray-800: #1e2128;
+  --gray-850: #1b1e24;
+  --gray-900: #14161b;
+  /* Màu báo nghĩa: bậc 300 cho nền tối, bậc 700 cho nền sáng. */
+  --green-300: #7ed98a;
+  --green-700: #2b7339;
+  --amber-300: #f0b45c;
+  --amber-700: #85560c;
+  --red-300: #f39184;
+  --red-700: #b03a2d;
+  --blue-300: #7fb4f0;
+  --blue-700: #2f69b0;
+
+  /* ---- 2. Biến theo vai trò — theme tối ---- */
   color-scheme: dark;
-  --bg: #17191a;
+  --bg: var(--gray-900);
+  --panel: var(--gray-800);
+  --surface: var(--gray-750);
+  --surface-hover: var(--gray-700);
+  --glass: color-mix(in srgb, var(--gray-750) 72%, transparent);
+  --glass-strong: color-mix(in srgb, var(--gray-700) 90%, transparent);
+  --blur: blur(22px) saturate(140%);
+  --border: color-mix(in srgb, var(--white) 8%, transparent);
+  --border-hover: color-mix(in srgb, var(--white) 17%, transparent);
+  --text: var(--gray-100);
+  --muted: var(--gray-300);
+  --faint: var(--gray-400);
+  --success: var(--green-300);
+  --success-bg: color-mix(in srgb, var(--green-300) 15%, transparent);
+  --warning: var(--amber-300);
+  --warning-bg: color-mix(in srgb, var(--amber-300) 16%, transparent);
+  --danger: var(--red-300);
+  --danger-bg: color-mix(in srgb, var(--red-300) 16%, transparent);
+  --info: var(--blue-300);
+  /* Ghế đã đặt: xám trong mờ, không lẫn với xanh "Còn trống". */
+  --booked-bg: color-mix(in srgb, var(--gray-200) 40%, transparent);
+  /* Chữ trên ô logo dải màu và núm công tắc/đồng hồ. */
+  --on-brand-mark: var(--white);
+  --knob: var(--white);
+  --scrim: color-mix(in srgb, var(--gray-900) 60%, transparent);
+  --count-on-active: color-mix(in srgb, var(--black) 18%, transparent);
+  --inset-highlight: color-mix(in srgb, var(--white) 6%, transparent);
+  --shadow-sm: 0 4px 12px -2px color-mix(in srgb, var(--black) 35%, transparent);
+  --panel-shadow: 0 20px 50px color-mix(in srgb, var(--black) 35%, transparent);
+  --overlay-shadow: 0 20px 64px
+    color-mix(in srgb, var(--black) 45%, transparent);
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a3a9b5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  /* Màu thương hiệu (theme tối). */
   --brand-from: #6366f1;
   --brand-to: #06b6d4;
   --brand-gradient: linear-gradient(135deg, #6366f1, #06b6d4);
-  --bg-glow-1: rgb(99 102 241 / 0.2);
-  --bg-glow-2: rgb(6 182 212 / 0.14);
+  --bg-glow-1: rgb(99 102 241 / 0.12);
+  --bg-glow-2: rgb(6 182 212 / 0.06);
   --primary-gradient: linear-gradient(135deg, #6164ec, #047f94);
   --primary-gradient-hover: linear-gradient(135deg, #5558d0, #047082);
   --on-primary-gradient: #ffffff;
-  --glass: rgb(44 46 46 / 0.72);
-  --glass-strong: rgb(54 56 56 / 0.9);
-  --blur: blur(22px) saturate(140%);
-  --panel: #262828;
-  --surface: #2f3131;
-  --surface-hover: #383a3a;
-  --border: rgb(255 255 255 / 0.08);
-  --border-hover: rgb(255 255 255 / 0.17);
-  --text: #f2f1ee;
-  --muted: #a9a6a0;
-  --faint: #8a8781;
-  --accent: #989af6;
-  --primary: #989af6;
-  --primary-hover: #abacf8;
+  --accent: #9294f5;
+  --primary: #9294f5;
+  --primary-hover: #a6a7f7;
   --on-primary: #191a3c;
-  --accent-glow: rgb(152 154 246 / 0.14);
-  --success: #7ed98a;
-  --success-bg: rgb(126 217 138 / 0.15);
-  --warning: #f0b45c;
-  --warning-bg: rgb(240 180 92 / 0.16);
-  --danger: #f39184;
-  --danger-bg: rgb(240 124 108 / 0.16);
-  --info: #7fb4f0;
+  --accent-glow: rgb(146 148 245 / 0.14);
+  /* Kích thước (không phải màu). */
   --radius-control: 0.8125rem;
   --radius-panel: 1.375rem;
   --control-height: 2.75rem;
   --page-padding: 1rem;
   --panel-padding: 1rem;
-  --panel-shadow: 0 20px 50px rgb(0 0 0 / 0.35);
-  --overlay-shadow: 0 20px 64px rgb(0 0 0 / 0.45);
-  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a9a6a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
+/* ---- 2. Biến theo vai trò — theme sáng ---- */
 html[data-theme="light"] {
   color-scheme: light;
-  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364625d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  --bg: #efebe4;
+  --bg: var(--gray-100);
+  --panel: var(--gray-25);
+  --surface: var(--gray-50);
+  --surface-hover: var(--gray-150);
+  --glass: color-mix(in srgb, var(--white) 70%, transparent);
+  --glass-strong: color-mix(in srgb, var(--white) 92%, transparent);
+  --border: color-mix(in srgb, var(--black) 8%, transparent);
+  --border-hover: color-mix(in srgb, var(--black) 20%, transparent);
+  --text: var(--gray-850);
+  --muted: var(--gray-600);
+  --faint: var(--gray-500);
+  --success: var(--green-700);
+  --success-bg: color-mix(in srgb, var(--green-700) 13%, transparent);
+  --warning: var(--amber-700);
+  --warning-bg: color-mix(in srgb, var(--amber-700) 14%, transparent);
+  --danger: var(--red-700);
+  --danger-bg: color-mix(in srgb, var(--red-700) 12%, transparent);
+  --info: var(--blue-700);
+  --booked-bg: color-mix(in srgb, var(--gray-300) 40%, transparent);
+  --scrim: color-mix(in srgb, var(--gray-900) 45%, transparent);
+  --count-on-active: color-mix(in srgb, var(--white) 22%, transparent);
+  --inset-highlight: color-mix(in srgb, var(--white) 60%, transparent);
+  --shadow-sm: 0 4px 12px -2px
+    color-mix(in srgb, var(--gray-900) 14%, transparent);
+  --panel-shadow: 0 18px 40px
+    color-mix(in srgb, var(--gray-900) 12%, transparent);
+  --overlay-shadow: 0 20px 64px
+    color-mix(in srgb, var(--gray-900) 24%, transparent);
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23555c69' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  /* Màu thương hiệu (theme sáng). */
   --brand-from: #6366f1;
   --brand-to: #06b6d4;
   --brand-gradient: linear-gradient(135deg, #6366f1, #06b6d4);
-  --bg-glow-1: rgb(99 102 241 / 0.18);
-  --bg-glow-2: rgb(6 182 212 / 0.16);
+  --bg-glow-1: rgb(99 102 241 / 0.08);
+  --bg-glow-2: rgb(6 182 212 / 0.05);
   --primary-gradient: linear-gradient(135deg, #6164ec, #047f94);
   --primary-gradient-hover: linear-gradient(135deg, #5558d0, #047082);
   --on-primary-gradient: #ffffff;
-  --glass: rgb(255 255 255 / 0.7);
-  --glass-strong: rgb(255 255 255 / 0.92);
-  --panel: #fbfaf7;
-  --surface: #f2efe9;
-  --surface-hover: #e9e5dd;
-  --border: rgb(0 0 0 / 0.08);
-  --border-hover: rgb(0 0 0 / 0.2);
-  --text: #1f2120;
-  --muted: #5f5d58;
-  --faint: #7a7771;
-  --accent: #5558cf;
-  --primary: #5558cf;
-  --primary-hover: #4648aa;
+  --accent: #575ad4;
+  --primary: #575ad4;
+  --primary-hover: #474aae;
   --on-primary: #ffffff;
-  --accent-glow: rgb(85 88 207 / 0.13);
-  --success: #2b7339;
-  --success-bg: rgb(47 154 69 / 0.13);
-  --warning: #85560c;
-  --warning-bg: rgb(192 122 28 / 0.15);
-  --danger: #b03a2d;
-  --danger-bg: rgb(201 72 58 / 0.12);
-  --info: #2f69b0;
-  --panel-shadow: 0 18px 40px rgb(60 50 30 / 0.12);
-  --overlay-shadow: 0 20px 64px rgb(60 50 30 / 0.24);
+  --accent-glow: rgb(87 90 212 / 0.13);
 }
+/* @end-color-tokens — sau dòng này không viết mã màu, chỉ dùng var(--...). */
 
 @media (min-width: 640px) {
   :root {
@@ -104,6 +163,7 @@ html[data-theme="light"] {
 
 @theme inline {
   --color-panel: var(--panel);
+  --color-knob: var(--knob);
   --color-surface: var(--surface);
   --color-line: var(--border);
   --color-ink: var(--text);
@@ -191,7 +251,7 @@ fieldset:disabled button {
     background: var(--surface);
   }
   .pn-tabs > button[aria-pressed="true"] .pn-tabs-count {
-    background: rgb(0 0 0 / 0.18);
+    background: var(--count-on-active);
     color: inherit;
   }
   .pn-filter-chips {
@@ -217,7 +277,7 @@ fieldset:disabled button {
   }
   .pn-switch > span::after {
     content: "";
-    @apply absolute top-[3px] left-[3px] size-[22px] rounded-full bg-white shadow transition-[translate];
+    @apply absolute top-[3px] left-[3px] size-[22px] rounded-full bg-knob shadow transition-[translate];
   }
   .pn-switch[aria-checked="true"] > span {
     background: var(--accent);
@@ -498,7 +558,7 @@ fieldset:disabled button {
   /* Ghế đã đặt: nền xám trong mờ (đề xuất 22/11) để không lẫn với xanh "Còn trống". */
   .pn-tone[data-tone="booked"] {
     --tone-fg: var(--text);
-    --tone-bg: #cecece69;
+    --tone-bg: var(--booked-bg);
   }
   .pn-badge {
     @apply inline-flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold leading-none;
@@ -510,8 +570,8 @@ fieldset:disabled button {
     @apply grid size-10 shrink-0 place-items-center rounded-xl text-lg font-bold;
     /* Dải màu thương hiệu như favicon; chữ trắng có bóng nhẹ để đọc được cả ở đầu màu sáng. */
     background: var(--brand-gradient);
-    color: #fff;
-    text-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+    color: var(--on-brand-mark);
+    text-shadow: 0 1px 2px color-mix(in srgb, var(--black) 25%, transparent);
   }
   .pn-chip {
     @apply inline-flex items-center gap-2 rounded-xl border border-line bg-surface/50 px-3 py-2 text-ink;
@@ -577,7 +637,7 @@ fieldset:disabled button {
   }
 }
 .pn-dialog::backdrop {
-  background: rgb(10 10 8 / 0.55);
+  background: var(--scrim);
   backdrop-filter: blur(2px);
 }
 .pn-dialog[data-drawer] {
@@ -629,8 +689,8 @@ html[data-sidebar="collapsed"] {
   background: var(--panel);
   color: var(--muted);
   box-shadow:
-    0 1px 0 rgb(255 255 255 / 0.06) inset,
-    0 4px 12px -2px rgb(0 0 0 / 0.35);
+    0 1px 0 var(--inset-highlight) inset,
+    var(--shadow-sm);
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -746,8 +806,9 @@ html[data-sidebar="collapsed"] .pn-sidebar .btn-ghost span {
 .pn-nav-badge,
 .pn-bell-badge {
   @apply grid min-w-5 place-items-center rounded-full px-1.5 text-[11px] leading-5 font-semibold tabular-nums;
-  background: var(--warning-bg);
-  color: var(--warning);
+  /* Số đếm thường là trung tính; vàng chỉ dành cho cảnh báo thật. */
+  background: var(--surface-hover);
+  color: var(--text);
 }
 .pn-nav-badge {
   margin-left: auto;
@@ -764,14 +825,15 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
   height: 0.5rem;
   padding: 0;
   font-size: 0;
-  background: var(--warning);
+  background: var(--accent);
 }
 .pn-bell-badge {
   position: absolute;
   top: -0.25rem;
   right: -0.25rem;
-  background: var(--warning);
-  color: var(--bg);
+  /* Có việc chưa đọc: màu thương hiệu (không dùng vàng cảnh báo cho số đếm). */
+  background: var(--primary);
+  color: var(--on-primary);
   box-shadow: 0 0 0 2px var(--panel);
 }
 .pn-topbar {
@@ -795,8 +857,8 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
 }
 .pn-avatar-round {
   @apply relative grid size-10 shrink-0 place-items-center rounded-full text-sm font-semibold;
-  background: linear-gradient(135deg, #f3d9a8, #e8b77a);
-  color: #3a2a12;
+  background: var(--accent-glow);
+  color: var(--accent);
 }
 /* Menu tài khoản ở topbar. Topbar không có overflow nên menu absolute không bị cắt. */
 .pn-avatar-btn {
@@ -893,7 +955,7 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
 }
 .pn-mini-switch::after {
   content: "";
-  @apply absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow;
+  @apply absolute top-0.5 left-0.5 size-4 rounded-full bg-knob shadow;
   transition: translate 160ms ease;
 }
 [aria-checked="true"] > .pn-mini-switch {

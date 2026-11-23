@@ -68,6 +68,24 @@ Không đặt các biến này với tiền tố `NEXT_PUBLIC_*` và không comm
 - Route Handler `/api/*` là danh sách đường dẫn cố định, không có proxy tùy ý. Thao tác ghi kiểm tra quyền, Origin và JSON theo schema strict; ghi tiền gửi `Idempotency-Key`.
 - Phản hồi riêng tư dùng `Cache-Control: private, no-store`. Mã QR 2FA tạo ngay trên server, không gửi bí mật ra dịch vụ ngoài.
 
+## Màu
+
+Mọi màu nằm ở đầu `src/app/globals.css`, chia hai lớp biến:
+
+| Lớp               | Biến                                                                                                                                                                                         | Đổi khi nào                                                                                                                                 |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bảng màu gốc      | `--white`, `--black`, `--gray-25` … `--gray-900`, `--green-300/700`, `--amber-300/700`, `--red-300/700`, `--blue-300/700`                                                                    | Muốn đổi cả bảng màu: sửa mã hex ở đây, mọi trang đổi theo.                                                                                 |
+| Biến theo vai trò | `--bg`, `--panel`, `--surface`, `--surface-hover`, `--border`, `--text`, `--muted`, `--faint`, `--success`, `--warning`, `--danger`, `--info` (và `-bg`), `--booked-bg`, `--scrim`, bóng đổ… | Muốn đổi một vai trò (ví dụ chữ phụ đậm hơn): trỏ sang bậc khác của bảng gốc. Theme tối ở `:root`, theme sáng ở `html[data-theme="light"]`. |
+| Màu thương hiệu   | `--brand-*`, `--accent`, `--primary*`, `--on-primary`, `--accent-glow`, `--bg-glow-*`                                                                                                        | Nhà xe chọn trong Cài đặt › Màu giao diện; mặc định chàm → lơ lấy từ `DEFAULT_BRAND_COLORS` trong `src/lib/brand-palette.ts`.               |
+
+Quy tắc dùng màu:
+
+1. **Neutral là chính** (nền, thẻ, viền, chữ): chỉ thang xám.
+2. **Màu thương hiệu** chỉ cho nút chính, mục đang chọn, focus, liên kết, số liệu chính trên biểu đồ và logo. Dải màu chỉ ở logo và nút chính.
+3. **Màu báo nghĩa** (success / warning / danger / info) chỉ khi có ý nghĩa trạng thái; không dùng để trang trí hay phân biệt mục menu.
+4. **Số đếm, badge** mặc định trung tính; số "cần xử lý" (chuông) dùng màu thương hiệu.
+5. **Không viết mã màu trong component**: dùng `var(--…)`, class `text-muted`/`bg-panel`… hoặc `data-tone="warning"` với `.pn-tone`. Test `src/lib/color-tokens.test.ts` báo lỗi nếu có `#hex`, `rgb()` hay class kiểu `bg-amber-500` ngoài vùng biến.
+
 ## Kiểm tra
 
 ```sh

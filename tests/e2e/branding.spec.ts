@@ -179,7 +179,7 @@ test("OWNER picks dashboard colours in Settings; they apply at once, survive rel
   // Mặc định: dải tím chàm → xanh lơ như favicon.
   expect(await token("--brand-from")).toBe("#6366f1");
   expect(await token("--brand-to")).toBe("#06b6d4");
-  expect(await token("--accent")).toBe("#989af6");
+  expect(await token("--accent")).toBe("#9294f5");
 
   const section = page.getByRole("form", { name: "Màu giao diện" });
   await expect(

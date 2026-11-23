@@ -155,7 +155,8 @@ test("seat map: picking a seat shows its booking and opens the counter sale", as
   const bookedBg = await booked.evaluate(
     (el) => getComputedStyle(el).backgroundColor,
   );
-  expect(bookedBg).toMatch(/^rgba\(206, 206, 206, 0\.41\d*\)$/);
+  // Ghế đã đặt: xám trong mờ 40% (biến --booked-bg, tạo bằng color-mix nên trình duyệt trả dạng color(srgb …)).
+  expect(bookedBg).toMatch(/^color\(srgb [\d.]+ [\d.]+ [\d.]+ \/ 0\.4\)$/);
   await expect(
     page.getByRole("button", { name: "A1 · Còn trống" }),
   ).not.toHaveCSS("background-color", bookedBg);

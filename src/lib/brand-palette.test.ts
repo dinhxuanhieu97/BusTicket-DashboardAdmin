@@ -10,8 +10,8 @@ import {
   mix,
 } from "./brand-palette";
 
-const DARK_BG = ["#17191a", "#262828", "#2f3131", "#383a3a"];
-const LIGHT_BG = ["#efebe4", "#fbfaf7", "#f2efe9", "#e9e5dd"];
+const DARK_BG = ["#14161b", "#1e2128", "#262a32", "#2f343d"];
+const LIGHT_BG = ["#eef0f4", "#fbfcfd", "#f2f4f7", "#e7eaf0"];
 
 test("contrast follows WCAG (black on white is 21, same colour is 1)", () => {
   assert.equal(contrast("#000000", "#ffffff"), 21);

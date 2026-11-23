@@ -163,7 +163,8 @@ export function PairTripForm({
       {error && (
         <p
           role="alert"
-          className="rounded-lg bg-amber-500/10 p-3 text-sm text-warning"
+          className="pn-tone rounded-lg p-3 text-sm"
+          data-tone="warning"
         >
           {error}
         </p>

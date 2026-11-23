@@ -92,15 +92,8 @@ const labels: Record<string, string> = {
   "operator.logo.delete": "Xóa logo nhà xe",
 };
 
-function getActionColor(action: string) {
-  if (action.startsWith("trip."))
-    return "border-indigo-500/30 bg-indigo-500/10 text-indigo-400";
-  if (action.startsWith("payment."))
-    return "border-emerald-500/30 bg-emerald-500/10 text-success";
-  if (action.startsWith("user."))
-    return "border-cyan-500/30 bg-cyan-500/10 text-cyan-400";
-  if (action.startsWith("vehicle.") || action.startsWith("route."))
-    return "border-amber-500/30 bg-amber-500/10 text-warning";
+/** Nhóm thao tác chỉ khác nhau ở nhãn chữ; màu giữ trung tính (màu chỉ dùng để báo trạng thái). */
+function getActionColor(_action: string) {
   return "border-line bg-surface text-muted";
 }
 
