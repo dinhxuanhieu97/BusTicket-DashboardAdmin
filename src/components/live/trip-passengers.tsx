@@ -18,6 +18,7 @@ import { paymentStatusLabels } from "@/lib/trip-assistants";
 import {
   ERASED_LABEL,
   bookingStatusLabels,
+  bookingStatusTone,
   channelLabels,
   boardedCount,
   filterBookings,
@@ -56,14 +57,6 @@ import {
   tdClass,
   thClass,
 } from "./shared";
-
-const statusTone: Record<string, "success" | "warning" | "neutral" | "info"> = {
-  CONFIRMED: "success",
-  COMPLETED: "info",
-  HOLDING: "warning",
-  EXPIRED: "neutral",
-  CANCELLED: "neutral",
-};
 
 /** Chỉ dùng phần `sortValue` cho `useTableState`; dòng vẫn vẽ bằng `PassengerRow`. */
 const sortColumns: Column<AdminPassengerBooking>[] = (
@@ -633,7 +626,7 @@ function PassengerRow({
   canEdit: boolean;
   onEdit: () => void;
 }) {
-  const tone = statusTone[b.status] ?? "neutral";
+  const tone = bookingStatusTone[b.status] ?? "neutral";
   const people = b.seats.reduce((n, s) => n + s.occupancy, 0);
   const infants = b.seats.reduce((n, s) => n + s.infantCount, 0);
   const inactive = b.status === "CANCELLED" || b.status === "EXPIRED";

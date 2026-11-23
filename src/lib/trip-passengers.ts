@@ -51,6 +51,18 @@ export const adminTripPassengersSchema = tripPassengersSchema.extend({
 export type AdminPassengerBooking = z.infer<typeof adminPassengerBookingSchema>;
 export type AdminTripPassengers = z.infer<typeof adminTripPassengersSchema>;
 
+/** Màu nhãn trạng thái đơn (danh sách khách, chi tiết vé). */
+export const bookingStatusTone: Record<
+  string,
+  "success" | "warning" | "neutral" | "info"
+> = {
+  CONFIRMED: "success",
+  COMPLETED: "info",
+  HOLDING: "warning",
+  EXPIRED: "neutral",
+  CANCELLED: "neutral",
+};
+
 export const bookingStatusLabels: Record<string, string> = {
   HOLDING: "Đang giữ chỗ",
   CONFIRMED: "Đã xác nhận",
