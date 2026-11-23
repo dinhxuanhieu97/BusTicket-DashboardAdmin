@@ -3,7 +3,13 @@ import { BrandMark } from "./brand";
 import { logoUrl } from "@/lib/brand";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type SyntheticEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import { nextScrollChrome } from "@/lib/scroll-chrome";
 import { topbarDateTime } from "@/lib/overview";
@@ -47,6 +53,8 @@ import { LoadState } from "./shared";
 import { BookingQuickView } from "./booking-quick-view";
 import { CommandPalette, type PaletteItem } from "./command-palette";
 import { AttentionLinks, NotificationBell } from "./notification-bell";
+import { PendingProofsDialog, type PendingProofPick } from "./pending-proofs";
+import { ProofAlertToast, type ProofAlert } from "./proof-alert-toast";
 import { useResource } from "./use-resource";
 import {
   ATTENTION_SEEN_KEY,
@@ -54,11 +62,15 @@ import {
   badgeText,
   markAllSeen,
   navBadges,
+  newProofs,
   parseSeen,
   settleSeen,
   unreadCount,
   type AttentionSeen,
 } from "@/lib/attention";
+
+/** Chu kỳ làm mới chuông (ms). */
+const COUNTERS_REFRESH_MS = 30_000;
 
 const icons: Record<NavKey, typeof LayoutDashboard> = {
   assigned: ClipboardList,
@@ -111,9 +123,41 @@ export function LiveShell({
     // Tải lại khi đổi trang (vd. vừa xử lý xong khoản thu); `reload` đổi mỗi lần render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
-  const badges = navBadges(counters.data);
+  // Làm mới định kỳ để chuông và thông báo ảnh chuyển khoản "cập nhật ngay" (QS01); chỉ khi tab đang hiện.
+  useEffect(() => {
+    if (!canReadTrips) return;
+    const tick = () => {
+      if (document.visibilityState === "visible") reloadCounters();
+    };
+    const timer = window.setInterval(tick, COUNTERS_REFRESH_MS);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
+    // `reload` đổi mỗi lần render; hẹn giờ chỉ cần đặt một lần.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canReadTrips]);
+  // Lúc đang tải lại vẫn giữ số cũ, để chuông không chớp tắt mỗi lần làm mới.
+  const [lastCounters, setLastCounters] = useState<Counters | null>(null);
+  const [proofAlert, setProofAlert] = useState<ProofAlert | null>(null);
+  const [proofsOpen, setProofsOpen] = useState(false);
+  const knownProofs = useRef<number | null>(null);
+  useEffect(() => {
+    if (!counters.data) return;
+    setLastCounters(counters.data);
+    const fresh = newProofs(knownProofs.current, counters.data.proofsPending);
+    if (fresh) setProofAlert({ id: Date.now(), count: fresh });
+    knownProofs.current = counters.data.proofsPending ?? null;
+  }, [counters.data]);
+  const dismissProofAlert = useCallback(
+    (id: number) => setProofAlert((a) => (a?.id === id ? null : a)),
+    [],
+  );
+  const shownCounters = counters.data ?? lastCounters;
+  const badges = navBadges(shownCounters);
   // Điện thoại không có chuông (GB7): việc cần chú ý nằm đầu ngăn "Thêm", tổng số hiện trên nút "Thêm".
-  const attention = counters.data ? attentionItems(counters.data) : [];
+  const attention = shownCounters ? attentionItems(shownCounters) : [];
   // "Đánh dấu đã đọc tất cả": huy hiệu chỉ đếm việc mới; mốc lưu trên máy người xem.
   const [seen, setSeen] = useState<AttentionSeen>({});
   useEffect(() => {
@@ -133,7 +177,7 @@ export function LiveShell({
   };
   const attentionKey = JSON.stringify(attention);
   useEffect(() => {
-    if (!counters.data) return;
+    if (!shownCounters) return;
     const next = settleSeen(attention, seen);
     if (next !== seen) saveSeen(next);
     // Chỉ chạy khi số việc đổi.
@@ -161,7 +205,9 @@ export function LiveShell({
   }, [canReadProfile]);
   const [menu, setMenu] = useState(false);
   const [palette, setPalette] = useState(false);
-  const [quickBooking, setQuickBooking] = useState<PaletteItem | null>(null);
+  const [quickBooking, setQuickBooking] = useState<PendingProofPick | null>(
+    null,
+  );
   const can = (permission: string) => granted?.includes(permission) ?? true;
   const [now, setNow] = useState("");
   const [dark, setDark] = useState(true);
@@ -524,7 +570,11 @@ export function LiveShell({
               <p className="px-3 pt-2 pb-1 text-xs font-semibold tracking-[0.1em] text-faint uppercase">
                 Cần chú ý
               </p>
-              <AttentionLinks items={attention} onPick={() => setMenu(false)} />
+              <AttentionLinks
+                items={attention}
+                onPick={() => setMenu(false)}
+                onOpenProofs={() => setProofsOpen(true)}
+              />
               {attentionCount > 0 && (
                 <button
                   type="button"
@@ -544,20 +594,41 @@ export function LiveShell({
           items={paletteItems}
           searchData={granted?.includes("trip.read") ?? true}
           onClose={() => setPalette(false)}
-          onBooking={setQuickBooking}
+          onBooking={(item: PaletteItem) =>
+            item.booking &&
+            setQuickBooking({ ...item.booking, href: item.href })
+          }
         />
       )}
-      {quickBooking?.booking && (
+      {proofsOpen && (
+        <PendingProofsDialog
+          onClose={() => setProofsOpen(false)}
+          onPick={(pick) => {
+            setProofsOpen(false);
+            setQuickBooking(pick);
+          }}
+        />
+      )}
+      <ProofAlertToast
+        alert={proofAlert}
+        dismiss={dismissProofAlert}
+        onOpen={() => setProofsOpen(true)}
+      />
+      {quickBooking && (
         <BookingQuickView
-          key={quickBooking.booking.code}
-          code={quickBooking.booking.code}
-          tripId={quickBooking.booking.tripId}
+          key={quickBooking.code}
+          code={quickBooking.code}
+          tripId={quickBooking.tripId}
           listHref={quickBooking.href}
           canEdit={can("booking.update")}
           canPay={can("payment.record")}
           canBoard={can("booking.board")}
           canReadPayments={can("payment.read")}
-          onClose={() => setQuickBooking(null)}
+          onClose={() => {
+            setQuickBooking(null);
+            // Vừa ghi nhận tiền thì số chờ kiểm đổi ngay.
+            reloadCounters();
+          }}
         />
       )}
       <header
@@ -636,11 +707,13 @@ export function LiveShell({
             <span className="hidden sm:inline">Tạo chuyến</span>
           </Link>
         )}
-        {counters.data && (
+        {shownCounters && (
           <NotificationBell
             items={attention}
             unread={attentionCount}
             onMarkRead={markAttentionRead}
+            onOpenProofs={() => setProofsOpen(true)}
+            onOpenPanel={() => setProofAlert(null)}
           />
         )}
         <AccountMenu

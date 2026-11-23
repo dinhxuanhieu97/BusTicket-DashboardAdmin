@@ -181,7 +181,31 @@ export const countersSchema = z.object({
     })
     .nullable(),
   refundsOpen: count.nullable(),
+  /** Đơn khách đã gửi ảnh chuyển khoản, còn giữ chỗ (QS01). Backend cũ chưa có → `undefined`. */
+  proofsPending: count.nullable().optional(),
 });
+/** `GET pending-payment-proofs`: đơn có ảnh chuyển khoản chờ nhà xe kiểm, mới gửi trước (tối đa 50). */
+export const pendingProofsSchema = z.object({
+  total: count,
+  bookings: z.array(
+    z.object({
+      code: z.string(),
+      contactName: z.string().nullable(),
+      contactPhone: z.string().nullable(),
+      trip: z.object({
+        id: z.string(),
+        name: z.string(),
+        departAt: z.string(),
+      }),
+      totalAmount: count,
+      paidAmount: count,
+      releaseAt: z.string(),
+      proofCount: count,
+      lastProofAt: z.string().nullable(),
+    }),
+  ),
+});
+export type PendingProofs = z.infer<typeof pendingProofsSchema>;
 /** `GET search?q=`: chuyến (trip.read) và đơn (booking.read, `null` khi không có quyền). */
 export const searchResultSchema = z.object({
   q: z.string(),
@@ -226,6 +250,7 @@ export const resourceSchemas = {
   "bookings-report": bookingsReportSchema,
   counters: countersSchema,
   search: searchResultSchema,
+  "pending-proofs": pendingProofsSchema,
   users: z.object({ users: z.array(userSchema) }),
   trips: z.object({
     trips: z.array(tripSchema),

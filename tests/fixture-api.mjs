@@ -37,6 +37,7 @@ const OWNER_PERMISSIONS = [
   "payment.read",
   "payment.record",
   "payment.manage",
+  "alert.configure",
   "trip.assigned.read",
   "booking.read",
   "booking.export",
@@ -165,6 +166,10 @@ let manualKeys = new Map();
 let refunds = [];
 // Giả backend cũ chưa có API báo cáo/đếm/tìm (trả 404) để kiểm tra đường dự phòng.
 let reportsOff = false;
+/** QS01/QS03: số đơn có ảnh chuyển khoản chờ kiểm (đặt qua `/__test/state`) và cấu hình email báo nhà xe. */
+let proofsPending = 0;
+let alertSettings = null;
+let alertTests = 0;
 const TRIP_STOPS = {
   pickup: [
     { name: "Bến xe Miền Đông", time: "17:30", day: 0 },
@@ -313,6 +318,9 @@ http
       manualKeys = new Map();
       refunds = [];
       reportsOff = false;
+      proofsPending = 0;
+      alertSettings = null;
+      alertTests = 0;
       statusOverrides = {};
       down = false;
       malformed = false;
@@ -342,6 +350,7 @@ http
         extraPayments = body.extraPayments ?? extraPayments;
         extraAudit = body.extraAudit ?? extraAudit;
         reportsOff = body.reportsOff ?? reportsOff;
+        proofsPending = body.proofsPending ?? proofsPending;
         requireMfa = body.requireMfa ?? requireMfa;
         if (body.revokeSessions)
           for (const sess of sessions.values()) sess.revoked = true;
@@ -350,6 +359,8 @@ http
         requests,
         setupStarted,
         confirmed,
+        alertSettings,
+        alertTests,
         sessions: [...sessions.values()].map(({ remember, revoked }) => ({
           remember,
           revoked,
@@ -1674,6 +1685,78 @@ http
       if (req.method === "PUT") profile = { ...profile, ...body };
       return send(res, 200, { ...profile, logoVersion: logo?.version ?? null });
     }
+    if (path === tripBase + "alert-settings/test" && req.method === "POST") {
+      if (!alertSettings)
+        return fail(
+          res,
+          409,
+          "CONFLICT",
+          "Lưu cấu hình email trước khi gửi thử.",
+        );
+      alertTests++;
+      return send(res, 201, { sentTo: alertSettings.recipients });
+    }
+    if (path === tripBase + "alert-settings") {
+      if (req.method === "PUT") {
+        if (
+          body.password !== "Test-only-Password!" ||
+          (!mfaOff && body.otp !== "123456")
+        )
+          return fail(
+            res,
+            403,
+            "FORBIDDEN",
+            "Mật khẩu hoặc mã xác thực không đúng.",
+          );
+        if (!body.smtpPassword && !alertSettings)
+          return fail(
+            res,
+            400,
+            "VALIDATION_FAILED",
+            "Nhập mật khẩu ứng dụng của tài khoản gửi mail.",
+          );
+        // Mật khẩu SMTP không lưu lại trong fixture, chỉ ghi nhận đã có.
+        const { password, otp, smtpPassword, ...rest } = body;
+        void password;
+        void otp;
+        alertSettings = {
+          ...rest,
+          smtpLoginChanged: Boolean(smtpPassword),
+          lastSentAt: null,
+          lastError: null,
+          lastErrorAt: null,
+        };
+      }
+      return send(
+        res,
+        200,
+        alertSettings
+          ? {
+              configured: true,
+              passwordSet: true,
+              ...Object.fromEntries(
+                Object.entries(alertSettings).filter(
+                  ([k]) => k !== "smtpLoginChanged",
+                ),
+              ),
+            }
+          : {
+              configured: false,
+              enabled: false,
+              smtpHost: "smtp.gmail.com",
+              smtpPort: 465,
+              smtpUser: "",
+              fromName: null,
+              recipients: [],
+              onBookingHeld: false,
+              onPaymentProof: true,
+              passwordSet: false,
+              lastSentAt: null,
+              lastError: null,
+              lastErrorAt: null,
+            },
+      );
+    }
     if (path === tripBase + "payment-account") {
       if (req.method === "PUT") {
         if (
@@ -2095,7 +2178,27 @@ http
         refundsOpen: money
           ? refunds.filter((r) => r.status === "OPEN").length + 1
           : null,
+        proofsPending: money ? proofsPending : null,
       });
+    }
+    if (resource === "pending-payment-proofs") {
+      // Đơn đầu là TESTA1 (có trong danh sách khách chuyến 4444…) để mở được chi tiết vé.
+      const bookings = Array.from({ length: proofsPending }, (_, i) => ({
+        code: i === 0 ? "TESTA1" : `TESTP${i}`,
+        contactName: i === 0 ? "Khách Kiểm Thử Một" : `Khách ${i}`,
+        contactPhone: "+84912000001",
+        trip: {
+          id: "44444444-4444-4444-8444-444444444444",
+          name: "Chuyến kiểm thử",
+          departAt: "2027-02-05T10:30:00.000Z",
+        },
+        totalAmount: 840000,
+        paidAmount: 0,
+        releaseAt: "2027-02-05T09:00:00.000Z",
+        proofCount: 1,
+        lastProofAt: "2027-02-04T08:00:00.000Z",
+      }));
+      return send(res, 200, { total: proofsPending, bookings });
     }
     if (resource === "search") {
       const q = (url.searchParams.get("q") ?? "").toLowerCase();

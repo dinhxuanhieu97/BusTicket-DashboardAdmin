@@ -1,16 +1,26 @@
 import type { Counters } from "./live-contracts";
 
-export type AttentionKey = "review" | "refunds" | "closing";
+export type AttentionKey = "proofs" | "review" | "refunds" | "closing";
 export type AttentionItem = {
   key: AttentionKey;
   count: number;
   label: string;
   href: string;
+  /** Mở hộp danh sách ngay tại trang (ảnh chuyển khoản chờ kiểm) thay vì chuyển trang. */
+  opens?: "proofs";
 };
 
 /** Việc cần chú ý từ `GET counters` cho chuông thông báo (GF2); mục bằng 0 không hiện, thứ tự cố định. */
 export function attentionItems(c: Counters): AttentionItem[] {
   return [
+    {
+      // Khách đang chờ: đứng đầu (QS01).
+      key: "proofs" as const,
+      count: c.proofsPending ?? 0,
+      label: "ảnh chuyển khoản chờ kiểm",
+      href: "/admin/payments",
+      opens: "proofs" as const,
+    },
     {
       key: "review" as const,
       count: c.payments?.NEEDS_REVIEW ?? 0,
@@ -31,6 +41,18 @@ export function attentionItems(c: Counters): AttentionItem[] {
     },
   ].filter((i) => i.count > 0);
 }
+
+/**
+ * Số ảnh chuyển khoản chờ kiểm tăng so với lần tải trước → bật thông báo (QS01). Lần tải đầu (`previous` null) không báo,
+ * để mở Dashboard không hiện thông báo cho việc đã có từ trước.
+ */
+export const newProofs = (
+  previous: number | null,
+  current: number | null | undefined,
+) =>
+  previous !== null && current != null && current > previous
+    ? current - previous
+    : 0;
 
 /** Tổng số việc trên chuông. */
 export const attentionTotal = (c: Counters) =>
@@ -85,7 +107,7 @@ export function parseSeen(raw: string | null): AttentionSeen {
     const v: unknown = raw ? JSON.parse(raw) : {};
     if (!v || typeof v !== "object" || Array.isArray(v)) return {};
     const out: AttentionSeen = {};
-    for (const key of ["review", "refunds", "closing"] as const) {
+    for (const key of ["proofs", "review", "refunds", "closing"] as const) {
       const n = (v as Record<string, unknown>)[key];
       if (typeof n === "number" && Number.isInteger(n) && n > 0) out[key] = n;
     }

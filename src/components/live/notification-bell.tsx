@@ -1,10 +1,15 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
-import { AlertTriangle, Bell, Clock, Undo2 } from "lucide-react";
+import { AlertTriangle, Bell, Clock, ImageIcon, Undo2 } from "lucide-react";
 import { badgeText, type AttentionItem } from "@/lib/attention";
 
-const icons = { review: AlertTriangle, refunds: Undo2, closing: Clock };
+const icons = {
+  proofs: ImageIcon,
+  review: AlertTriangle,
+  refunds: Undo2,
+  closing: Clock,
+};
 
 /**
  * Chuông thông báo ở topbar: huy hiệu là số việc mới (chưa đánh dấu đã đọc), bấm mở danh sách liên kết
@@ -14,10 +19,16 @@ export function NotificationBell({
   items,
   unread,
   onMarkRead,
+  onOpenProofs,
+  onOpenPanel,
 }: {
   items: AttentionItem[];
   unread: number;
   onMarkRead: () => void;
+  /** Mở danh sách: ẩn thông báo bật lên đang che phía trên. */
+  onOpenPanel?: () => void;
+  /** Mục "ảnh chuyển khoản chờ kiểm" mở hộp danh sách tại chỗ. */
+  onOpenProofs?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
@@ -60,7 +71,10 @@ export function NotificationBell({
         }
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open) onOpenPanel?.();
+          setOpen(!open);
+        }}
       >
         <Bell size={17} aria-hidden="true" />
         {unread > 0 && (
@@ -84,7 +98,11 @@ export function NotificationBell({
               Không có việc nào cần xử lý.
             </p>
           ) : (
-            <AttentionLinks items={items} onPick={() => setOpen(false)} />
+            <AttentionLinks
+              items={items}
+              onPick={() => setOpen(false)}
+              onOpenProofs={onOpenProofs}
+            />
           )}
           {unread > 0 && (
             <button
@@ -108,23 +126,43 @@ export function NotificationBell({
 export function AttentionLinks({
   items,
   onPick,
+  onOpenProofs,
 }: {
   items: AttentionItem[];
   onPick: () => void;
+  onOpenProofs?: () => void;
 }) {
   return (
     <ul>
-      {items.map(({ key, count, label, href }) => {
+      {items.map(({ key, count, label, href, opens }) => {
         const Icon = icons[key];
+        const body = (
+          <>
+            <Icon size={16} aria-hidden="true" />
+            <span>
+              <b className="tabular-nums">{count.toLocaleString("vi-VN")}</b>{" "}
+              {label}
+            </span>
+          </>
+        );
         return (
           <li key={key}>
-            <Link href={href} className="pn-account-item" onClick={onPick}>
-              <Icon size={16} aria-hidden="true" />
-              <span>
-                <b className="tabular-nums">{count.toLocaleString("vi-VN")}</b>{" "}
-                {label}
-              </span>
-            </Link>
+            {opens === "proofs" && onOpenProofs ? (
+              <button
+                type="button"
+                className="pn-account-item w-full text-left"
+                onClick={() => {
+                  onPick();
+                  onOpenProofs();
+                }}
+              >
+                {body}
+              </button>
+            ) : (
+              <Link href={href} className="pn-account-item" onClick={onPick}>
+                {body}
+              </Link>
+            )}
           </li>
         );
       })}

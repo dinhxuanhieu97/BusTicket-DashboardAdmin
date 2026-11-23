@@ -21,6 +21,13 @@ export default async function Page({
       canEdit={hasPermission(session, "booking.update")}
       canPay={hasPermission(session, "payment.record")}
       initialDate={typeof query.date === "string" ? query.date : undefined}
+      initialBooking={
+        typeof query.booking === "string" &&
+        /^[A-Z0-9]{4,12}$/.test(query.booking)
+          ? query.booking
+          : undefined
+      }
+      canReadPayments={hasPermission(session, "payment.read")}
       initialTripId={
         typeof query.trip === "string" && UUID.test(query.trip)
           ? query.trip
