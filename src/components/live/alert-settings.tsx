@@ -25,6 +25,12 @@ export function AlertSettingsPanel({ mfaEnabled }: { mfaEnabled: boolean }) {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState<"save" | "test" | null>(null);
   const [preset, setPreset] = useState<SmtpPresetId>("gmail");
+  const [customHost, setCustomHost] = useState("");
+  // Gmail luôn dùng mật khẩu ứng dụng, kể cả khi chọn "Máy chủ khác" mà vẫn nhập smtp.gmail.com.
+  const isGmail =
+    preset === "gmail" ||
+    (preset === "custom" &&
+      customHost.trim().toLowerCase() === "smtp.gmail.com");
 
   async function load() {
     setError("");
@@ -32,6 +38,7 @@ export function AlertSettingsPanel({ mfaEnabled }: { mfaEnabled: boolean }) {
       const d = await operation<AlertSettings>(resource);
       setData(d);
       setPreset(presetFor(d.smtpHost));
+      setCustomHost(d.smtpHost);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -208,11 +215,8 @@ export function AlertSettingsPanel({ mfaEnabled }: { mfaEnabled: boolean }) {
                     <input
                       name="smtpHost"
                       className="field"
-                      defaultValue={
-                        presetFor(data.smtpHost) === "custom"
-                          ? data.smtpHost
-                          : ""
-                      }
+                      value={customHost}
+                      onChange={(e) => setCustomHost(e.target.value)}
                       placeholder="mail.tenmien.vn"
                       required
                       maxLength={253}
@@ -233,7 +237,7 @@ export function AlertSettingsPanel({ mfaEnabled }: { mfaEnabled: boolean }) {
               )}
               <div className="pn-form-grid sm:grid-cols-2">
                 <label className="label">
-                  {preset === "gmail" ? "Mật khẩu ứng dụng" : "Mật khẩu email"}
+                  {isGmail ? "Mật khẩu ứng dụng" : "Mật khẩu email"}
                   <input
                     name="smtpPassword"
                     type="password"
@@ -259,7 +263,7 @@ export function AlertSettingsPanel({ mfaEnabled }: { mfaEnabled: boolean }) {
                   />
                 </label>
               </div>
-              {preset === "gmail" && (
+              {isGmail && (
                 <p className="text-xs leading-relaxed text-muted">
                   Gmail không cho dùng mật khẩu đăng nhập thường. Bật Xác minh 2
                   bước cho tài khoản Google, rồi tạo{" "}
