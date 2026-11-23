@@ -8,12 +8,20 @@ import { SuccessToast, type SuccessMessage } from "./success-toast";
 import type { TripOptions } from "@/lib/trip-management";
 import { LOGO_MAX_BYTES, LOGO_TYPES, logoUrl } from "@/lib/brand";
 import { BrandMark } from "./brand";
+import {
+  BRAND_PRESETS,
+  DEFAULT_BRAND_COLORS,
+  HEX_COLOR,
+  brandPalette,
+  type BrandColors,
+} from "@/lib/brand-palette";
 export type OperatorProfile = {
   id: string;
   code: string;
   name: string;
   defaultDepartureTime: string;
   logoVersion?: string | null;
+  brandColors?: BrandColors | null;
 };
 export function GeneralInformation({
   canConfigurePayments,
@@ -142,6 +150,15 @@ export function GeneralInformation({
           onError={setError}
         />
       )}
+      {profile && (
+        <BrandColorSettings
+          key={JSON.stringify(profile.brandColors ?? null)}
+          saved={profile.brandColors ?? null}
+          name={profile.name}
+          busy={busy}
+          onChange={save}
+        />
+      )}
       {canConfigurePayments && (
         <PaymentAccountSettings
           mfaEnabled={mfaEnabled}
@@ -261,5 +278,211 @@ function LogoSettings({
         )}
       </div>
     </section>
+  );
+}
+
+const sameColors = (a: BrandColors, b: BrandColors) =>
+  a.from.toLowerCase() === b.from.toLowerCase() &&
+  a.to.toLowerCase() === b.to.toLowerCase();
+
+/**
+ * Màu giao diện Dashboard: hai màu của dải chuyển (góc trên trái → góc dưới phải). Nút, liên kết và vệt sáng
+ * nền suy ra từ hai màu này, tự chỉnh độ sáng để chữ luôn đọc được ở cả theme sáng và tối.
+ */
+function BrandColorSettings({
+  saved,
+  name,
+  busy,
+  onChange,
+}: {
+  saved: BrandColors | null;
+  name: string;
+  busy: boolean;
+  onChange: (action: () => Promise<unknown>, text: string) => Promise<void>;
+}) {
+  const current = saved ?? DEFAULT_BRAND_COLORS;
+  const [draft, setDraft] = useState<BrandColors>(current);
+  // Ô nhập mã hex giữ chữ đang gõ dở; chỉ đổi `draft` khi đủ dạng #rrggbb.
+  const [text, setText] = useState<BrandColors>(current);
+  const valid = HEX_COLOR.test(draft.from) && HEX_COLOR.test(draft.to);
+  const dirty = !sameColors(draft, current);
+  const [light, setLight] = useState(false);
+  useEffect(() => {
+    const read = () =>
+      setLight(document.documentElement.dataset.theme === "light");
+    read();
+    const watch = new MutationObserver(read);
+    watch.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => watch.disconnect();
+  }, []);
+  const preview = brandPalette(draft)[light ? "light" : "dark"];
+  const pick = (c: BrandColors) => {
+    setDraft(c);
+    setText(c);
+  };
+  const setEnd = (end: keyof BrandColors, value: string) => {
+    setText((t) => ({ ...t, [end]: value }));
+    const v = value.startsWith("#") ? value : `#${value}`;
+    if (HEX_COLOR.test(v)) setDraft((d) => ({ ...d, [end]: v.toLowerCase() }));
+  };
+  const ends: { end: keyof BrandColors; label: string }[] = [
+    { end: "from", label: "Màu đầu (góc trên trái)" },
+    { end: "to", label: "Màu cuối (góc dưới phải)" },
+  ];
+  return (
+    <form
+      aria-labelledby="brand-colors-heading"
+      className="card space-y-4 pn-panel-inset"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!valid || !dirty) return;
+        const colors = sameColors(draft, DEFAULT_BRAND_COLORS) ? null : draft;
+        void onChange(
+          () => operation("brand-colors", "PUT", { colors }),
+          "Đã cập nhật màu giao diện.",
+        );
+      }}
+    >
+      <div className="space-y-1">
+        <h2 id="brand-colors-heading" className="text-base font-semibold">
+          Màu giao diện
+        </h2>
+        <p className="text-sm text-muted">
+          Áp dụng cho logo chữ, nút chính, liên kết và nền của Dashboard với mọi
+          tài khoản của nhà xe. Mặc định là dải tím chàm → xanh lơ như biểu
+          tượng trang.
+        </p>
+      </div>
+
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">Chọn nhanh</legend>
+        <div className="pn-swatches">
+          {BRAND_PRESETS.map((p) => {
+            const on = sameColors(p.colors, draft);
+            return (
+              <button
+                key={p.name}
+                type="button"
+                className="pn-swatch"
+                aria-pressed={on}
+                aria-label={p.name}
+                title={p.name}
+                disabled={busy}
+                style={{
+                  background: `linear-gradient(135deg, ${p.colors.from}, ${p.colors.to})`,
+                }}
+                onClick={() => pick(p.colors)}
+              />
+            );
+          })}
+        </div>
+      </fieldset>
+
+      <div className="pn-form-grid max-w-2xl sm:grid-cols-2">
+        {ends.map(({ end, label }) => {
+          const bad = !HEX_COLOR.test(
+            text[end].startsWith("#") ? text[end] : `#${text[end]}`,
+          );
+          return (
+            <div key={end} className="label">
+              <span id={`brand-${end}-label`}>{label}</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  className="pn-color-well"
+                  aria-labelledby={`brand-${end}-label`}
+                  value={draft[end]}
+                  disabled={busy}
+                  onChange={(e) => setEnd(end, e.target.value)}
+                />
+                <input
+                  className="field font-mono uppercase"
+                  aria-label={`${label}, mã màu`}
+                  aria-invalid={bad}
+                  maxLength={7}
+                  spellCheck={false}
+                  autoComplete="off"
+                  value={text[end]}
+                  disabled={busy}
+                  onChange={(e) => setEnd(end, e.target.value.trim())}
+                  onBlur={() => setText((t) => ({ ...t, [end]: draft[end] }))}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div
+        className="pn-brand-preview"
+        data-testid="brand-preview"
+        aria-label="Xem trước"
+        role="group"
+      >
+        <span
+          className="pn-brand"
+          aria-hidden="true"
+          style={{ background: preview["--brand-gradient"] }}
+        >
+          {name.trim().charAt(0).toUpperCase() || "?"}
+        </span>
+        <span
+          className="btn pointer-events-none"
+          aria-hidden="true"
+          style={{
+            background: preview["--primary"],
+            color: preview["--on-primary"],
+            borderColor: "transparent",
+          }}
+        >
+          Nút chính
+        </span>
+        <span
+          className="text-sm font-semibold"
+          style={{ color: preview["--accent"] }}
+        >
+          Liên kết
+        </span>
+        <span
+          className="pn-brand-preview-bar"
+          aria-hidden="true"
+          style={{ background: preview["--brand-gradient"] }}
+        />
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button className="btn btn-primary" disabled={busy || !valid || !dirty}>
+          Lưu màu
+        </button>
+        {dirty && (
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            onClick={() => pick(current)}
+          >
+            Bỏ thay đổi
+          </button>
+        )}
+        {saved && (
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            onClick={() =>
+              void onChange(
+                () => operation("brand-colors", "PUT", { colors: null }),
+                "Đã khôi phục màu mặc định.",
+              )
+            }
+          >
+            Khôi phục mặc định
+          </button>
+        )}
+      </div>
+    </form>
   );
 }

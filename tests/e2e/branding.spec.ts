@@ -153,3 +153,118 @@ test("logo routes validate type, size, origin and code", async ({
   expect((await put(PNG, "image/png")).status()).toBe(200);
   expect((await request.get("/api/brand/logo/TEST")).status()).toBe(200);
 });
+
+test("OWNER picks dashboard colours in Settings; they apply at once, survive reload and reach the login page; reset restores indigo → cyan", async ({
+  page,
+  context,
+  browser,
+  baseURL,
+}) => {
+  const login = await context.request.post("/api/auth/login", {
+    headers,
+    data: {
+      phone: "0900000001",
+      password: "Test-only-Password!",
+      otp: "123456",
+    },
+  });
+  expect(login.status()).toBe(200);
+  const token = (name: string) =>
+    page.evaluate(
+      (n) =>
+        getComputedStyle(document.documentElement).getPropertyValue(n).trim(),
+      name,
+    );
+  await page.goto("/admin/settings?tab=general");
+  // Mặc định: dải tím chàm → xanh lơ như favicon.
+  expect(await token("--brand-from")).toBe("#6366f1");
+  expect(await token("--brand-to")).toBe("#06b6d4");
+  expect(await token("--accent")).toBe("#989af6");
+
+  const section = page.getByRole("form", { name: "Màu giao diện" });
+  await expect(
+    section.getByRole("button", { name: "Chàm – lơ (mặc định)" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(section.getByRole("button", { name: "Lưu màu" })).toBeDisabled();
+  await expect(
+    section.getByRole("button", { name: "Khôi phục mặc định" }),
+  ).toHaveCount(0);
+
+  // Mã sai bị đánh dấu, không lưu được.
+  const fromHex = section.getByLabel("Màu đầu (góc trên trái), mã màu");
+  await fromHex.fill("#12");
+  await expect(fromHex).toHaveAttribute("aria-invalid", "true");
+  await expect(section.getByRole("button", { name: "Lưu màu" })).toBeDisabled();
+
+  await section.getByRole("button", { name: "Ngọc" }).click();
+  await expect(fromHex).toHaveValue("#14b8a6");
+  await section.getByLabel("Màu cuối (góc dưới phải), mã màu").fill("#2563EB");
+  await section.getByRole("button", { name: "Lưu màu" }).click();
+  await expect(
+    page.getByRole("status").getByText("Đã cập nhật màu giao diện."),
+  ).toBeVisible();
+  await expect.poll(() => token("--brand-from")).toBe("#14b8a6");
+  expect(await token("--brand-to")).toBe("#2563eb");
+
+  await page.reload();
+  expect(await token("--brand-from")).toBe("#14b8a6");
+  await expect(
+    page
+      .getByRole("form", { name: "Màu giao diện" })
+      .getByRole("button", { name: "Khôi phục mặc định" }),
+  ).toBeVisible();
+
+  // Trang đăng nhập (chưa có phiên) cũng dùng màu của nhà xe từ lần vẽ đầu.
+  const guest = await browser.newContext({ baseURL });
+  try {
+    const p = await guest.newPage();
+    await p.goto("/login");
+    expect(
+      await p.evaluate(() =>
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--brand-to")
+          .trim(),
+      ),
+    ).toBe("#2563eb");
+  } finally {
+    await guest.close();
+  }
+
+  await page
+    .getByRole("form", { name: "Màu giao diện" })
+    .getByRole("button", { name: "Khôi phục mặc định" })
+    .click();
+  await expect(
+    page.getByRole("status").getByText("Đã khôi phục màu mặc định."),
+  ).toBeVisible();
+  await expect.poll(() => token("--brand-from")).toBe("#6366f1");
+  await page.reload();
+  expect(await token("--brand-from")).toBe("#6366f1");
+});
+
+test("brand colour route validates input and permission", async ({
+  context,
+  request,
+}) => {
+  const login = await context.request.post("/api/auth/login", {
+    headers,
+    data: {
+      phone: "0900000001",
+      password: "Test-only-Password!",
+      otp: "123456",
+    },
+  });
+  expect(login.status()).toBe(200);
+  const put = (data: unknown) =>
+    context.request.put("/api/operations/brand-colors", { headers, data });
+  expect((await put({ colors: { from: "red", to: "#000000" } })).status()).toBe(
+    400,
+  );
+  expect(
+    (await put({ colors: { from: "#000000", to: "#ffffff" } })).status(),
+  ).toBe(200);
+  await request.post(`${fixture}/state`, {
+    data: { permissions: ["policy.read"] },
+  });
+  expect((await put({ colors: null })).status()).toBe(403);
+});

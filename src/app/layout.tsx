@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Be_Vietnam_Pro } from "next/font/google";
 import "./globals.css";
 import { loadBrand } from "@/lib/server/brand";
+import { brandPaletteCss } from "@/lib/brand-palette";
 
 const initTheme = `try {
   if (localStorage.getItem("pnticket_live_theme") === "light") {
@@ -35,11 +36,13 @@ export async function generateMetadata(): Promise<Metadata> {
     icons: { icon: brand.logoUrl ? { url: brand.logoUrl } : DEFAULT_ICON },
   };
 }
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Màu riêng của nhà xe (cấu hình ở Cài đặt) áp từ lần vẽ đầu để không nháy màu mặc định.
+  const colors = (await loadBrand())?.brandColors ?? null;
   return (
     <html
       lang="vi"
@@ -49,6 +52,12 @@ export default function RootLayout({
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: initTheme }} />
+        {colors && (
+          <style
+            id="pn-brand-palette"
+            dangerouslySetInnerHTML={{ __html: brandPaletteCss(colors) }}
+          />
+        )}
       </head>
       <body>{children}</body>
     </html>

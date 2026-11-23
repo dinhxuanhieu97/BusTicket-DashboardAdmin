@@ -1,13 +1,20 @@
 @import "tailwindcss";
 
-/* Bảng màu "kính mờ": nền ấm có hai vệt sáng, khối nổi trong suốt nhẹ, accent ngọc.
+/* Bảng màu "kính mờ": nền ấm có hai vệt sáng, khối nổi trong suốt nhẹ.
+   Màu thương hiệu mặc định là dải tím chàm #6366f1 → xanh lơ #06b6d4 (giống favicon). Các token
+   --brand-*, --accent, --primary*, --on-primary, --accent-glow, --bg-glow-* là kết quả của
+   brandPalette(DEFAULT_BRAND_COLORS) trong src/lib/brand-palette.ts (test kiểm hai nơi khớp nhau);
+   nhà xe chọn màu riêng trong Cài đặt thì layout/shell ghi đè bằng thẻ <style>.
    --panel/--surface giữ màu đặc để cột ghim của bảng, hộp thoại và ô nhập không lộ nội dung phía sau;
    --glass là nền trong suốt của thẻ và khung trang. */
 :root {
   color-scheme: dark;
   --bg: #17191a;
-  --bg-glow-1: rgb(214 160 92 / 0.18);
-  --bg-glow-2: rgb(72 196 170 / 0.12);
+  --brand-from: #6366f1;
+  --brand-to: #06b6d4;
+  --brand-gradient: linear-gradient(135deg, #6366f1, #06b6d4);
+  --bg-glow-1: rgb(99 102 241 / 0.2);
+  --bg-glow-2: rgb(6 182 212 / 0.14);
   --glass: rgb(44 46 46 / 0.72);
   --glass-strong: rgb(54 56 56 / 0.9);
   --blur: blur(22px) saturate(140%);
@@ -19,11 +26,11 @@
   --text: #f2f1ee;
   --muted: #a9a6a0;
   --faint: #8a8781;
-  --accent: #6fd8c1;
-  --primary: #6fd8c1;
-  --primary-hover: #8ae2cf;
-  --on-primary: #0f2b25;
-  --accent-glow: rgb(111 216 193 / 0.14);
+  --accent: #989af6;
+  --primary: #989af6;
+  --primary-hover: #abacf8;
+  --on-primary: #191a3c;
+  --accent-glow: rgb(152 154 246 / 0.14);
   --success: #7ed98a;
   --success-bg: rgb(126 217 138 / 0.15);
   --warning: #f0b45c;
@@ -45,8 +52,11 @@ html[data-theme="light"] {
   color-scheme: light;
   --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364625d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --bg: #efebe4;
-  --bg-glow-1: rgb(222 170 110 / 0.28);
-  --bg-glow-2: rgb(72 180 160 / 0.16);
+  --brand-from: #6366f1;
+  --brand-to: #06b6d4;
+  --brand-gradient: linear-gradient(135deg, #6366f1, #06b6d4);
+  --bg-glow-1: rgb(99 102 241 / 0.18);
+  --bg-glow-2: rgb(6 182 212 / 0.16);
   --glass: rgb(255 255 255 / 0.7);
   --glass-strong: rgb(255 255 255 / 0.92);
   --panel: #fbfaf7;
@@ -57,11 +67,11 @@ html[data-theme="light"] {
   --text: #1f2120;
   --muted: #5f5d58;
   --faint: #7a7771;
-  --accent: #157a67;
-  --primary: #157a67;
-  --primary-hover: #106454;
-  --on-primary: #fff;
-  --accent-glow: rgb(31 158 134 / 0.13);
+  --accent: #5558cf;
+  --primary: #5558cf;
+  --primary-hover: #4648aa;
+  --on-primary: #ffffff;
+  --accent-glow: rgb(85 88 207 / 0.13);
   --success: #2b7339;
   --success-bg: rgb(47 154 69 / 0.13);
   --warning: #85560c;
@@ -491,8 +501,10 @@ fieldset:disabled button {
   }
   .pn-brand {
     @apply grid size-10 shrink-0 place-items-center rounded-xl text-lg font-bold;
-    background: var(--primary);
-    color: var(--on-primary);
+    /* Dải màu thương hiệu như favicon; chữ trắng có bóng nhẹ để đọc được cả ở đầu màu sáng. */
+    background: var(--brand-gradient);
+    color: #fff;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
   }
   .pn-chip {
     @apply inline-flex items-center gap-2 rounded-xl border border-line bg-surface/50 px-3 py-2 text-ink;
@@ -1026,4 +1038,72 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
 
 .pn-auth {
   --control-height: 3rem;
+}
+
+/* Cài đặt › Màu giao diện: ô màu gợi ý, ô chọn màu và khung xem trước. */
+.pn-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+.pn-swatch {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  transition: translate 0.15s ease;
+}
+.pn-swatch:hover:not(:disabled) {
+  translate: 0 -2px;
+}
+.pn-swatch[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2px var(--panel),
+    0 0 0 4px var(--text);
+}
+.pn-swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.pn-color-well {
+  flex-shrink: 0;
+  width: var(--control-height);
+  height: var(--control-height);
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  cursor: pointer;
+}
+.pn-color-well::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+/* Hai bộ chọn riêng: trình duyệt bỏ cả quy tắc nếu gặp pseudo-element lạ. */
+.pn-color-well::-webkit-color-swatch {
+  border: 0;
+  border-radius: 0.5rem;
+}
+.pn-color-well::-moz-color-swatch {
+  border: 0;
+  border-radius: 0.5rem;
+}
+.pn-color-well:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.pn-brand-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
+}
+.pn-brand-preview-bar {
+  flex: 1 1 6rem;
+  min-width: 6rem;
+  height: 0.5rem;
+  border-radius: 999px;
 }

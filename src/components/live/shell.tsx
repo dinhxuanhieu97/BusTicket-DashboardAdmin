@@ -1,6 +1,7 @@
 "use client";
 import { BrandMark } from "./brand";
 import { logoUrl } from "@/lib/brand";
+import { applyBrandPalette } from "@/lib/brand-palette";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -196,6 +197,8 @@ export function LiveShell({
         .then((p) => {
           if (p?.name) setOperatorName(p.name);
           if (p) setOperatorLogo(logoUrl(p.code, p.logoVersion ?? null));
+          // Màu giao diện theo nhà xe đang đăng nhập (API cũ không có trường → giữ màu đang hiện).
+          if (p && "brandColors" in p) applyBrandPalette(p.brandColors);
         })
         .catch(() => undefined);
     };

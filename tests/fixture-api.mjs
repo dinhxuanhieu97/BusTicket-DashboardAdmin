@@ -132,6 +132,7 @@ let profile = {
   code: "TEST",
   name: "Nhà xe kiểm thử",
   defaultDepartureTime: "17:30",
+  brandColors: null,
 };
 let paymentAccount = null;
 // Logo nhà xe (khớp operators.service.ts) và công tắc "chưa cấu hình thương hiệu".
@@ -296,6 +297,7 @@ http
         code: "TEST",
         name: "Nhà xe kiểm thử",
         defaultDepartureTime: "17:30",
+        brandColors: null,
       };
       paymentAccount = null;
       logo = null;
@@ -386,6 +388,7 @@ http
         code: profile.code,
         name: profile.name,
         logoVersion: logo?.version ?? null,
+        brandColors: profile.brandColors ?? null,
       });
     }
     if (path === `/api/v1/operators/${profile.code}/logo`) {
@@ -1680,6 +1683,33 @@ http
       if (req.method === "PUT")
         policy = { ...policy, ...body, version: policy.version + 1 };
       return send(res, 200, policy);
+    }
+    if (path === tripBase + "brand-colors" && req.method === "PUT") {
+      if (grants && !grants.includes("policy.write"))
+        return fail(res, 403, "FORBIDDEN", "Không có quyền.");
+      const hex = /^#[0-9a-fA-F]{6}$/;
+      const c = body?.colors;
+      if (
+        c !== null &&
+        !(
+          c &&
+          hex.test(c.from) &&
+          hex.test(c.to) &&
+          Object.keys(c).length === 2
+        )
+      )
+        return fail(res, 400, "VALIDATION_FAILED", "Màu dạng #rrggbb");
+      profile = {
+        ...profile,
+        brandColors: c && {
+          from: c.from.toLowerCase(),
+          to: c.to.toLowerCase(),
+        },
+      };
+      return send(res, 200, {
+        ...profile,
+        logoVersion: logo?.version ?? null,
+      });
     }
     if (path === tripBase + "profile") {
       if (req.method === "PUT") profile = { ...profile, ...body };
