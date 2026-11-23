@@ -116,3 +116,17 @@ export function parseSeen(raw: string | null): AttentionSeen {
     return {};
   }
 }
+
+/** Số việc mới của một loại kể từ lần đánh dấu đã đọc. */
+export const unreadOf = (item: AttentionItem, seen: AttentionSeen) =>
+  Math.max(0, item.count - (seen[item.key] ?? 0));
+
+/** Nơi bấm vào sẽ mở, hiện dưới mỗi thông báo. */
+export const attentionPlace = (item: AttentionItem) =>
+  item.opens === "proofs"
+    ? "Xem ảnh tại chỗ"
+    : item.href.startsWith("/admin/payments")
+      ? "Sổ thu"
+      : item.href.startsWith("/admin/trips")
+        ? "Chuyến xe"
+        : "Mở trang xử lý";

@@ -713,6 +713,7 @@ export function LiveShell({
         {shownCounters && (
           <NotificationBell
             items={attention}
+            seen={seen}
             unread={attentionCount}
             onMarkRead={markAttentionRead}
             onOpenProofs={() => setProofsOpen(true)}

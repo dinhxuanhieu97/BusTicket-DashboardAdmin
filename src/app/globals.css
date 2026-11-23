@@ -1396,3 +1396,103 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
     @apply w-full;
   }
 }
+
+/* Chuông thông báo: tiêu đề + nút đánh dấu, hai tab, nhóm Mới / Đã xem; mỗi dòng có biểu tượng tròn và chấm chưa đọc. */
+.pn-account-menu.pn-notif-panel {
+  @apply flex flex-col p-2;
+  width: 23rem;
+  max-height: min(34rem, calc(100dvh - 6rem));
+}
+.pn-notif-head {
+  @apply flex items-center justify-between gap-2 px-2 pt-1 pb-2;
+}
+.pn-notif-head h2 {
+  @apply text-lg font-semibold;
+  color: var(--text);
+}
+.pn-notif-mark {
+  @apply inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-medium;
+  color: var(--accent);
+}
+.pn-notif-mark:hover,
+.pn-notif-mark:focus-visible {
+  outline: none;
+  background: var(--accent-glow);
+}
+.pn-notif-tabs {
+  @apply flex gap-1.5 px-2 pb-2;
+}
+.pn-notif-tabs > button {
+  @apply inline-flex min-h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium;
+  color: var(--muted);
+}
+.pn-notif-tabs > button:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+.pn-notif-tabs > button[aria-pressed="true"] {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+.pn-notif-tabs > button > span {
+  @apply grid min-w-5 place-items-center rounded-full px-1.5 text-[11px] leading-5 font-semibold;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.pn-notif-tabs > button:focus-visible,
+.pn-notif-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.pn-notif-body {
+  @apply min-h-0 flex-1 overflow-y-auto;
+}
+.pn-notif-group + .pn-notif-group {
+  @apply mt-1 border-t border-line pt-1;
+}
+.pn-notif-group > h3 {
+  @apply px-2 pt-1.5 pb-1 text-sm font-semibold;
+  color: var(--text);
+}
+.pn-notif-item {
+  @apply grid w-full grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-[0.75rem] px-2 py-2 text-left text-sm;
+  color: var(--muted);
+}
+.pn-notif-item:hover {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+.pn-notif-icon {
+  @apply grid size-10 place-items-center rounded-full;
+  background: var(--surface);
+  color: var(--muted);
+}
+.pn-notif-item[data-unread] .pn-notif-icon {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+.pn-notif-text {
+  @apply block leading-snug;
+}
+.pn-notif-item[data-unread] .pn-notif-text {
+  color: var(--text);
+}
+.pn-notif-text b {
+  @apply font-semibold;
+  color: var(--text);
+}
+.pn-notif-meta {
+  @apply mt-0.5 block text-xs;
+  color: var(--faint);
+}
+.pn-notif-meta em {
+  @apply font-semibold not-italic;
+  color: var(--accent);
+}
+.pn-notif-dot {
+  @apply size-2.5 rounded-full;
+  background: var(--accent);
+}
+.pn-notif-empty {
+  @apply flex flex-col items-center gap-2 px-4 py-8 text-center text-sm;
+  color: var(--muted);
+}

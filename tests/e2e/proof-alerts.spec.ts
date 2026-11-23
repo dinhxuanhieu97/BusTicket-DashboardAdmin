@@ -38,7 +38,7 @@ test("the bell lists transfer proofs first and opens the ticket in place (QS01)"
   await expect(page.locator("[data-proof-alert]")).toHaveCount(0);
   await bell.click();
   const panel = page.getByRole("region", { name: "Thông báo" });
-  await expect(panel.getByRole("listitem")).toHaveText([
+  await expect(panel.locator(".pn-notif-text")).toHaveText([
     "2 ảnh chuyển khoản chờ kiểm",
     "5 khoản thu cần đối soát",
     "1 khoản cần hoàn cho khách",
