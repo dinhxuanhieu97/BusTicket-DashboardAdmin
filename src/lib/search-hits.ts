@@ -7,6 +7,8 @@ export type SearchHit = {
   group: "Vé" | "Chuyến";
   /** Dòng phụ (SĐT, mã chuyến, giờ chạy). */
   detail: string;
+  /** Vé: mở chi tiết ngay trong hộp tìm; `href` là danh sách Hành khách của chuyến đó. */
+  booking?: { code: string; tripId: string };
 };
 
 /** Chuỗi gửi API `search` (2–64 ký tự sau khi bỏ khoảng trắng hai đầu, giống backend); ngắn/dài quá → `null`. */
@@ -18,8 +20,8 @@ export function searchQuery(raw: string): string | null {
 const validDate = (value: string) => !Number.isNaN(new Date(value).getTime());
 
 /**
- * Kết quả API `search` → mục trong hộp ⌘K (GF1). Vé đứng trước chuyến; vé mở Hành khách đúng ngày chạy (giờ VN)
- * và chuyến, chuyến mở Sơ đồ chỗ. Ngày chạy không đọc được thì bỏ `date` thay vì làm hỏng cả danh sách.
+ * Kết quả API `search` → mục trong hộp ⌘K (GF1). Vé đứng trước chuyến; vé mở chi tiết vé tại chỗ, kèm link
+ * Hành khách đúng ngày chạy (giờ VN) và chuyến; chuyến mở Sơ đồ chỗ. Ngày chạy không đọc được thì bỏ `date` thay vì làm hỏng cả danh sách.
  */
 export function searchHits(result: SearchResult): SearchHit[] {
   return [
@@ -34,6 +36,7 @@ export function searchHits(result: SearchResult): SearchHit[] {
         label: `${b.code} · ${b.contactName}`,
         group: "Vé" as const,
         detail: [b.contactPhone, b.trip.code].filter(Boolean).join(" · "),
+        booking: { code: b.code, tripId: b.trip.id },
       };
     }),
     ...result.trips.map((t) => ({

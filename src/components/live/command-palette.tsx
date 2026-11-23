@@ -13,9 +13,11 @@ export type PaletteItem = {
   icon: React.ComponentType<{ size?: number; "aria-hidden"?: boolean }>;
   /** Dòng phụ (vd. SĐT, giờ chạy) cho kết quả tìm dữ liệu. */
   detail?: string;
+  /** Kết quả là vé: mở chi tiết vé tại chỗ thay vì chuyển trang. */
+  booking?: { code: string; tripId: string };
 };
 
-/** Kết quả API `search` → mục trong hộp tìm (đơn mở Hành khách đúng chuyến, chuyến mở Sơ đồ chỗ). */
+/** Kết quả API `search` → mục trong hộp tìm (vé mở chi tiết vé, chuyến mở Sơ đồ chỗ). */
 export function searchItems(result: SearchResult): PaletteItem[] {
   return searchHits(result).map(({ kind, ...hit }) => ({
     ...hit,
@@ -38,9 +40,12 @@ export function CommandPalette({
   items,
   onClose,
   searchData = false,
+  onBooking,
 }: {
   items: PaletteItem[];
   onClose: () => void;
+  /** Chọn một vé: đóng hộp tìm rồi mở chi tiết vé (không có thì chuyển tới `href`). */
+  onBooking?: (item: PaletteItem) => void;
   /** Có `trip.read`: tìm thêm chuyến và (theo quyền của máy chủ) vé qua API `search`. */
   searchData?: boolean;
 }) {
@@ -99,7 +104,8 @@ export function CommandPalette({
   function go(item: PaletteItem | undefined) {
     if (!item) return;
     onClose();
-    router.push(item.href);
+    if (item.booking && onBooking) onBooking(item);
+    else router.push(item.href);
   }
 
   return (

@@ -49,6 +49,9 @@ test("GF1: tickets come before trips and link to the right pages", () => {
     ],
   );
   assert.equal(hits[0]!.label, "PNAB12 · Nguyễn Văn Khách");
+  // Vé mở chi tiết tại chỗ (cần mã + chuyến); chuyến không có phần này.
+  assert.deepEqual(hits[0]!.booking, { code: "PNAB12", tripId });
+  assert.equal(hits[1]!.booking, undefined);
   assert.equal(hits[0]!.detail, "+84912345678 · PN050227-TEST");
   assert.match(hits[1]!.detail, /^PN050227-TEST · /);
 });

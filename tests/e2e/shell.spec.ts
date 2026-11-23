@@ -469,29 +469,74 @@ test("⌘K finds tickets by code, phone or name and trips by code (GF1)", async 
   const input = palette.getByRole("combobox", {
     name: "Tìm trang, vé hoặc chuyến",
   });
-  await input.fill("0912 345");
+  await input.fill("0912 000");
   const ticket = palette.getByRole("option", {
-    name: /TEST123 · Nguyễn Văn Khách/,
+    name: /TESTA1 · Khách Kiểm Thử Một/,
   });
   await expect(ticket).toBeVisible();
-  await expect(ticket).toContainText("+84912345678");
-  await input.fill("văn khách");
+  await expect(ticket).toContainText("+84912000001");
+  await input.fill("kiểm thử một");
   await expect(ticket).toBeVisible();
   await input.fill("pn050227");
   const trip = palette.getByRole("option", { name: /Chuyến kiểm thử/ });
   await expect(trip).toBeVisible();
-  await expect(palette.getByRole("option", { name: /TEST123/ })).toHaveCount(0);
+  await expect(palette.getByRole("option", { name: /TESTA1/ })).toHaveCount(0);
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(
     /\/admin\/seats\?(.+&)?trip=44444444-4444-4444-8444-444444444444(&|$)/,
   );
+});
 
-  await openPalette(page);
-  await palette.getByRole("combobox").fill("test123");
-  await palette.getByRole("option", { name: /TEST123/ }).click();
+test("⌘K opens a ticket in place, with a link to the whole trip list (GF1)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin");
+  const palette = await openPalette(page);
+  await palette.getByRole("combobox").fill("testa1");
+  await palette.getByRole("option", { name: /TESTA1/ }).click();
+  // Không chuyển trang: chi tiết vé mở ngay trên Tổng quan.
+  const ticket = page.getByRole("dialog", { name: "Vé TESTA1" });
+  await expect(ticket).toBeVisible();
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(ticket).toContainText("Khách Kiểm Thử Một");
+  await expect(ticket).toContainText("+84912000001");
+  await expect(ticket).toContainText("A1, A2");
+  await expect(ticket).toContainText("Đã xác nhận");
+  await expect(ticket).toContainText("Trả một phần");
+
+  await ticket.getByRole("button", { name: "Sửa đơn" }).click();
+  const edit = page.getByRole("dialog", { name: "Sửa đơn TESTA1" });
+  await expect(edit).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(edit).toHaveCount(0);
+  await expect(ticket).toBeVisible();
+
+  await ticket.getByRole("link", { name: "Xem cả danh sách chuyến" }).click();
   await expect(page).toHaveURL(
     /\/admin\/passengers\?date=2027-02-05&trip=44444444-4444-4444-8444-444444444444$/,
   );
+  await expect(page.getByRole("dialog", { name: "Vé TESTA1" })).toHaveCount(0);
+});
+
+test("⌘K ticket view says when the ticket is no longer on its trip (GF1)", async ({
+  page,
+}) => {
+  await page.route("**/api/trip-management/*/passengers?*", async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    await route.fulfill({ response: res, json: { ...body, bookings: [] } });
+  });
+  await page.goto("/admin");
+  const palette = await openPalette(page);
+  await palette.getByRole("combobox").fill("testa1");
+  await palette.getByRole("option", { name: /TESTA1/ }).click();
+  const ticket = page.getByRole("dialog", { name: "Vé TESTA1" });
+  await expect(ticket).toContainText("Không thấy vé TESTA1");
+  await expect(
+    ticket.getByRole("link", { name: "Xem cả danh sách chuyến" }),
+  ).toBeVisible();
+  await expect(ticket.getByRole("button", { name: "Sửa đơn" })).toHaveCount(0);
 });
 
 test("⌘K says when the search limit is hit instead of showing no results (GB8)", async ({

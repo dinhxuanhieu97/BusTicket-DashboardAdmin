@@ -2107,12 +2107,13 @@ http
         departAt: "2027-02-05T10:30:00.000Z",
         routeCode: "TEST",
       };
+      // Trùng đơn TESTA1 trong danh sách khách của chuyến để hộp chi tiết vé (⌘K) tìm thấy.
       const booking = {
-        code: "TEST123",
+        code: "TESTA1",
         status: "CONFIRMED",
-        contactName: "Nguyễn Văn Khách",
-        contactPhone: "+84912345678",
-        totalAmount: 450000,
+        contactName: "Khách Kiểm Thử Một",
+        contactPhone: "+84912000001",
+        totalAmount: 840000,
         trip: {
           id: trip.id,
           code: trip.code,

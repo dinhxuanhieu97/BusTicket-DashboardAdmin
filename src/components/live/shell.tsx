@@ -44,7 +44,8 @@ import { LogoutButton } from "./auth-forms";
 import { AccountMenu } from "./account-menu";
 import { Modal } from "../modal";
 import { LoadState } from "./shared";
-import { CommandPalette } from "./command-palette";
+import { BookingQuickView } from "./booking-quick-view";
+import { CommandPalette, type PaletteItem } from "./command-palette";
 import { AttentionLinks, NotificationBell } from "./notification-bell";
 import { useResource } from "./use-resource";
 import {
@@ -160,6 +161,8 @@ export function LiveShell({
   }, [canReadProfile]);
   const [menu, setMenu] = useState(false);
   const [palette, setPalette] = useState(false);
+  const [quickBooking, setQuickBooking] = useState<PaletteItem | null>(null);
+  const can = (permission: string) => granted?.includes(permission) ?? true;
   const [now, setNow] = useState("");
   const [dark, setDark] = useState(true);
   // Cuộn xuống thì ẩn thanh trên cùng và thanh điều hướng dưới để có thêm chỗ xem; cuộn lên thì hiện lại.
@@ -541,6 +544,20 @@ export function LiveShell({
           items={paletteItems}
           searchData={granted?.includes("trip.read") ?? true}
           onClose={() => setPalette(false)}
+          onBooking={setQuickBooking}
+        />
+      )}
+      {quickBooking?.booking && (
+        <BookingQuickView
+          key={quickBooking.booking.code}
+          code={quickBooking.booking.code}
+          tripId={quickBooking.booking.tripId}
+          listHref={quickBooking.href}
+          canEdit={can("booking.update")}
+          canPay={can("payment.record")}
+          canBoard={can("booking.board")}
+          canReadPayments={can("payment.read")}
+          onClose={() => setQuickBooking(null)}
         />
       )}
       <header
