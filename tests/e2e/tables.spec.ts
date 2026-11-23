@@ -350,13 +350,34 @@ test("audit log filters by group, actor and Vietnam date range, sorts and pages"
     new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(
       new Date(Date.now() - offset * 86_400_000),
     );
-  await page.getByLabel("Từ ngày").fill(vnDay(3));
-  await page.getByLabel("Đến ngày").fill(vnDay(1));
+  // Cùng bộ chọn khoảng ngày với trang Doanh thu: bấm ngày đầu rồi ngày cuối trên lịch.
+  const dayName = (d: string) => {
+    const names = [
+      "Chủ nhật",
+      "Thứ Hai",
+      "Thứ Ba",
+      "Thứ Tư",
+      "Thứ Năm",
+      "Thứ Sáu",
+      "Thứ Bảy",
+    ];
+    const [y, m, day] = d.split("-").map(Number);
+    return `${names[new Date(Date.UTC(y, m - 1, day)).getUTCDay()]}, ${day} tháng ${m} năm ${y}`;
+  };
+  const when = page.getByRole("button", { name: /^Thời gian:/ });
+  await expect(when).toContainText("Mọi ngày");
+  await when.click();
+  const pop = page.getByRole("dialog", { name: "Thời gian" });
+  await pop.getByRole("button", { name: dayName(vnDay(1)) }).click();
+  await pop.getByRole("button", { name: dayName(vnDay(3)) }).click();
   await expect(page.getByText("1–3 trên 3 bản ghi")).toBeVisible();
-  await page.getByLabel("Từ ngày").fill(vnDay(0));
-  await expect(page.getByText(/không có bản\s+ghi nào/)).toBeVisible();
-  await expect(table).toContainText("Không có bản ghi phù hợp bộ lọc.");
+  await when.click();
+  // Mốc nhanh "Hôm nay": chỉ bản ghi gốc tạo hôm nay.
+  await pop.getByRole("button", { name: "Hôm nay", exact: true }).click();
+  await expect(when).toContainText("Hôm nay");
+  await expect(page.getByText("1–1 trên 1 bản ghi")).toBeVisible();
   await page.getByRole("button", { name: "Bỏ lọc" }).click();
+  await expect(when).toContainText("Mọi ngày");
 
   // Cũ nhất trước, rồi sang trang 2.
   await table.getByRole("button", { name: /Thời gian/ }).click();

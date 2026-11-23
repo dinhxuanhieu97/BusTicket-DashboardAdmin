@@ -20,6 +20,7 @@ import {
   type RevenueReport,
 } from "@/lib/live-contracts";
 import {
+  MAX_REVENUE_DAYS,
   REVENUE_PRESETS,
   revenueFromReports,
   revenuePeriods,
@@ -30,6 +31,7 @@ import {
   type RevenuePreset,
 } from "@/lib/revenue";
 import { addDays, shortVnd } from "@/lib/overview";
+import { DateRangePicker, type DateRangePreset } from "../ui/date-range-picker";
 import { useResource } from "./use-resource";
 import { LoadState, Notice, RefreshButton } from "./shared";
 import { PageHero } from "../ui/page-hero";
@@ -47,7 +49,7 @@ const dayLabel = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}`;
 export function Revenue() {
   const today = vnToday();
   const [preset, setPreset] = useState<RevenuePreset>("7");
-  // Ô "Tự chọn" mở sẵn 7 ngày gần nhất để chỉ cần sửa một đầu.
+  // Khoảng tự chọn trên lịch (dùng khi `preset === "custom"`).
   const [custom, setCustom] = useState(() => ({
     from: addDays(today, -6),
     to: today,
@@ -58,6 +60,10 @@ export function Revenue() {
   const days = period?.days ?? 0;
   const label = period?.label ?? "";
   const periods = period ? revenuePeriods(period.last, period.days) : null;
+  const pickerPresets: DateRangePreset[] = REVENUE_PRESETS.map((p) => {
+    const r = revenueRange(today, p.id) as { first: string; last: string };
+    return { id: p.id, label: p.label, range: { from: r.first, to: r.last } };
+  });
   const range = (p: { from: string; to: string } | undefined) =>
     p ? `revenue-report?from=${p.from}&to=${p.to}` : null;
   const cur = useResource<RevenueReport>(range(periods?.current));
@@ -106,49 +112,26 @@ export function Revenue() {
         }
         actions={
           <>
-            <select
-              className="field w-auto"
-              aria-label="Khoảng thời gian"
-              value={preset}
-              onChange={(e) => setPreset(e.target.value as RevenuePreset)}
-            >
-              {REVENUE_PRESETS.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
+            <DateRangePicker
+              label="Khoảng thời gian"
+              value={period ? { from: period.first, to: period.last } : null}
+              presetId={preset === "custom" ? null : preset}
+              presets={pickerPresets}
+              max={today}
+              maxDays={MAX_REVENUE_DAYS}
+              onChange={(value, id) => {
+                if (id) setPreset(id as RevenuePreset);
+                else if (value) {
+                  setCustom(value);
+                  setPreset("custom");
+                }
+              }}
+            />
             <RefreshButton reload={reload} loading={loading} />
           </>
         }
       />
 
-      {preset === "custom" && (
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="space-y-1 text-xs font-medium text-muted">
-            <span className="block">Từ ngày</span>
-            <input
-              type="date"
-              className="field w-auto"
-              value={custom.from}
-              max={today}
-              onChange={(e) =>
-                setCustom((c) => ({ ...c, from: e.target.value }))
-              }
-            />
-          </label>
-          <label className="space-y-1 text-xs font-medium text-muted">
-            <span className="block">Đến ngày</span>
-            <input
-              type="date"
-              className="field w-auto"
-              value={custom.to}
-              max={today}
-              onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))}
-            />
-          </label>
-        </div>
-      )}
       {rangeError && <Notice tone="warning">{rangeError}</Notice>}
 
       <LoadState loading={loading} error={error} reload={reload} />

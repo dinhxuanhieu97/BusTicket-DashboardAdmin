@@ -114,12 +114,16 @@ export const MAX_REVENUE_DAYS = 366;
 
 export type RevenuePreset = "yesterday" | "7" | "30" | "90" | "custom";
 
-export const REVENUE_PRESETS: { id: RevenuePreset; label: string }[] = [
-  { id: "yesterday", label: "Hôm qua" },
-  { id: "7", label: "7 ngày" },
-  { id: "30", label: "30 ngày" },
-  { id: "90", label: "3 tháng" },
-  { id: "custom", label: "Tự chọn" },
+/** Mốc nhanh ở bộ chọn ngày: `label` trên nút, `short` trong tiêu đề thẻ ("Thu thuần 7 ngày"). */
+export const REVENUE_PRESETS: {
+  id: Exclude<RevenuePreset, "custom">;
+  label: string;
+  short: string;
+}[] = [
+  { id: "yesterday", label: "Hôm qua", short: "hôm qua" },
+  { id: "7", label: "7 ngày qua", short: "7 ngày" },
+  { id: "30", label: "30 ngày qua", short: "30 ngày" },
+  { id: "90", label: "3 tháng qua", short: "3 tháng" },
 ];
 
 /** Kỳ báo cáo đã chọn: ngày đầu, ngày cuối (đều tính) và số ngày; `label` dùng trong tiêu đề thẻ. */
@@ -156,7 +160,7 @@ export function revenueRange(
   if (preset !== "custom") {
     const days = Number(preset);
     const label =
-      REVENUE_PRESETS.find((p) => p.id === preset)?.label ?? `${days} ngày`;
+      REVENUE_PRESETS.find((p) => p.id === preset)?.short ?? `${days} ngày`;
     return { first: addDays(today, -(days - 1)), last: today, days, label };
   }
   const from = custom?.from ?? "";
