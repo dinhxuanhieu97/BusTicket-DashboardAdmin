@@ -63,7 +63,6 @@ const cases = [
       // Nhóm Tài chính nằm sau nhóm Vận hành.
       "Sổ thu",
       "Doanh thu",
-      "Nhật ký",
       "Cài đặt",
     ],
     readable: [tripQuery, "/api/live/payments", "/api/live/audit-logs"],

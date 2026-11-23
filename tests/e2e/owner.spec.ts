@@ -65,7 +65,9 @@ test("login needs OTP, creates HttpOnly cookie, reads data and logs out", async 
   await page.getByRole("button", { name: "Đóng", exact: true }).click();
   await page.getByRole("link", { name: "Nhân viên", exact: true }).click();
   await expect(page.getByText("Test OWNER", { exact: true })).toBeVisible();
+  await page.goto("/admin/settings");
   await page.getByRole("link", { name: "Nhật ký", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/settings\?tab=audit$/);
   // Topbar cũng có liên kết "Tạo chuyến": chỉ tìm trong bảng nhật ký.
   await expect(
     page

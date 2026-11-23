@@ -145,7 +145,8 @@ const auditColumns: Column<AuditEntry>[] = [
   },
 ];
 
-export function Audit() {
+/** `embedded`: nằm trong tab Nhật ký của Cài đặt, bỏ tiêu đề trang (Cài đặt đã có tiêu đề). */
+export function Audit({ embedded = false }: { embedded?: boolean }) {
   const { data, error, loading, reload } = useResource<{
     entries: AuditEntry[];
   }>("audit-logs");
@@ -208,11 +209,15 @@ export function Audit() {
 
   return (
     <div className="pn-page-stack">
-      <PageHero
-        title="Nhật ký hoạt động"
-        description="Tối đa 100 thao tác gần nhất của nhà xe."
-        note="Lọc, sắp xếp và phân trang tính trong 100 bản ghi đã tải."
-        actions={
+      {embedded ? (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Nhật ký hoạt động</h2>
+            <p className="text-sm text-muted">
+              Tối đa 100 thao tác gần nhất của nhà xe. Lọc, sắp xếp và phân
+              trang tính trong 100 bản ghi đã tải.
+            </p>
+          </div>
           <RefreshButton
             loading={loading}
             reload={() => {
@@ -220,8 +225,23 @@ export function Audit() {
               reload();
             }}
           />
-        }
-      />
+        </div>
+      ) : (
+        <PageHero
+          title="Nhật ký hoạt động"
+          description="Tối đa 100 thao tác gần nhất của nhà xe."
+          note="Lọc, sắp xếp và phân trang tính trong 100 bản ghi đã tải."
+          actions={
+            <RefreshButton
+              loading={loading}
+              reload={() => {
+                setSelected(null);
+                reload();
+              }}
+            />
+          }
+        />
+      )}
 
       <div className="flex flex-wrap items-end gap-3">
         <FilterTabs<AuditGroup | "">

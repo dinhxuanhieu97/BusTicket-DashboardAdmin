@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { Notice } from "./shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PaymentAccountSettings } from "./payment-account-settings";
@@ -81,17 +82,18 @@ export function GeneralInformation({
       setBusy(false);
     }
   }
+  const logo = profile
+    ? logoUrl(profile.code, profile.logoVersion ?? null)
+    : null;
+  const showOperations = canReadFleet || canReadRoutes;
   return (
     <div className="pn-page-stack">
-      <p className="text-sm text-muted">
-        Thông tin được quản lý riêng cho nhà xe của bạn. Tên xe và tuyến được
-        dùng trong lịch chạy và đặt vé.
-      </p>
       {error && <Notice tone="danger">{error}</Notice>}
       <SuccessToast message={notice} dismiss={dismissSuccess} />
       {!profile && !error && <p>Đang tải thông tin nhà xe…</p>}
       {profile && (
         <form
+          aria-labelledby="profile-heading"
           className="card space-y-4 pn-panel-inset"
           onSubmit={(e) => {
             e.preventDefault();
@@ -103,8 +105,10 @@ export function GeneralInformation({
             );
           }}
         >
-          <h2 className="text-base font-semibold">Nhà xe · {profile.code}</h2>
-          <div className="pn-form-grid max-w-2xl sm:grid-cols-[minmax(0,1fr)_11rem]">
+          <h2 id="profile-heading" className="text-base font-semibold">
+            Hồ sơ nhà xe
+          </h2>
+          <div className="pn-form-grid sm:grid-cols-[minmax(0,1fr)_8rem_11rem]">
             <label className="label">
               Tên nhà xe
               <input
@@ -115,6 +119,15 @@ export function GeneralInformation({
                 onChange={(e) =>
                   setProfile({ ...profile, name: e.target.value })
                 }
+              />
+            </label>
+            <label className="label">
+              Mã nhà xe
+              <input
+                readOnly
+                className="field font-mono text-muted"
+                value={profile.code}
+                aria-describedby="profile-code-hint"
               />
             </label>
             <label className="label">
@@ -133,31 +146,34 @@ export function GeneralInformation({
               />
             </label>
           </div>
-          <p className="text-xs text-muted">
-            Áp dụng cho form tạo mới. Lịch đã lưu có giờ riêng; dùng ngoại lệ để
-            thay đổi một ngày cụ thể.
+          <p id="profile-code-hint" className="text-xs text-muted">
+            Mã nhà xe không đổi được. Giờ mặc định chỉ áp dụng cho form tạo mới;
+            lịch đã lưu giữ giờ riêng, dùng ngoại lệ để đổi một ngày cụ thể.
           </p>
-          <button className="btn btn-primary" disabled={busy}>
-            Lưu thông tin nhà xe
-          </button>
+          <div className="flex justify-end">
+            <button className="btn btn-primary" disabled={busy}>
+              Lưu hồ sơ
+            </button>
+          </div>
         </form>
       )}
       {profile && (
-        <LogoSettings
-          profile={profile}
-          busy={busy}
-          onChange={save}
-          onError={setError}
-        />
-      )}
-      {profile && (
-        <BrandColorSettings
-          key={JSON.stringify(profile.brandColors ?? null)}
-          saved={profile.brandColors ?? null}
-          name={profile.name}
-          busy={busy}
-          onChange={save}
-        />
+        <div className="card pn-panel-inset pn-identity">
+          <LogoSettings
+            profile={profile}
+            busy={busy}
+            onChange={save}
+            onError={setError}
+          />
+          <BrandColorSettings
+            key={JSON.stringify(profile.brandColors ?? null)}
+            saved={profile.brandColors ?? null}
+            name={profile.name}
+            logoUrl={logo}
+            busy={busy}
+            onChange={save}
+          />
+        </div>
       )}
       {canConfigurePayments && (
         <PaymentAccountSettings
@@ -165,37 +181,49 @@ export function GeneralInformation({
           onSuccess={showSuccess}
         />
       )}
-      {canReadFleet && (
-        <section className="card space-y-2 pn-panel-inset">
-          <h2 className="text-base font-semibold">Xe</h2>
-          <p className="text-sm text-muted">
-            {options ? `${options.vehicles.length} xe đang chạy. ` : ""}
-            Thêm, sửa, đổi trạng thái hoặc xóa xe ở trang{" "}
-            <Link
-              className="font-semibold text-primary underline"
-              href="/admin/vehicles"
-            >
-              Đội xe
-            </Link>
-            .
-          </p>
-        </section>
-      )}
-      {canReadRoutes && (
-        <section className="card space-y-2 pn-panel-inset">
-          <h2 className="text-base font-semibold">Tuyến đường</h2>
-          <p className="text-sm text-muted">
-            {options ? `${options.routes.length} tuyến. ` : ""}
-            Thêm cặp tuyến, đổi tên điểm đi/điểm đến, sửa điểm đón/trả hoặc xóa
-            tuyến ở trang{" "}
-            <Link
-              className="font-semibold text-primary underline"
-              href="/admin/routes"
-            >
-              Tuyến đường
-            </Link>
-            .
-          </p>
+      {showOperations && (
+        <section
+          aria-labelledby="operations-heading"
+          className="card pn-link-list"
+        >
+          <h2
+            id="operations-heading"
+            className="pn-panel-inset pb-2 text-base font-semibold"
+          >
+            Dữ liệu vận hành
+          </h2>
+          <ul>
+            {canReadFleet && (
+              <li>
+                <Link href="/admin/vehicles" className="pn-link-row">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold">Xe</h3>
+                    <p className="text-sm text-muted">
+                      {options
+                        ? `${options.vehicles.length} xe đang chạy · `
+                        : ""}
+                      Thêm, sửa, đổi trạng thái ở trang Đội xe
+                    </p>
+                  </div>
+                  <ChevronRight size={18} aria-hidden="true" />
+                </Link>
+              </li>
+            )}
+            {canReadRoutes && (
+              <li>
+                <Link href="/admin/routes" className="pn-link-row">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold">Tuyến đường</h3>
+                    <p className="text-sm text-muted">
+                      {options ? `${options.routes.length} tuyến · ` : ""}
+                      Cặp tuyến, điểm đi/đến, điểm đón/trả
+                    </p>
+                  </div>
+                  <ChevronRight size={18} aria-hidden="true" />
+                </Link>
+              </li>
+            )}
+          </ul>
         </section>
       )}
     </div>
@@ -227,18 +255,15 @@ function LogoSettings({
     if (!res.ok) throw Error(body.error?.message || "Không lưu được logo.");
   }
   return (
-    <section
-      aria-labelledby="logo-heading"
-      className="card space-y-3 pn-panel-inset"
-    >
+    <section aria-labelledby="logo-heading" className="space-y-3">
       <h2 id="logo-heading" className="text-base font-semibold">
         Logo nhà xe
       </h2>
       <div className="flex flex-wrap items-center gap-4">
         <BrandMark name={profile.name} logoUrl={url} />
         <p className="min-w-0 flex-1 text-sm text-muted">
-          Hiển thị cùng tên nhà xe ở trang đăng nhập và menu. PNG, JPEG hoặc
-          WebP, tối đa 200 KB; nên dùng ảnh vuông.
+          PNG, JPEG hoặc WebP, tối đa 200 KB; nên dùng ảnh vuông. Chưa có logo
+          thì dùng chữ cái đầu trên nền màu giao diện.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -292,11 +317,13 @@ const sameColors = (a: BrandColors, b: BrandColors) =>
 function BrandColorSettings({
   saved,
   name,
+  logoUrl,
   busy,
   onChange,
 }: {
   saved: BrandColors | null;
   name: string;
+  logoUrl: string | null;
   busy: boolean;
   onChange: (action: () => Promise<unknown>, text: string) => Promise<void>;
 }) {
@@ -335,7 +362,7 @@ function BrandColorSettings({
   return (
     <form
       aria-labelledby="brand-colors-heading"
-      className="card space-y-4 pn-panel-inset"
+      className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
         if (!valid || !dirty) return;
@@ -351,9 +378,8 @@ function BrandColorSettings({
           Màu giao diện
         </h2>
         <p className="text-sm text-muted">
-          Áp dụng cho logo chữ, nút chính, liên kết và nền của Dashboard với mọi
-          tài khoản của nhà xe. Mặc định là dải tím chàm → xanh lơ như biểu
-          tượng trang.
+          Áp dụng cho logo chữ, nút chính, liên kết và nền Dashboard. Mặc định
+          là dải tím chàm → xanh lơ như biểu tượng trang.
         </p>
       </div>
 
@@ -422,13 +448,18 @@ function BrandColorSettings({
         aria-label="Xem trước"
         role="group"
       >
-        <span
-          className="pn-brand"
-          aria-hidden="true"
-          style={{ background: preview["--brand-gradient"] }}
-        >
-          {name.trim().charAt(0).toUpperCase() || "?"}
-        </span>
+        {logoUrl ? (
+          <BrandMark name={name} logoUrl={logoUrl} />
+        ) : (
+          <span
+            className="pn-brand"
+            aria-hidden="true"
+            style={{ background: preview["--brand-gradient"] }}
+          >
+            {name.trim().charAt(0).toUpperCase() || "?"}
+          </span>
+        )}
+        <span className="min-w-0 truncate text-sm font-semibold">{name}</span>
         <span
           className="btn pointer-events-none"
           aria-hidden="true"
@@ -453,7 +484,7 @@ function BrandColorSettings({
         />
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
         <button className="btn btn-primary" disabled={busy || !valid || !dirty}>
           Lưu màu
         </button>
