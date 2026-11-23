@@ -1171,8 +1171,17 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
 .pn-date-day[data-edge]:hover::before {
   background: var(--primary-hover);
 }
+/* Hôm nay: nền + viền màu nhấn, chữ đậm — nổi hơn dải khoảng đã chọn (chỉ tô nhạt). */
+.pn-date-day[aria-current="date"]:not([data-edge]) {
+  color: var(--accent);
+  font-weight: 700;
+}
 .pn-date-day[aria-current="date"]:not([data-edge])::before {
-  box-shadow: inset 0 0 0 1px var(--border-hover);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.pn-date-day[aria-current="date"]:not([data-edge]):hover::before {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
 }
 .pn-date-day[aria-disabled] {
   cursor: not-allowed;
