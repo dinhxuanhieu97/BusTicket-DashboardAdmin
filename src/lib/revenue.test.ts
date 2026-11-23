@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   revenueFromReports,
   revenuePeriods,
+  revenueRange,
   routeNote,
   revenueReport,
   shares,
@@ -298,4 +299,88 @@ test("routeNote says when a route only had refunds in the period (GE1)", () => {
     routeNote({ bookings: 0, refunded: 0 }, money),
     "0 đơn trả tiền",
   );
+});
+
+test("range presets: yesterday, 7/30 days and 3 months end on the right day", () => {
+  const today = "2026-11-23";
+  assert.deepEqual(revenueRange(today, "yesterday"), {
+    first: "2026-11-22",
+    last: "2026-11-22",
+    days: 1,
+    label: "hôm qua",
+  });
+  assert.deepEqual(revenueRange(today, "7"), {
+    first: "2026-11-17",
+    last: today,
+    days: 7,
+    label: "7 ngày",
+  });
+  assert.equal(
+    (revenueRange(today, "30") as { first: string }).first,
+    "2026-10-25",
+  );
+  assert.deepEqual(revenueRange(today, "90"), {
+    first: "2026-08-26",
+    last: today,
+    days: 90,
+    label: "3 tháng",
+  });
+  // Hôm qua so với hôm kia.
+  assert.deepEqual(revenuePeriods("2026-11-22", 1), {
+    current: { from: "2026-11-22", to: "2026-11-23" },
+    previous: { from: "2026-11-21", to: "2026-11-22" },
+  });
+});
+
+test("custom range counts both ends and compares with the same length before it", () => {
+  const r = revenueRange("2026-11-23", "custom", {
+    from: "2026-11-01",
+    to: "2026-11-15",
+  });
+  assert.deepEqual(r, {
+    first: "2026-11-01",
+    last: "2026-11-15",
+    days: 15,
+    label: "01/11–15/11/2026",
+  });
+  assert.deepEqual(revenuePeriods("2026-11-15", 15), {
+    current: { from: "2026-11-01", to: "2026-11-16" },
+    previous: { from: "2026-10-17", to: "2026-11-01" },
+  });
+  assert.equal(
+    (
+      revenueRange("2026-11-23", "custom", {
+        from: "2026-11-05",
+        to: "2026-11-05",
+      }) as { label: string }
+    ).label,
+    "05/11/2026",
+  );
+  assert.equal(
+    (
+      revenueRange("2027-01-10", "custom", {
+        from: "2026-12-20",
+        to: "2027-01-05",
+      }) as { label: string }
+    ).label,
+    "20/12/2026–05/01/2027",
+  );
+});
+
+test("custom range rejects missing, reversed, future and over-366-day ranges", () => {
+  const today = "2026-11-23";
+  const err = (from: string, to: string) =>
+    (revenueRange(today, "custom", { from, to }) as { error?: string }).error;
+  assert.equal(err("", "2026-11-10"), "Chọn đủ từ ngày và đến ngày.");
+  assert.equal(err("2026-02-30", "2026-03-01"), "Chọn đủ từ ngày và đến ngày.");
+  assert.equal(
+    err("2026-11-10", "2026-11-09"),
+    "Từ ngày phải trước hoặc bằng đến ngày.",
+  );
+  assert.equal(
+    err("2026-11-10", "2026-11-24"),
+    "Đến ngày không được sau hôm nay.",
+  );
+  assert.equal(err("2025-11-22", "2026-11-23"), "Chọn tối đa 366 ngày.");
+  assert.equal(err("2025-11-23", "2026-11-23"), undefined); // đúng 366 ngày
 });

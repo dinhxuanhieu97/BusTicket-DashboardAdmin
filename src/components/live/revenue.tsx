@@ -20,14 +20,18 @@ import {
   type RevenueReport,
 } from "@/lib/live-contracts";
 import {
+  MAX_REVENUE_DAYS,
+  REVENUE_PRESETS,
   revenueFromReports,
   revenuePeriods,
+  revenueRange,
   revenueReport,
   routeNote,
   shares,
-  type RevenueDays,
+  type RevenuePreset,
 } from "@/lib/revenue";
-import { shortVnd } from "@/lib/overview";
+import { addDays, shortVnd } from "@/lib/overview";
+import { DateRangePicker, type DateRangePreset } from "../ui/date-range-picker";
 import { useResource } from "./use-resource";
 import { LoadState, Notice, RefreshButton } from "./shared";
 import { PageHero } from "../ui/page-hero";
@@ -43,26 +47,42 @@ const methodIcons = {
 const dayLabel = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}`;
 
 export function Revenue() {
-  const [days, setDays] = useState<RevenueDays>(7);
-  const periods = revenuePeriods(vnToday(), days);
-  const range = (p: { from: string; to: string }) =>
-    `revenue-report?from=${p.from}&to=${p.to}`;
-  const cur = useResource<RevenueReport>(range(periods.current));
-  const prev = useResource<RevenueReport>(range(periods.previous));
+  const today = vnToday();
+  const [preset, setPreset] = useState<RevenuePreset>("7");
+  // Khoảng tự chọn trên lịch (dùng khi `preset === "custom"`).
+  const [custom, setCustom] = useState(() => ({
+    from: addDays(today, -6),
+    to: today,
+  }));
+  const picked = revenueRange(today, preset, custom);
+  const rangeError = "error" in picked ? picked.error : "";
+  const period = "error" in picked ? null : picked;
+  const days = period?.days ?? 0;
+  const label = period?.label ?? "";
+  const periods = period ? revenuePeriods(period.last, period.days) : null;
+  const pickerPresets: DateRangePreset[] = REVENUE_PRESETS.map((p) => {
+    const r = revenueRange(today, p.id) as { first: string; last: string };
+    return { id: p.id, label: p.label, range: { from: r.first, to: r.last } };
+  });
+  const range = (p: { from: string; to: string } | undefined) =>
+    p ? `revenue-report?from=${p.from}&to=${p.to}` : null;
+  const cur = useResource<RevenueReport>(range(periods?.current));
+  const prev = useResource<RevenueReport>(range(periods?.previous));
   // API báo cáo chưa có (backend cũ) → tính tạm từ 200 khoản thu gần nhất như trước.
   const fallback = Boolean(cur.error || prev.error);
   const legacy = useResource<{
     payments: Payment[];
     meta: { fetchedAt: string; limit: number };
   }>(fallback ? "payments" : null);
-  const report =
-    cur.data && prev.data
+  const report = !period
+    ? null
+    : cur.data && prev.data
       ? revenueFromReports(cur.data, prev.data)
       : fallback && legacy.data
         ? revenueReport(
             legacy.data.payments,
-            vnToday(),
-            days,
+            period.last,
+            period.days,
             legacy.data.meta.limit,
           )
         : null;
@@ -92,26 +112,27 @@ export function Revenue() {
         }
         actions={
           <>
-            <div
-              className="pn-segmented"
-              role="group"
-              aria-label="Khoảng thời gian"
-            >
-              {([7, 30] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={days === value}
-                  onClick={() => setDays(value)}
-                >
-                  {value} ngày
-                </button>
-              ))}
-            </div>
+            <DateRangePicker
+              label="Khoảng thời gian"
+              value={period ? { from: period.first, to: period.last } : null}
+              presetId={preset === "custom" ? null : preset}
+              presets={pickerPresets}
+              max={today}
+              maxDays={MAX_REVENUE_DAYS}
+              onChange={(value, id) => {
+                if (id) setPreset(id as RevenuePreset);
+                else if (value) {
+                  setCustom(value);
+                  setPreset("custom");
+                }
+              }}
+            />
             <RefreshButton reload={reload} loading={loading} />
           </>
         }
       />
+
+      {rangeError && <Notice tone="warning">{rangeError}</Notice>}
 
       <LoadState loading={loading} error={error} reload={reload} />
 
@@ -119,17 +140,15 @@ export function Revenue() {
         <>
           {!report.completeCurrent && (
             <Notice tone="warning">
-              Kỳ {days} ngày có nhiều hơn 200 khoản thu, số dưới đây chỉ tính
-              phần đã tải nên có thể thấp hơn thực tế.
+              Kỳ {label} có nhiều hơn 200 khoản thu, số dưới đây chỉ tính phần
+              đã tải nên có thể thấp hơn thực tế.
             </Notice>
           )}
 
           <div className="grid grid-cols-2 gap-3 md:gap-4 2xl:grid-cols-4">
             <StatCard
               icon={Wallet}
-              label={
-                report.net ? `Thu thuần ${days} ngày` : `Tổng thu ${days} ngày`
-              }
+              label={report.net ? `Thu thuần ${label}` : `Tổng thu ${label}`}
               value={total.value}
               unit={total.unit}
               foot={
@@ -167,7 +186,7 @@ export function Revenue() {
                     {vnd(report.net.refunded)}
                   </span>
                 ) : (
-                  `Trong ${days} ngày gần nhất`
+                  `Trong kỳ ${label}`
                 )
               }
             />
@@ -200,10 +219,10 @@ export function Revenue() {
                 Theo ngày
               </h3>
               <p className="mb-4 text-sm text-muted">
-                Đường liền: {days} ngày gần nhất · nét đứt: {days} ngày trước đó
+                Đường liền: {label} · nét đứt: {days} ngày liền trước
               </p>
               <AreaChart
-                caption={`Doanh thu theo ngày, ${days} ngày gần nhất và kỳ trước`}
+                caption={`Doanh thu theo ngày, ${label} và kỳ trước`}
                 labels={report.current.map((p) => dayLabel(p.date))}
                 format={(v) => shortVnd(v).value + " " + shortVnd(v).unit}
                 series={[

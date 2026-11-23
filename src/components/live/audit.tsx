@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
-import { AuditEntry, vnDateTime } from "@/lib/live-contracts";
+import { AuditEntry, vnDateTime, vnToday } from "@/lib/live-contracts";
+import { addDays } from "@/lib/overview";
 import {
   auditActor,
   auditGroup,
@@ -13,6 +14,7 @@ import { useResource } from "./use-resource";
 import { LoadState, RefreshButton } from "./shared";
 import { PageHero } from "../ui/page-hero";
 import { FilterTabs } from "../ui/filter-tabs";
+import { DateRangePicker, type DateRangePreset } from "../ui/date-range-picker";
 import {
   DataTable,
   TableFooter,
@@ -152,6 +154,27 @@ export function Audit() {
   const [actor, setActor] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [datePreset, setDatePreset] = useState<string | null>("all");
+  const today = vnToday();
+  const datePresets: DateRangePreset[] = [
+    { id: "all", label: "Mọi ngày", range: null },
+    { id: "today", label: "Hôm nay", range: { from: today, to: today } },
+    {
+      id: "yesterday",
+      label: "Hôm qua",
+      range: { from: addDays(today, -1), to: addDays(today, -1) },
+    },
+    {
+      id: "7",
+      label: "7 ngày qua",
+      range: { from: addDays(today, -6), to: today },
+    },
+    {
+      id: "30",
+      label: "30 ngày qua",
+      range: { from: addDays(today, -29), to: today },
+    },
+  ];
 
   const entries = useMemo(() => data?.entries ?? [], [data]);
   const rows = useMemo(
@@ -166,7 +189,6 @@ export function Audit() {
   const groupCount = (g?: AuditGroup) =>
     entries.filter((e) => !g || auditGroup(e.action) === g).length;
   const filtered = !!(group || actor || from || to);
-  const badRange = !!(from && to && from > to);
 
   function change<T>(set: (v: T) => void) {
     return (v: T) => {
@@ -180,6 +202,7 @@ export function Audit() {
     setActor("");
     setFrom("");
     setTo("");
+    setDatePreset("all");
     table.resetPage();
   }
 
@@ -235,26 +258,25 @@ export function Audit() {
             ))}
           </select>
         </label>
-        <label className="space-y-1 text-xs font-medium text-muted">
-          <span className="block">Từ ngày</span>
-          <input
-            type="date"
-            className="field w-auto tabular-nums"
-            value={from}
-            max={to || undefined}
-            onChange={(e) => change(setFrom)(e.target.value)}
+        <div className="space-y-1 text-xs font-medium text-muted">
+          <span className="block" aria-hidden="true">
+            Thời gian
+          </span>
+          <DateRangePicker
+            label="Thời gian"
+            align="start"
+            value={from && to ? { from, to } : null}
+            presetId={datePreset}
+            presets={datePresets}
+            max={today}
+            placeholder="Mọi ngày"
+            onChange={(value, id) => {
+              change(setDatePreset)(id);
+              setFrom(value?.from ?? "");
+              setTo(value?.to ?? "");
+            }}
           />
-        </label>
-        <label className="space-y-1 text-xs font-medium text-muted">
-          <span className="block">Đến ngày</span>
-          <input
-            type="date"
-            className="field w-auto tabular-nums"
-            value={to}
-            min={from || undefined}
-            onChange={(e) => change(setTo)(e.target.value)}
-          />
-        </label>
+        </div>
         {filtered && (
           <button type="button" className="btn" onClick={clearFilters}>
             <X size={15} aria-hidden="true" />
@@ -262,12 +284,6 @@ export function Audit() {
           </button>
         )}
       </div>
-      {badRange && (
-        <p className="text-sm text-warning" role="status">
-          &quot;Từ ngày&quot; đang sau &quot;Đến ngày&quot; nên không có bản ghi
-          nào.
-        </p>
-      )}
 
       <LoadState loading={loading} error={error} reload={reload} />
 
