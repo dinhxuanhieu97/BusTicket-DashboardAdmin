@@ -1,7 +1,8 @@
 import { vnDateOf, type Payment, type RevenueReport } from "./live-contracts";
 import { addDays } from "./overview";
 
-export type RevenueDays = 7 | 30;
+/** Số ngày của một kỳ báo cáo (1–366, giới hạn của API báo cáo). */
+export type RevenueDays = number;
 export type PaymentMethod = Payment["method"];
 
 const vnHour = (value: string) =>
@@ -16,6 +17,7 @@ const vnHour = (value: string) =>
 /**
  * Báo cáo doanh thu tính từ danh sách khoản thu đã tải (API trả tối đa `limit` khoản mới nhất).
  * Ngày theo giờ Việt Nam của `receivedAt`, giống thẻ "Thu 7 ngày" ở Tổng quan.
+ * Kỳ hiện tại = `days` ngày kết thúc ở `today` (ngày cuối kỳ, tính cả ngày đó; với "Hôm qua" là hôm qua).
  * Kỳ trước = `days` ngày liền trước kỳ hiện tại, xếp cùng chỉ số để vẽ nét đứt.
  * `complete*` = chắc chắn đủ dữ liệu: tập tải chưa chạm giới hạn, hoặc khoản cũ nhất đã trước đầu kỳ.
  */
@@ -98,13 +100,83 @@ export function revenueReport(
   };
 }
 
-/** Khoảng `[from, to)` của kỳ `days` ngày kết thúc hôm nay, và kỳ liền trước. */
+/** Khoảng `[from, to)` của kỳ `days` ngày kết thúc ở `today` (tính cả ngày đó), và kỳ liền trước cùng độ dài. */
 export function revenuePeriods(today: string, days: RevenueDays) {
   const first = addDays(today, -(days - 1));
   return {
     current: { from: first, to: addDays(today, 1) },
     previous: { from: addDays(first, -days), to: first },
   };
+}
+
+/** Số ngày tối đa của một kỳ: API báo cáo nhận 1–366 ngày mỗi lần gọi. */
+export const MAX_REVENUE_DAYS = 366;
+
+export type RevenuePreset = "yesterday" | "7" | "30" | "90" | "custom";
+
+export const REVENUE_PRESETS: { id: RevenuePreset; label: string }[] = [
+  { id: "yesterday", label: "Hôm qua" },
+  { id: "7", label: "7 ngày" },
+  { id: "30", label: "30 ngày" },
+  { id: "90", label: "3 tháng" },
+  { id: "custom", label: "Tự chọn" },
+];
+
+/** Kỳ báo cáo đã chọn: ngày đầu, ngày cuối (đều tính) và số ngày; `label` dùng trong tiêu đề thẻ. */
+export type RevenueRange = {
+  first: string;
+  last: string;
+  days: number;
+  label: string;
+};
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const validDate = (d: string) =>
+  ISO_DATE.test(d) && new Date(`${d}T00:00:00Z`).toISOString().startsWith(d);
+const daysBetween = (from: string, to: string) =>
+  Math.round(
+    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
+      86_400_000,
+  );
+const shortDate = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+
+/**
+ * Kỳ báo cáo theo lựa chọn ở bộ lọc. "3 tháng" = 90 ngày gần nhất (kỳ trước cũng 90 ngày để so sánh cùng độ dài).
+ * "Tự chọn": từ ngày ≤ đến ngày ≤ hôm nay, tối đa 366 ngày; sai thì trả `error` để hiện cạnh ô nhập.
+ */
+export function revenueRange(
+  today: string,
+  preset: RevenuePreset,
+  custom?: { from: string; to: string },
+): RevenueRange | { error: string } {
+  if (preset === "yesterday") {
+    const d = addDays(today, -1);
+    return { first: d, last: d, days: 1, label: "hôm qua" };
+  }
+  if (preset !== "custom") {
+    const days = Number(preset);
+    const label =
+      REVENUE_PRESETS.find((p) => p.id === preset)?.label ?? `${days} ngày`;
+    return { first: addDays(today, -(days - 1)), last: today, days, label };
+  }
+  const from = custom?.from ?? "";
+  const to = custom?.to ?? "";
+  if (!validDate(from) || !validDate(to))
+    return { error: "Chọn đủ từ ngày và đến ngày." };
+  if (from > to) return { error: "Từ ngày phải trước hoặc bằng đến ngày." };
+  if (to > today) return { error: "Đến ngày không được sau hôm nay." };
+  const days = daysBetween(from, to) + 1;
+  if (days > MAX_REVENUE_DAYS)
+    return { error: `Chọn tối đa ${MAX_REVENUE_DAYS} ngày.` };
+  // "01/11–15/11/2026"; khác năm thì ghi năm cả hai đầu; một ngày thì "05/11/2026".
+  const withYear = (d: string) => `${shortDate(d)}/${d.slice(0, 4)}`;
+  const label =
+    from === to
+      ? withYear(from)
+      : from.slice(0, 4) === to.slice(0, 4)
+        ? `${shortDate(from)}–${withYear(to)}`
+        : `${withYear(from)}–${withYear(to)}`;
+  return { first: from, last: to, days, label };
 }
 
 /**

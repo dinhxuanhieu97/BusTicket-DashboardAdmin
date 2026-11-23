@@ -99,13 +99,65 @@ test("revenue falls back to summing the payment list on an API without reports",
   await expect(table.locator("tbody tr").last()).toContainText("630.000");
 
   await page
-    .getByRole("group", { name: "Khoảng thời gian" })
-    .getByRole("button", { name: "30 ngày" })
-    .click();
+    .getByRole("combobox", { name: "Khoảng thời gian" })
+    .selectOption("30");
   await expect(
     page.getByRole("region", { name: "Tổng thu 30 ngày" }),
   ).toContainText("630.000");
   await expect(table.locator("tbody tr")).toHaveCount(30);
+});
+
+test("revenue range filter: yesterday, 3 months and a custom range", async ({
+  page,
+}) => {
+  await page.goto("/admin/revenue");
+  const range = page.getByRole("combobox", { name: "Khoảng thời gian" });
+  await expect(range).toHaveValue("7");
+  await expect(range.locator("option")).toHaveText([
+    "Hôm qua",
+    "7 ngày",
+    "30 ngày",
+    "3 tháng",
+    "Tự chọn",
+  ]);
+  const table = page.locator("[data-area-chart] table");
+
+  // Fixture: hôm qua nhận 200.000 tiền mặt, không hoàn.
+  await range.selectOption("yesterday");
+  await expect(
+    page.getByRole("region", { name: "Thu thuần hôm qua" }),
+  ).toContainText("200.000");
+  await expect(table.locator("tbody tr")).toHaveCount(1);
+
+  await range.selectOption("90");
+  await expect(
+    page.getByRole("region", { name: "Thu thuần 3 tháng" }),
+  ).toContainText("730.000");
+  await expect(table.locator("tbody tr")).toHaveCount(90);
+
+  // Tự chọn: mở sẵn 7 ngày gần nhất; chỉ lấy hôm nay → 630.000 − 100.000.
+  await range.selectOption("custom");
+  const from = page.getByLabel("Từ ngày");
+  const to = page.getByLabel("Đến ngày");
+  const today = await to.inputValue();
+  await from.fill(today);
+  const [y, m, d] = today.split("-");
+  await expect(
+    page.getByRole("region", { name: `Thu thuần ${d}/${m}/${y}` }),
+  ).toContainText("530.000");
+  await expect(table.locator("tbody tr")).toHaveCount(1);
+
+  // Từ ngày sau đến ngày: báo lỗi, không hiện số.
+  const next = new Date(`${today}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  await from.fill(next.toISOString().slice(0, 10));
+  await expect(
+    page.getByText("Từ ngày phải trước hoặc bằng đến ngày."),
+  ).toBeVisible();
+  await expect(page.getByRole("region", { name: /^Thu thuần/ })).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await noHorizontalOverflow(page);
 });
 
 test("revenue warns when the payment list hits the 200 cap", async ({
