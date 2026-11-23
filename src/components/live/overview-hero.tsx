@@ -126,49 +126,42 @@ export function OverviewHero({
     label: string;
     note: string;
     icon: LucideIcon;
-    tone: string;
   }[] = [
     access.tripWrite && {
       href: "/admin/trips?create=1",
       label: "Tạo chuyến",
       note: "Chọn tuyến, xe, giờ chạy, giá vé",
       icon: Plus,
-      tone: "info",
     },
     access.passengers && {
       href: "/admin/passengers",
       label: "Hành khách",
       note: "Danh sách khách, bán vé tại quầy",
       icon: Contact,
-      tone: "warning",
     },
     access.payments && {
       href: "/admin/payments",
       label: "Đối soát thanh toán",
       note: "Khớp chuyển khoản với đơn",
       icon: ReceiptText,
-      tone: "neutral",
     },
     access.tripWrite && {
       href: "/admin/schedules",
       label: "Lịch tự động",
       note: "Chuyến lặp lại theo ngày",
       icon: CalendarClock,
-      tone: "success",
     },
     access.fleet && {
       href: "/admin/vehicles",
       label: "Đội xe",
       note: "Xe, sơ đồ chỗ, bảo dưỡng",
       icon: BusFront,
-      tone: "info",
     },
     access.routes && {
       href: "/admin/routes",
       label: "Tuyến đường",
       note: "Điểm đón, điểm trả",
       icon: Route,
-      tone: "danger",
     },
   ].filter((a) => a !== false);
 
@@ -247,12 +240,12 @@ export function OverviewHero({
               </h3>
               {/* Điện thoại: một hàng cuộn ngang thay vì 6 dòng dài. */}
               <ul className="grid gap-2.5 max-sm:-mx-5 max-sm:snap-x max-sm:auto-cols-[78%] max-sm:grid-flow-col max-sm:overflow-x-auto max-sm:scroll-px-5 max-sm:px-5 max-sm:pb-1 sm:grid-cols-2 xl:grid-cols-3">
-                {actions.map(({ href, label, note, icon: Icon, tone }) => (
+                {actions.map(({ href, label, note, icon: Icon }) => (
                   <li key={href} className="snap-start">
                     <Link href={href} className="pn-action">
                       <span
                         className="pn-tone grid size-11 shrink-0 place-items-center rounded-[0.8125rem]"
-                        data-tone={tone}
+                        data-tone="info"
                       >
                         <Icon size={19} aria-hidden="true" />
                       </span>
@@ -370,7 +363,7 @@ export function OverviewHero({
               </>
             }
             spark={money.series.map((p) => p.amount)}
-            sparkColor="var(--warning)"
+            sparkColor="var(--accent)"
           />
         )}
         {todayTrips.data && (
@@ -422,7 +415,7 @@ export function OverviewHero({
                   : "Ít nhất (200 khoản gần nhất)"
             }
             spark={money.series.map((p) => p.amount)}
-            sparkColor="var(--info)"
+            sparkColor="var(--accent)"
             fillSpark={false}
           />
         )}
@@ -438,7 +431,7 @@ export function OverviewHero({
               </span>
             }
             spark={sales.series}
-            sparkColor="var(--success)"
+            sparkColor="var(--accent)"
           />
         )}
         {sales && (

@@ -64,7 +64,9 @@ test("OWNER assigns an assistant in trip detail; the assistant sees only that tr
   });
   expect(owner.status()).toBe(200);
   await page.goto("/admin/trips?date=2027-02-05");
-  await page.getByLabel("Ngày khởi hành · Giờ Việt Nam").fill("2027-02-05");
+  await expect(
+    page.getByLabel("Ngày khởi hành · Giờ Việt Nam"),
+  ).toHaveAttribute("data-value", "2027-02-05");
   await page
     .getByRole("button", { name: "Chi tiết", exact: true })
     .first()

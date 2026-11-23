@@ -98,14 +98,126 @@ test("revenue falls back to summing the payment list on an API without reports",
   await expect(table.locator("tbody tr")).toHaveCount(7);
   await expect(table.locator("tbody tr").last()).toContainText("630.000");
 
-  await page
-    .getByRole("group", { name: "Khoảng thời gian" })
-    .getByRole("button", { name: "30 ngày" })
-    .click();
+  await pickPreset(page, "30 ngày qua");
   await expect(
     page.getByRole("region", { name: "Tổng thu 30 ngày" }),
   ).toContainText("630.000");
   await expect(table.locator("tbody tr")).toHaveCount(30);
+});
+
+/** Mở bộ chọn khoảng ngày ở trang Doanh thu. */
+async function openRange(page: Page) {
+  await page.getByRole("button", { name: /^Khoảng thời gian:/ }).click();
+  return page.getByRole("dialog", { name: "Khoảng thời gian" });
+}
+async function pickPreset(page: Page, name: string) {
+  const pop = await openRange(page);
+  await pop.getByRole("button", { name, exact: true }).click();
+  await expect(pop).toHaveCount(0);
+}
+const vnDay = (offset = 0) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+    new Date(Date.now() - offset * 86_400_000),
+  );
+const vnDayLabel = (d: string) => {
+  const names = [
+    "Chủ nhật",
+    "Thứ Hai",
+    "Thứ Ba",
+    "Thứ Tư",
+    "Thứ Năm",
+    "Thứ Sáu",
+    "Thứ Bảy",
+  ];
+  const [y, m, day] = d.split("-").map(Number);
+  return `${names[new Date(Date.UTC(y, m - 1, day)).getUTCDay()]}, ${day} tháng ${m} năm ${y}`;
+};
+
+test("revenue range picker: presets, calendar range and keyboard", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/revenue");
+  const trigger = page.getByRole("button", { name: /^Khoảng thời gian:/ });
+  await expect(trigger).toContainText("7 ngày qua");
+  const table = page.locator("[data-area-chart] table");
+
+  // Popup mở ngay dưới nút, hai tháng, mốc nhanh bên trái.
+  const pop = await openRange(page);
+  await expect(
+    pop.getByRole("group", { name: "Chọn nhanh" }).getByRole("button"),
+  ).toHaveText(["Hôm qua", "7 ngày qua", "30 ngày qua", "3 tháng qua"]);
+  await expect(pop.getByRole("button", { name: "7 ngày qua" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(pop.locator(".pn-date-month")).toHaveCount(2);
+  const [t, p] = await Promise.all([trigger.boundingBox(), pop.boundingBox()]);
+  expect(p!.y).toBeGreaterThan(t!.y + t!.height);
+  expect(p!.y).toBeLessThan(t!.y + t!.height + 16);
+  // Con trỏ bàn phím ở ngày cuối khoảng (hôm nay); ngày mai bị khóa.
+  const today = vnDay();
+  await expect(
+    pop.getByRole("button", { name: vnDayLabel(today) }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(pop).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+
+  // Fixture: hôm qua nhận 200.000 tiền mặt, không hoàn.
+  await pickPreset(page, "Hôm qua");
+  await expect(
+    page.getByRole("region", { name: "Thu thuần hôm qua" }),
+  ).toContainText("200.000");
+  await expect(table.locator("tbody tr")).toHaveCount(1);
+
+  await pickPreset(page, "3 tháng qua");
+  await expect(
+    page.getByRole("region", { name: "Thu thuần 3 tháng" }),
+  ).toContainText("730.000");
+  await expect(table.locator("tbody tr")).toHaveCount(90);
+
+  // Chọn trên lịch: bấm hôm qua rồi hôm nay → 200.000 + 530.000.
+  const cal = await openRange(page);
+  await cal.getByRole("button", { name: vnDayLabel(vnDay(1)) }).click();
+  await expect(cal).toContainText("Chọn ngày kết thúc");
+  await cal.getByRole("button", { name: vnDayLabel(today) }).click();
+  await expect(cal).toHaveCount(0);
+  const [y, m, d] = today.split("-");
+  const [, pm, pd] = vnDay(1).split("-");
+  const label =
+    vnDay(1).slice(0, 4) === y
+      ? `${pd}/${pm}–${d}/${m}/${y}`
+      : `${pd}/${pm}/${vnDay(1).slice(0, 4)}–${d}/${m}/${y}`;
+  await expect(
+    page.getByRole("region", { name: `Thu thuần ${label}` }),
+  ).toContainText("730.000");
+  await expect(table.locator("tbody tr")).toHaveCount(2);
+  await expect(trigger).not.toContainText("qua ·");
+
+  // Bàn phím: mũi tên trái chọn hôm qua, Enter, rồi Enter lại → một ngày.
+  const keys = await openRange(page);
+  await page.keyboard.press("ArrowLeft");
+  await expect(
+    keys.getByRole("button", { name: vnDayLabel(vnDay(1)) }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await expect(keys).toHaveCount(0);
+  await expect(
+    page.getByRole("region", {
+      name: `Thu thuần ${pd}/${pm}/${vnDay(1).slice(0, 4)}`,
+    }),
+  ).toContainText("200.000");
+
+  // Điện thoại: một tháng, popup nằm gọn trong màn hình.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const phone = await openRange(page);
+  await expect(phone.locator(".pn-date-month")).toHaveCount(1);
+  const box = await phone.boundingBox();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+  await noHorizontalOverflow(page);
 });
 
 test("revenue warns when the payment list hits the 200 cap", async ({
@@ -155,7 +267,8 @@ test("seat map: picking a seat shows its booking and opens the counter sale", as
   const bookedBg = await booked.evaluate(
     (el) => getComputedStyle(el).backgroundColor,
   );
-  expect(bookedBg).toMatch(/^rgba\(206, 206, 206, 0\.41\d*\)$/);
+  // Ghế đã đặt: xám trong mờ 40% (biến --booked-bg, tạo bằng color-mix nên trình duyệt trả dạng color(srgb …)).
+  expect(bookedBg).toMatch(/^color\(srgb [\d.]+ [\d.]+ [\d.]+ \/ 0\.4\)$/);
   await expect(
     page.getByRole("button", { name: "A1 · Còn trống" }),
   ).not.toHaveCSS("background-color", bookedBg);

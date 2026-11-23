@@ -3,6 +3,9 @@ import { cache } from "react";
 import { z } from "zod";
 import { backendRequest } from "../backend-client";
 import { OPERATOR_CODE, logoUrl, type Brand } from "../brand";
+import { HEX_COLOR } from "../brand-palette";
+
+const color = z.string().regex(HEX_COLOR);
 
 const brandSchema = z.object({
   code: z.string().regex(OPERATOR_CODE),
@@ -11,6 +14,12 @@ const brandSchema = z.object({
     .string()
     .regex(/^\d{1,20}$/)
     .nullable(),
+  // API cũ chưa có trường này → coi như màu mặc định.
+  brandColors: z
+    .object({ from: color, to: color })
+    .nullable()
+    .optional()
+    .transform((c) => c ?? null),
 });
 
 /**
@@ -28,6 +37,7 @@ export const loadBrand = cache(async (): Promise<Brand | null> => {
       code: b.code,
       name: b.name,
       logoUrl: logoUrl(b.code, b.logoVersion),
+      brandColors: b.brandColors,
     };
   } catch {
     return null;

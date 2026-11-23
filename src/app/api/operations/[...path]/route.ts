@@ -47,6 +47,8 @@ const allowed = {
   ],
   PUT: [
     { path: /^profile$/, permission: "policy.write" },
+    // Màu giao diện Dashboard: API kiểm định dạng #rrggbb.
+    { path: /^brand-colors$/, permission: "policy.write" },
     { path: /^policy$/, permission: "policy.write" },
     { path: new RegExp(`^routes/${uuid}/stops$`), permission: "route.write" },
     // Đổi tên điểm đi/đến trên mọi tuyến (hai chiều cùng lúc).

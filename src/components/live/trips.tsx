@@ -26,6 +26,7 @@ import {
 import { PageHero } from "../ui/page-hero";
 import { FilterChips } from "../ui/filter-chips";
 import { Switch } from "../ui/switch";
+import { PeriodPicker } from "../ui/period-picker";
 
 const VIEW_KEY = "pnticket_trip_view";
 /** Thứ tự mặc định của API: giờ khởi hành tăng dần (phân trang con trỏ). */
@@ -236,58 +237,23 @@ export function Trips({
             </div>
           )}
           <div>
-            <label htmlFor="trip-date" className="sr-only">
-              {period === "day"
-                ? "Ngày khởi hành · Giờ Việt Nam"
-                : period === "month"
-                  ? "Tháng khởi hành"
-                  : "Năm khởi hành"}
-            </label>
             <div className="flex flex-wrap items-center gap-2">
-              {period === "year" ? (
-                <select
-                  id="trip-date"
-                  className="field max-w-full w-auto tabular-nums"
-                  value={date.slice(0, 4)}
-                  onChange={(e) => {
-                    setDate(e.target.value + "-01-01");
-                    setCursors([]);
-                  }}
-                >
-                  {[
-                    ...new Set([
-                      Number(date.slice(0, 4)),
-                      ...Array.from({ length: 101 }, (_, i) => 2000 + i),
-                    ]),
-                  ]
-                    .sort((a, b) => a - b)
-                    .map((y) => (
-                      <option key={y} value={y}>
-                        {y}
-                      </option>
-                    ))}
-                </select>
-              ) : (
-                <input
-                  id="trip-date"
-                  type={period === "month" ? "month" : "date"}
-                  className="field max-w-full w-auto tabular-nums"
-                  value={period === "month" ? date.slice(0, 7) : date}
-                  onChange={(e) => {
-                    const next =
-                      period === "month"
-                        ? e.target.value + "-01"
-                        : e.target.value;
-                    try {
-                      tripPeriodRange(next, period);
-                      setDate(next);
-                      setCursors([]);
-                    } catch {
-                      /* invalid input */
-                    }
-                  }}
-                />
-              )}
+              <PeriodPicker
+                label={
+                  period === "day"
+                    ? "Ngày khởi hành · Giờ Việt Nam"
+                    : period === "month"
+                      ? "Tháng khởi hành"
+                      : "Năm khởi hành"
+                }
+                mode={period}
+                value={date}
+                today={vnToday()}
+                onChange={(next) => {
+                  setDate(next);
+                  setCursors([]);
+                }}
+              />
               {(date !== vnToday() || period !== "day") && (
                 <button
                   type="button"

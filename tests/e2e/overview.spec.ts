@@ -97,7 +97,7 @@ test("empty day and light theme do not invent business figures", async ({
         .evaluate((el) => getComputedStyle(el).backgroundColor),
     )
     // Thẻ dùng nền kính mờ của theme sáng (trắng 70%).
-    .toBe("rgba(255, 255, 255, 0.7)");
+    .toBe("color(srgb 1 1 1 / 0.7)");
   await page.screenshot({
     path: "test-results/pn-overview-empty-light.png",
     fullPage: true,

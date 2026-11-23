@@ -65,7 +65,7 @@ export function Gauge({
             cx={point(start + sweep * pct, r + 2)[0]}
             cy={point(start + sweep * pct, r + 2)[1]}
             r="8"
-            fill="#fff"
+            fill="var(--knob)"
             stroke="var(--accent)"
             strokeWidth="3"
           />

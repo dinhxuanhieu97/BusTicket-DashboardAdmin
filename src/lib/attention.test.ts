@@ -10,6 +10,9 @@ import {
   parseSeen,
   settleSeen,
   unreadCount,
+  unreadOf,
+  markSeen,
+  attentionPlace,
   type AttentionItem,
 } from "./attention";
 import type { Counters } from "./live-contracts";
@@ -144,4 +147,34 @@ test("QS01: read marks keep the proofs key", () => {
     proofs: 2,
     review: 1,
   });
+});
+
+test("each notification knows its own new count and where it opens", () => {
+  const items = attentionItems({
+    proofsPending: 2,
+    payments: { NEEDS_REVIEW: 5 },
+    refundsOpen: 0,
+    tripsClosingSoon: 1,
+  } as unknown as Counters);
+  const seen = { review: 3, closing: 4 };
+  assert.deepEqual(
+    items.map((i) => [i.key, unreadOf(i, seen), attentionPlace(i)]),
+    [
+      ["proofs", 2, "Xem ảnh tại chỗ"],
+      ["review", 2, "Sổ thu"],
+      ["closing", 0, "Chuyến xe"],
+    ],
+  );
+});
+
+test("opening one notification marks only that kind as read", () => {
+  const items = attentionItems({
+    payments: { NEEDS_REVIEW: 5 },
+    refundsOpen: 1,
+    tripsClosingSoon: 1,
+  } as unknown as Counters);
+  const seen = markSeen({ closing: 1 }, items[0]);
+  assert.deepEqual(seen, { closing: 1, review: 5 });
+  assert.equal(unreadCount(items, seen), 1);
+  assert.equal(unreadOf(items[0], seen), 0);
 });

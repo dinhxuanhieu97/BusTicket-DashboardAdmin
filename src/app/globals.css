@@ -1,77 +1,152 @@
 @import "tailwindcss";
 
-/* Bảng màu "kính mờ": nền ấm có hai vệt sáng, khối nổi trong suốt nhẹ, accent ngọc.
-   --panel/--surface giữ màu đặc để cột ghim của bảng, hộp thoại và ô nhập không lộ nội dung phía sau;
-   --glass là nền trong suốt của thẻ và khung trang. */
+/* ============================================================================
+   MÀU DASHBOARD — HAI LỚP BIẾN
+   1. Bảng màu gốc (--white, --gray-*, --green-*, --amber-*, --red-*, --blue-*):
+      muốn đổi cả bảng màu thì sửa ở đây.
+   2. Biến theo vai trò (--bg, --panel, --text, --success...): trỏ vào bảng gốc,
+      khác nhau giữa theme tối (:root) và sáng (html[data-theme="light"]).
+   Component CHỈ dùng biến vai trò (hoặc class Tailwind bg-panel, text-muted...).
+   Mã màu (#hex, rgb()) chỉ được viết trong vùng này, trước dòng @end-color-tokens;
+   test src/lib/color-tokens.test.ts chặn mã màu ở mọi chỗ khác.
+   Màu thương hiệu (--brand-*, --accent, --primary*, --on-primary, --accent-glow,
+   --bg-glow-*) là kết quả brandPalette(DEFAULT_BRAND_COLORS) trong
+   src/lib/brand-palette.ts (test kiểm hai nơi khớp nhau); nhà xe đổi trong Cài đặt.
+   Quy tắc dùng màu: README.md, mục "Màu".
+   ========================================================================== */
 :root {
+  /* ---- 1. Bảng màu gốc ---- */
+  --white: #ffffff;
+  --black: #000000;
+  /* Xám hơi lạnh (slate), sáng → tối. */
+  --gray-25: #fbfcfd;
+  --gray-50: #f2f4f7;
+  --gray-100: #eef0f4;
+  --gray-150: #e7eaf0;
+  --gray-200: #cfd4dc;
+  --gray-300: #a3a9b5;
+  --gray-400: #8b92a0;
+  --gray-500: #626978;
+  --gray-600: #555c69;
+  --gray-700: #2f343d;
+  --gray-750: #262a32;
+  --gray-800: #1e2128;
+  --gray-850: #1b1e24;
+  --gray-900: #14161b;
+  /* Màu báo nghĩa: bậc 300 cho nền tối, bậc 700 cho nền sáng. */
+  --green-300: #7ed98a;
+  --green-700: #2b7339;
+  --amber-300: #f0b45c;
+  --amber-700: #85560c;
+  --red-300: #f39184;
+  --red-700: #b03a2d;
+  --blue-300: #7fb4f0;
+  --blue-700: #2f69b0;
+
+  /* ---- 2. Biến theo vai trò — theme tối ---- */
   color-scheme: dark;
-  --bg: #17191a;
-  --bg-glow-1: rgb(214 160 92 / 0.18);
-  --bg-glow-2: rgb(72 196 170 / 0.12);
-  --glass: rgb(44 46 46 / 0.72);
-  --glass-strong: rgb(54 56 56 / 0.9);
+  --bg: var(--gray-900);
+  --panel: var(--gray-800);
+  --surface: var(--gray-750);
+  --surface-hover: var(--gray-700);
+  --glass: color-mix(in srgb, var(--gray-750) 72%, transparent);
+  --glass-strong: color-mix(in srgb, var(--gray-700) 90%, transparent);
   --blur: blur(22px) saturate(140%);
-  --panel: #262828;
-  --surface: #2f3131;
-  --surface-hover: #383a3a;
-  --border: rgb(255 255 255 / 0.08);
-  --border-hover: rgb(255 255 255 / 0.17);
-  --text: #f2f1ee;
-  --muted: #a9a6a0;
-  --faint: #8a8781;
-  --accent: #6fd8c1;
-  --primary: #6fd8c1;
-  --primary-hover: #8ae2cf;
-  --on-primary: #0f2b25;
-  --accent-glow: rgb(111 216 193 / 0.14);
-  --success: #7ed98a;
-  --success-bg: rgb(126 217 138 / 0.15);
-  --warning: #f0b45c;
-  --warning-bg: rgb(240 180 92 / 0.16);
-  --danger: #f39184;
-  --danger-bg: rgb(240 124 108 / 0.16);
-  --info: #7fb4f0;
+  --border: color-mix(in srgb, var(--white) 8%, transparent);
+  --border-hover: color-mix(in srgb, var(--white) 17%, transparent);
+  --text: var(--gray-100);
+  --muted: var(--gray-300);
+  --faint: var(--gray-400);
+  --success: var(--green-300);
+  --success-bg: color-mix(in srgb, var(--green-300) 15%, transparent);
+  --warning: var(--amber-300);
+  --warning-bg: color-mix(in srgb, var(--amber-300) 16%, transparent);
+  --danger: var(--red-300);
+  --danger-bg: color-mix(in srgb, var(--red-300) 16%, transparent);
+  --info: var(--blue-300);
+  /* Ghế đã đặt: xám trong mờ, không lẫn với xanh "Còn trống". */
+  --booked-bg: color-mix(in srgb, var(--gray-200) 40%, transparent);
+  /* Chữ trên ô logo dải màu và núm công tắc/đồng hồ. */
+  --on-brand-mark: var(--white);
+  --knob: var(--white);
+  --scrim: color-mix(in srgb, var(--gray-900) 60%, transparent);
+  --count-on-active: color-mix(in srgb, var(--black) 18%, transparent);
+  --inset-highlight: color-mix(in srgb, var(--white) 6%, transparent);
+  --shadow-sm: 0 4px 12px -2px color-mix(in srgb, var(--black) 35%, transparent);
+  --panel-shadow: 0 20px 50px color-mix(in srgb, var(--black) 35%, transparent);
+  --overlay-shadow: 0 20px 64px
+    color-mix(in srgb, var(--black) 45%, transparent);
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a3a9b5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  /* Màu thương hiệu (theme tối). */
+  --brand-from: #6366f1;
+  --brand-to: #06b6d4;
+  --brand-gradient: linear-gradient(135deg, #6366f1, #06b6d4);
+  --bg-glow-1: rgb(99 102 241 / 0.12);
+  --bg-glow-2: rgb(6 182 212 / 0.06);
+  --primary-gradient: linear-gradient(135deg, #6164ec, #047f94);
+  --primary-gradient-hover: linear-gradient(135deg, #5558d0, #047082);
+  --on-primary-gradient: #ffffff;
+  --accent: #9294f5;
+  --primary: #9294f5;
+  --primary-hover: #a6a7f7;
+  --on-primary: #191a3c;
+  --accent-glow: rgb(146 148 245 / 0.14);
+  /* Kích thước (không phải màu). */
   --radius-control: 0.8125rem;
   --radius-panel: 1.375rem;
   --control-height: 2.75rem;
   --page-padding: 1rem;
   --panel-padding: 1rem;
-  --panel-shadow: 0 20px 50px rgb(0 0 0 / 0.35);
-  --overlay-shadow: 0 20px 64px rgb(0 0 0 / 0.45);
-  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a9a6a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
+/* ---- 2. Biến theo vai trò — theme sáng ---- */
 html[data-theme="light"] {
   color-scheme: light;
-  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364625d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  --bg: #efebe4;
-  --bg-glow-1: rgb(222 170 110 / 0.28);
-  --bg-glow-2: rgb(72 180 160 / 0.16);
-  --glass: rgb(255 255 255 / 0.7);
-  --glass-strong: rgb(255 255 255 / 0.92);
-  --panel: #fbfaf7;
-  --surface: #f2efe9;
-  --surface-hover: #e9e5dd;
-  --border: rgb(0 0 0 / 0.08);
-  --border-hover: rgb(0 0 0 / 0.2);
-  --text: #1f2120;
-  --muted: #5f5d58;
-  --faint: #7a7771;
-  --accent: #157a67;
-  --primary: #157a67;
-  --primary-hover: #106454;
-  --on-primary: #fff;
-  --accent-glow: rgb(31 158 134 / 0.13);
-  --success: #2b7339;
-  --success-bg: rgb(47 154 69 / 0.13);
-  --warning: #85560c;
-  --warning-bg: rgb(192 122 28 / 0.15);
-  --danger: #b03a2d;
-  --danger-bg: rgb(201 72 58 / 0.12);
-  --info: #2f69b0;
-  --panel-shadow: 0 18px 40px rgb(60 50 30 / 0.12);
-  --overlay-shadow: 0 20px 64px rgb(60 50 30 / 0.24);
+  --bg: var(--gray-100);
+  --panel: var(--gray-25);
+  --surface: var(--gray-50);
+  --surface-hover: var(--gray-150);
+  --glass: color-mix(in srgb, var(--white) 70%, transparent);
+  --glass-strong: color-mix(in srgb, var(--white) 92%, transparent);
+  --border: color-mix(in srgb, var(--black) 8%, transparent);
+  --border-hover: color-mix(in srgb, var(--black) 20%, transparent);
+  --text: var(--gray-850);
+  --muted: var(--gray-600);
+  --faint: var(--gray-500);
+  --success: var(--green-700);
+  --success-bg: color-mix(in srgb, var(--green-700) 13%, transparent);
+  --warning: var(--amber-700);
+  --warning-bg: color-mix(in srgb, var(--amber-700) 14%, transparent);
+  --danger: var(--red-700);
+  --danger-bg: color-mix(in srgb, var(--red-700) 12%, transparent);
+  --info: var(--blue-700);
+  --booked-bg: color-mix(in srgb, var(--gray-300) 40%, transparent);
+  --scrim: color-mix(in srgb, var(--gray-900) 45%, transparent);
+  --count-on-active: color-mix(in srgb, var(--white) 22%, transparent);
+  --inset-highlight: color-mix(in srgb, var(--white) 60%, transparent);
+  --shadow-sm: 0 4px 12px -2px
+    color-mix(in srgb, var(--gray-900) 14%, transparent);
+  --panel-shadow: 0 18px 40px
+    color-mix(in srgb, var(--gray-900) 12%, transparent);
+  --overlay-shadow: 0 20px 64px
+    color-mix(in srgb, var(--gray-900) 24%, transparent);
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23555c69' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  /* Màu thương hiệu (theme sáng). */
+  --brand-from: #6366f1;
+  --brand-to: #06b6d4;
+  --brand-gradient: linear-gradient(135deg, #6366f1, #06b6d4);
+  --bg-glow-1: rgb(99 102 241 / 0.08);
+  --bg-glow-2: rgb(6 182 212 / 0.05);
+  --primary-gradient: linear-gradient(135deg, #6164ec, #047f94);
+  --primary-gradient-hover: linear-gradient(135deg, #5558d0, #047082);
+  --on-primary-gradient: #ffffff;
+  --accent: #575ad4;
+  --primary: #575ad4;
+  --primary-hover: #474aae;
+  --on-primary: #ffffff;
+  --accent-glow: rgb(87 90 212 / 0.13);
 }
+/* @end-color-tokens — sau dòng này không viết mã màu, chỉ dùng var(--...). */
 
 @media (min-width: 640px) {
   :root {
@@ -88,6 +163,7 @@ html[data-theme="light"] {
 
 @theme inline {
   --color-panel: var(--panel);
+  --color-knob: var(--knob);
   --color-surface: var(--surface);
   --color-line: var(--border);
   --color-ink: var(--text);
@@ -175,7 +251,7 @@ fieldset:disabled button {
     background: var(--surface);
   }
   .pn-tabs > button[aria-pressed="true"] .pn-tabs-count {
-    background: rgb(0 0 0 / 0.18);
+    background: var(--count-on-active);
     color: inherit;
   }
   .pn-filter-chips {
@@ -201,7 +277,7 @@ fieldset:disabled button {
   }
   .pn-switch > span::after {
     content: "";
-    @apply absolute top-[3px] left-[3px] size-[22px] rounded-full bg-white shadow transition-[translate];
+    @apply absolute top-[3px] left-[3px] size-[22px] rounded-full bg-knob shadow transition-[translate];
   }
   .pn-switch[aria-checked="true"] > span {
     background: var(--accent);
@@ -276,14 +352,15 @@ fieldset:disabled button {
     background: var(--surface-hover);
     color: var(--text);
   }
+  /* Nút chính dùng dải màu thương hiệu như favicon (đầu màu đã làm đậm cho chữ trắng đọc được). */
   .btn-primary {
     border-color: transparent;
-    background: var(--primary);
-    color: var(--on-primary);
+    background: var(--primary-gradient);
+    color: var(--on-primary-gradient);
   }
   .btn-primary:hover:not(:disabled) {
-    background: var(--primary-hover);
-    color: var(--on-primary);
+    background: var(--primary-gradient-hover);
+    color: var(--on-primary-gradient);
   }
   .btn-ghost {
     border-color: transparent;
@@ -481,7 +558,7 @@ fieldset:disabled button {
   /* Ghế đã đặt: nền xám trong mờ (đề xuất 22/11) để không lẫn với xanh "Còn trống". */
   .pn-tone[data-tone="booked"] {
     --tone-fg: var(--text);
-    --tone-bg: #cecece69;
+    --tone-bg: var(--booked-bg);
   }
   .pn-badge {
     @apply inline-flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold leading-none;
@@ -491,8 +568,10 @@ fieldset:disabled button {
   }
   .pn-brand {
     @apply grid size-10 shrink-0 place-items-center rounded-xl text-lg font-bold;
-    background: var(--primary);
-    color: var(--on-primary);
+    /* Dải màu thương hiệu như favicon; chữ trắng có bóng nhẹ để đọc được cả ở đầu màu sáng. */
+    background: var(--brand-gradient);
+    color: var(--on-brand-mark);
+    text-shadow: 0 1px 2px color-mix(in srgb, var(--black) 25%, transparent);
   }
   .pn-chip {
     @apply inline-flex items-center gap-2 rounded-xl border border-line bg-surface/50 px-3 py-2 text-ink;
@@ -558,7 +637,7 @@ fieldset:disabled button {
   }
 }
 .pn-dialog::backdrop {
-  background: rgb(10 10 8 / 0.55);
+  background: var(--scrim);
   backdrop-filter: blur(2px);
 }
 .pn-dialog[data-drawer] {
@@ -610,8 +689,8 @@ html[data-sidebar="collapsed"] {
   background: var(--panel);
   color: var(--muted);
   box-shadow:
-    0 1px 0 rgb(255 255 255 / 0.06) inset,
-    0 4px 12px -2px rgb(0 0 0 / 0.35);
+    0 1px 0 var(--inset-highlight) inset,
+    var(--shadow-sm);
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -727,8 +806,9 @@ html[data-sidebar="collapsed"] .pn-sidebar .btn-ghost span {
 .pn-nav-badge,
 .pn-bell-badge {
   @apply grid min-w-5 place-items-center rounded-full px-1.5 text-[11px] leading-5 font-semibold tabular-nums;
-  background: var(--warning-bg);
-  color: var(--warning);
+  /* Số đếm thường là trung tính; vàng chỉ dành cho cảnh báo thật. */
+  background: var(--surface-hover);
+  color: var(--text);
 }
 .pn-nav-badge {
   margin-left: auto;
@@ -745,14 +825,15 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
   height: 0.5rem;
   padding: 0;
   font-size: 0;
-  background: var(--warning);
+  background: var(--accent);
 }
 .pn-bell-badge {
   position: absolute;
   top: -0.25rem;
   right: -0.25rem;
-  background: var(--warning);
-  color: var(--bg);
+  /* Có việc chưa đọc: màu thương hiệu (không dùng vàng cảnh báo cho số đếm). */
+  background: var(--primary);
+  color: var(--on-primary);
   box-shadow: 0 0 0 2px var(--panel);
 }
 .pn-topbar {
@@ -776,8 +857,8 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
 }
 .pn-avatar-round {
   @apply relative grid size-10 shrink-0 place-items-center rounded-full text-sm font-semibold;
-  background: linear-gradient(135deg, #f3d9a8, #e8b77a);
-  color: #3a2a12;
+  background: var(--accent-glow);
+  color: var(--accent);
 }
 /* Menu tài khoản ở topbar. Topbar không có overflow nên menu absolute không bị cắt. */
 .pn-avatar-btn {
@@ -874,7 +955,7 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
 }
 .pn-mini-switch::after {
   content: "";
-  @apply absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow;
+  @apply absolute top-0.5 left-0.5 size-4 rounded-full bg-knob shadow;
   transition: translate 160ms ease;
 }
 [aria-checked="true"] > .pn-mini-switch {
@@ -922,8 +1003,8 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
   @apply flex min-h-12 min-w-0 flex-auto flex-col items-center justify-center gap-1 rounded-[0.875rem] px-1 text-[11px] font-medium text-muted;
 }
 .pn-bottom-nav > a[aria-current="page"] {
-  background: var(--primary);
-  color: var(--on-primary);
+  background: var(--primary-gradient);
+  color: var(--on-primary-gradient);
 }
 .pn-bottom-nav span {
   @apply max-w-full truncate;
@@ -1026,4 +1107,392 @@ html[data-sidebar="collapsed"] .pn-sidebar .pn-nav-badge {
 
 .pn-auth {
   --control-height: 3rem;
+}
+
+/* Cài đặt › Màu giao diện: ô màu gợi ý, ô chọn màu và khung xem trước. */
+.pn-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+.pn-swatch {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  transition: translate 0.15s ease;
+}
+.pn-swatch:hover:not(:disabled) {
+  translate: 0 -2px;
+}
+.pn-swatch[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2px var(--panel),
+    0 0 0 4px var(--text);
+}
+.pn-swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.pn-color-well {
+  flex-shrink: 0;
+  width: var(--control-height);
+  height: var(--control-height);
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  cursor: pointer;
+}
+.pn-color-well::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+/* Hai bộ chọn riêng: trình duyệt bỏ cả quy tắc nếu gặp pseudo-element lạ. */
+.pn-color-well::-webkit-color-swatch {
+  border: 0;
+  border-radius: 0.5rem;
+}
+.pn-color-well::-moz-color-swatch {
+  border: 0;
+  border-radius: 0.5rem;
+}
+.pn-color-well:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.pn-brand-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
+}
+.pn-brand-preview-bar {
+  flex: 1 1 6rem;
+  min-width: 6rem;
+  height: 0.5rem;
+  border-radius: 999px;
+}
+
+/* Bộ chọn khoảng ngày dùng chung (DateRangePicker): nút giống ô nhập, popup cùng kiểu menu tài khoản/chuông. */
+.pn-date-trigger {
+  @apply inline-flex max-w-full items-center gap-2 text-left text-sm font-medium text-ink;
+  min-height: var(--control-height);
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-control);
+  background: var(--panel);
+  transition: border-color 140ms ease;
+}
+.pn-date-trigger > svg {
+  @apply shrink-0;
+  color: var(--muted);
+}
+.pn-date-trigger:hover,
+.pn-date-trigger[aria-expanded="true"] {
+  border-color: var(--accent);
+}
+.pn-date-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.pn-date-trigger-chevron {
+  transition: rotate 140ms ease;
+}
+.pn-date-trigger[aria-expanded="true"] .pn-date-trigger-chevron {
+  rotate: 180deg;
+}
+.pn-account-menu.pn-date-pop {
+  display: flex;
+  width: auto;
+  padding: 0;
+  overflow: hidden;
+}
+.pn-account-menu.pn-date-pop-start {
+  right: auto;
+  left: 0;
+  transform-origin: top left;
+}
+.pn-date-presets {
+  @apply flex w-36 shrink-0 flex-col gap-0.5 p-1.5;
+  border-right: 1px solid var(--border);
+}
+.pn-date-presets > button {
+  @apply flex min-h-10 w-full items-center rounded-[0.625rem] px-3 text-left text-sm;
+  color: var(--text);
+}
+.pn-date-presets > button:hover,
+.pn-date-presets > button:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+.pn-date-presets > button[aria-pressed="true"] {
+  background: var(--accent-glow);
+  color: var(--accent);
+  font-weight: 600;
+}
+.pn-date-main {
+  @apply min-w-0 p-3;
+}
+.pn-date-head {
+  @apply mb-2 flex items-center gap-3 border-b border-line px-1 pb-2.5 text-sm font-medium tabular-nums;
+}
+.pn-date-head > span:first-child,
+.pn-date-head > span:last-child {
+  @apply min-w-24;
+}
+.pn-date-months {
+  @apply flex gap-5;
+}
+.pn-date-month {
+  @apply w-[16.5rem];
+}
+.pn-date-month-head {
+  @apply mb-1 flex items-center justify-between text-sm;
+}
+.pn-date-nav {
+  @apply grid size-8 place-items-center rounded-lg;
+  color: var(--muted);
+}
+.pn-date-nav:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  color: var(--text);
+}
+.pn-date-nav:disabled {
+  opacity: 0.35;
+}
+.pn-date-nav:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.pn-date-grid {
+  @apply grid grid-cols-7 text-center text-sm tabular-nums;
+  row-gap: 2px;
+}
+.pn-date-wd {
+  @apply grid h-8 place-items-center text-xs font-medium;
+  color: var(--muted);
+}
+.pn-date-out {
+  @apply grid h-9 place-items-center;
+  color: var(--faint);
+  opacity: 0.45;
+}
+.pn-date-day {
+  @apply relative grid h-9 place-items-center;
+  color: var(--text);
+}
+/* Nền khoảng giữa nối liền thành dải; hai đầu là ô đặc màu nhấn. */
+.pn-date-day[data-inside],
+.pn-date-day[data-start]:not([data-end]),
+.pn-date-day[data-end]:not([data-start]) {
+  background: var(--accent-glow);
+}
+.pn-date-day[data-start]:not([data-end]) {
+  border-radius: 0.625rem 0 0 0.625rem;
+}
+.pn-date-day[data-end]:not([data-start]) {
+  border-radius: 0 0.625rem 0.625rem 0;
+}
+.pn-date-day::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  border-radius: 0.5rem;
+}
+.pn-date-day {
+  isolation: isolate;
+}
+.pn-date-day:hover:not([aria-disabled])::before {
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+}
+.pn-date-day[data-edge] {
+  color: var(--on-primary);
+  font-weight: 600;
+}
+.pn-date-day[data-edge]::before {
+  background: var(--primary);
+}
+.pn-date-day[data-edge]:hover::before {
+  background: var(--primary-hover);
+}
+/* Hôm nay: nền + viền màu nhấn, chữ đậm — nổi hơn dải khoảng đã chọn (chỉ tô nhạt). */
+.pn-date-day[aria-current="date"]:not([data-edge]) {
+  color: var(--accent);
+  font-weight: 700;
+}
+.pn-date-day[aria-current="date"]:not([data-edge])::before {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.pn-date-day[aria-current="date"]:not([data-edge]):hover::before {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.pn-date-day[aria-disabled] {
+  cursor: not-allowed;
+  color: var(--faint);
+  opacity: 0.45;
+}
+.pn-date-day:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 0.5rem;
+}
+.pn-date-note {
+  @apply mt-2 px-1 text-xs;
+  color: var(--muted);
+}
+/* Điện thoại: một tháng, mốc nhanh thành hàng cuộn ngang, popup trải ngang màn hình ngay dưới nút. */
+@media (max-width: 639.98px) {
+  .pn-account-menu.pn-date-pop {
+    position: fixed;
+    left: 1rem;
+    right: 1rem;
+    flex-direction: column;
+    max-height: calc(100dvh - 6rem);
+    overflow-y: auto;
+  }
+  .pn-date-presets {
+    @apply w-auto flex-row overflow-x-auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    scrollbar-width: none;
+  }
+  .pn-date-presets > button {
+    @apply w-auto shrink-0 whitespace-nowrap;
+  }
+  .pn-date-month {
+    @apply w-full;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pn-date-trigger-chevron {
+    transition: none;
+  }
+}
+
+/* Bộ chọn một kỳ (PeriodPicker): một lịch tháng, hoặc lưới 12 tháng / 12 năm; cùng ô chọn với DateRangePicker. */
+.pn-period-pop .pn-date-main {
+  @apply w-[17.5rem];
+}
+.pn-period-pop .pn-date-month-head {
+  @apply mb-2;
+}
+.pn-period-grid {
+  @apply grid grid-cols-3 gap-1 text-sm tabular-nums;
+}
+.pn-date-day.pn-period-cell {
+  @apply h-11;
+}
+.pn-period-foot {
+  @apply mt-2 flex justify-end border-t border-line pt-2;
+}
+@media (max-width: 639.98px) {
+  .pn-period-pop .pn-date-main {
+    @apply w-full;
+  }
+}
+
+/* Chuông thông báo: tiêu đề + nút đánh dấu, hai tab, nhóm Mới / Đã xem; mỗi dòng có biểu tượng tròn và chấm chưa đọc. */
+.pn-account-menu.pn-notif-panel {
+  @apply flex flex-col p-2;
+  width: 23rem;
+  max-height: min(34rem, calc(100dvh - 6rem));
+}
+.pn-notif-head {
+  @apply flex items-center justify-between gap-2 px-2 pt-1 pb-2;
+}
+.pn-notif-head h2 {
+  @apply text-lg font-semibold;
+  color: var(--text);
+}
+.pn-notif-mark {
+  @apply inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-medium;
+  color: var(--accent);
+}
+.pn-notif-mark:hover,
+.pn-notif-mark:focus-visible {
+  outline: none;
+  background: var(--accent-glow);
+}
+.pn-notif-tabs {
+  @apply flex gap-1.5 px-2 pb-2;
+}
+.pn-notif-tabs > button {
+  @apply inline-flex min-h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium;
+  color: var(--muted);
+}
+.pn-notif-tabs > button:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+.pn-notif-tabs > button[aria-pressed="true"] {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+.pn-notif-tabs > button > span {
+  @apply grid min-w-5 place-items-center rounded-full px-1.5 text-[11px] leading-5 font-semibold;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.pn-notif-tabs > button:focus-visible,
+.pn-notif-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.pn-notif-body {
+  @apply min-h-0 flex-1 overflow-y-auto;
+}
+.pn-notif-group + .pn-notif-group {
+  @apply mt-1 border-t border-line pt-1;
+}
+.pn-notif-group > h3 {
+  @apply px-2 pt-1.5 pb-1 text-sm font-semibold;
+  color: var(--text);
+}
+.pn-notif-item {
+  @apply grid w-full grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-[0.75rem] px-2 py-2 text-left text-sm;
+  color: var(--muted);
+}
+.pn-notif-item:hover {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+.pn-notif-icon {
+  @apply grid size-10 place-items-center rounded-full;
+  background: var(--surface);
+  color: var(--muted);
+}
+.pn-notif-item[data-unread] .pn-notif-icon {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+.pn-notif-text {
+  @apply block leading-snug;
+}
+.pn-notif-item[data-unread] .pn-notif-text {
+  color: var(--text);
+}
+.pn-notif-text b {
+  @apply font-semibold;
+  color: var(--text);
+}
+.pn-notif-meta {
+  @apply mt-0.5 block text-xs;
+  color: var(--faint);
+}
+.pn-notif-meta em {
+  @apply font-semibold not-italic;
+  color: var(--accent);
+}
+.pn-notif-dot {
+  @apply size-2.5 rounded-full;
+  background: var(--accent);
+}
+.pn-notif-empty {
+  @apply flex flex-col items-center gap-2 px-4 py-8 text-center text-sm;
+  color: var(--muted);
 }

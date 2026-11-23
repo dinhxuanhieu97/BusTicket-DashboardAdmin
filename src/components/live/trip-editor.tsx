@@ -158,7 +158,10 @@ export function TripEditor({
         </p>
 
         {loadError && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-warning">
+          <div
+            className="pn-tone rounded-xl border border-line p-3 text-sm"
+            data-tone="warning"
+          >
             <p role="alert">{loadError} Đóng và mở lại để tải lại.</p>
           </div>
         )}
@@ -173,7 +176,10 @@ export function TripEditor({
         {options &&
           (!options.routes.length ||
             !options.vehicles.some((v) => v.usable)) && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-warning">
+            <div
+              className="pn-tone rounded-xl border border-line p-3 text-sm"
+              data-tone="warning"
+            >
               <p role="alert">
                 Chưa có tuyến hoặc xe hoạt động với sơ đồ khả dụng. Cần cấu hình
                 tuyến/xe trước khi tạo chuyến.
@@ -416,7 +422,10 @@ export function TripEditor({
         )}
 
         {error && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-warning">
+          <div
+            className="pn-tone rounded-xl border border-line p-3 text-sm"
+            data-tone="warning"
+          >
             <p role="alert">{error}</p>
           </div>
         )}
@@ -462,7 +471,10 @@ export function TripStatusDialog({
         </p>
 
         {error && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-warning">
+          <div
+            className="pn-tone rounded-xl border border-line p-3 text-sm"
+            data-tone="warning"
+          >
             <p role="alert">{error}</p>
           </div>
         )}
@@ -479,7 +491,7 @@ export function TripStatusDialog({
           <button
             className={`btn w-full sm:flex-1 ${
               status === "CLOSED"
-                ? "hover:border-amber-500 hover:text-warning"
+                ? "hover:border-warning hover:text-warning"
                 : "btn-primary"
             }`}
             disabled={busy || !!error}

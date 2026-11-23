@@ -1,5 +1,13 @@
+import type { BrandColors } from "./brand-palette";
+
 /** Thương hiệu nhà xe hiển thị ở trang đăng nhập (null = chưa cấu hình → ẩn khối thương hiệu). */
-export type Brand = { code: string; name: string; logoUrl: string | null };
+export type Brand = {
+  code: string;
+  name: string;
+  logoUrl: string | null;
+  /** Màu giao diện riêng; null = màu mặc định (chàm → lơ). */
+  brandColors: BrandColors | null;
+};
 
 export const OPERATOR_CODE = /^[A-Z]{2,4}$/;
 export const LOGO_MAX_BYTES = 200 * 1024;

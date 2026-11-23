@@ -333,7 +333,7 @@ test("the bell and menu badges show what needs attention (GF2)", async ({
   );
   await bell.click();
   const panel = page.getByRole("region", { name: "Thông báo" });
-  await expect(panel.getByRole("link")).toHaveText([
+  await expect(panel.locator(".pn-notif-text")).toHaveText([
     "5 khoản thu cần đối soát",
     "1 khoản cần hoàn cho khách",
     "1 chuyến đóng bán trong 2 giờ",
@@ -368,11 +368,16 @@ test("phones list what needs attention in the Thêm drawer (GB7)", async ({
   await attention.getByRole("link", { name: /cần hoàn/ }).click();
   await expect(page).toHaveURL(/\/admin\/payments$/);
   await expect(drawer).toHaveCount(0);
+  // Mở một việc là việc đó đã đọc: 7 → 6.
+  const moreAfter = bar.getByRole("button", {
+    name: "Thêm, 6 việc mới cần chú ý",
+  });
+  await expect(moreAfter.locator(".pn-more-badge")).toHaveText("6");
 
   // Từ sm đã có chuông ở topbar: ngăn không lặp lại danh sách, nút "Thêm" không có số.
   await page.setViewportSize({ width: 768, height: 1024 });
-  await expect(more.locator(".pn-more-badge")).toBeHidden();
-  await more.click();
+  await expect(moreAfter.locator(".pn-more-badge")).toBeHidden();
+  await moreAfter.click();
   await expect(drawer.getByRole("region", { name: "Cần chú ý" })).toBeHidden();
   await page.keyboard.press("Escape");
 
@@ -598,4 +603,61 @@ test("pages fade in on navigation and seats grow on hover, unless motion is redu
   await expect(enter).toHaveCSS("animation-name", "none");
   await seat.hover();
   await expect(seat).toHaveCSS("transition-duration", "0s");
+});
+
+test("notification panel groups new and seen items and filters unread", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/audit-logs");
+  const bell = page.getByRole("button", { name: /^Thông báo/ });
+  await bell.click();
+  const panel = page.getByRole("region", { name: "Thông báo" });
+  await expect(panel.getByRole("heading", { name: "Thông báo" })).toBeVisible();
+  const fresh = panel.getByRole("group", { name: "Mới" });
+  await expect(fresh.getByRole("link")).toHaveCount(3);
+  await expect(fresh.getByRole("link").first()).toContainText("5 mới · Sổ thu");
+  await expect(fresh.locator(".pn-notif-dot")).toHaveCount(3);
+  await expect(panel.getByRole("group", { name: "Đã xem" })).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: /^Chưa đọc/ })).toContainText(
+    "7",
+  );
+
+  await panel.getByRole("button", { name: "Đánh dấu đã đọc tất cả" }).click();
+  const seen = panel.getByRole("group", { name: "Đã xem" });
+  await expect(seen.getByRole("link")).toHaveCount(3);
+  await expect(seen.getByRole("link").last()).toContainText(
+    "Đã xem · Chuyến xe",
+  );
+  await expect(panel.locator(".pn-notif-dot")).toHaveCount(0);
+  await panel.getByRole("button", { name: "Chưa đọc", exact: true }).click();
+  await expect(panel).toContainText("Bạn đã xem hết thông báo mới.");
+  await panel.getByRole("button", { name: "Tất cả", exact: true }).click();
+  await expect(seen.getByRole("link")).toHaveCount(3);
+});
+
+test("opening one notification marks only that one read and lowers the count", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/audit-logs");
+  const bell = page.getByRole("button", { name: /^Thông báo/ });
+  await expect(bell.locator(".pn-bell-badge")).toHaveText("7");
+  await bell.click();
+  const panel = page.getByRole("region", { name: "Thông báo" });
+  await panel.getByRole("link", { name: /cần đối soát/ }).click();
+  await expect(page).toHaveURL(/\/admin\/payments$/);
+  // 5 khoản cần đối soát đã xem; còn 1 cần hoàn + 1 chuyến sắp đóng bán.
+  await expect(bell).toHaveAccessibleName("Thông báo: 2 việc mới cần chú ý");
+  await expect(bell.locator(".pn-bell-badge")).toHaveText("2");
+  await bell.click();
+  await expect(
+    panel.getByRole("group", { name: "Mới" }).getByRole("link"),
+  ).toHaveCount(2);
+  const seen = panel.getByRole("group", { name: "Đã xem" });
+  await expect(seen.getByRole("link")).toHaveCount(1);
+  await expect(seen).toContainText("5 khoản thu cần đối soát");
+  // Giữ sau khi tải lại trang.
+  await page.reload();
+  await expect(bell.locator(".pn-bell-badge")).toHaveText("2");
 });
