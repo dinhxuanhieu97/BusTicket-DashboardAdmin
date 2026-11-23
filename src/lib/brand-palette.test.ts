@@ -47,6 +47,12 @@ test("every colour pair keeps accent text and button labels readable (AA 4.5:1) 
       contrast(light["--on-primary"], light["--primary"]) >= 4.5,
       `${c.from} light button`,
     );
+    // Nút chính dùng dải màu: chữ trắng phải đọc được ở cả hai đầu dải.
+    for (const end of light["--primary-gradient"].match(/#[0-9a-f]{6}/g)!)
+      assert.ok(
+        contrast("#ffffff", end) >= 4.5,
+        `${c.from} button gradient ${end}`,
+      );
     assert.equal(
       dark["--brand-gradient"],
       `linear-gradient(135deg, ${c.from}, ${c.to})`,

@@ -433,8 +433,8 @@ function BrandColorSettings({
           className="btn pointer-events-none"
           aria-hidden="true"
           style={{
-            background: preview["--primary"],
-            color: preview["--on-primary"],
+            background: preview["--primary-gradient"],
+            color: preview["--on-primary-gradient"],
             borderColor: "transparent",
           }}
         >

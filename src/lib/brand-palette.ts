@@ -83,6 +83,14 @@ export function brandPalette(colors: BrandColors) {
   const from = colors.from.toLowerCase(),
     to = colors.to.toLowerCase();
   const gradient = `linear-gradient(135deg, ${from}, ${to})`;
+  // Nút chính: cùng dải màu nhưng hai đầu đậm vừa đủ để chữ trắng đạt AA ở mọi điểm của dải, dùng chung hai theme.
+  const deepFrom = readableOn(from, ["#ffffff"], "#000000"),
+    deepTo = readableOn(to, ["#ffffff"], "#000000");
+  const button: PaletteTokens = {
+    "--primary-gradient": `linear-gradient(135deg, ${deepFrom}, ${deepTo})`,
+    "--primary-gradient-hover": `linear-gradient(135deg, ${mix(deepFrom, "#000000", 0.12)}, ${mix(deepTo, "#000000", 0.12)})`,
+    "--on-primary-gradient": "#ffffff",
+  };
 
   // Theme tối: accent sáng lên cho đọc được trên nền tối; chữ trên nút dùng màu đậm cùng sắc.
   const darkAccent = readableOn(from, DARK_BACKGROUNDS, "#ffffff");
@@ -102,6 +110,7 @@ export function brandPalette(colors: BrandColors) {
     "--accent-glow": rgba(darkAccent, 0.14),
     "--bg-glow-1": rgba(from, 0.2),
     "--bg-glow-2": rgba(to, 0.14),
+    ...button,
   };
 
   // Theme sáng: accent đậm lại cho đọc được trên nền sáng; nút dùng chữ trắng.
@@ -118,6 +127,7 @@ export function brandPalette(colors: BrandColors) {
     "--accent-glow": rgba(lightAccent, 0.13),
     "--bg-glow-1": rgba(from, 0.18),
     "--bg-glow-2": rgba(to, 0.16),
+    ...button,
   };
   return { dark, light };
 }
