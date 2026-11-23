@@ -263,7 +263,9 @@ test("the avatar opens an account menu that works by mouse and keyboard", async 
   ).toBeInViewport();
   await expect(menu).toHaveCount(0);
   await expect(
-    page.getByText("Hồ sơ, bảo mật đăng nhập và thông tin chung của nhà xe."),
+    page.getByText(
+      "Hồ sơ, bảo mật đăng nhập, thông tin chung và email thông báo của nhà xe.",
+    ),
   ).toBeVisible();
 
   // Đăng xuất từ menu đưa về trang đăng nhập.

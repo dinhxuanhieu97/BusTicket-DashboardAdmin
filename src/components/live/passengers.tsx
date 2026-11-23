@@ -7,6 +7,7 @@ import { tripStates } from "@/lib/overview";
 import { useResource } from "./use-resource";
 import { LoadState, RefreshButton, StatusBadge } from "./shared";
 import { TripPassengersSection } from "./trip-passengers";
+import { BookingQuickView } from "./booking-quick-view";
 
 const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 
@@ -30,6 +31,8 @@ export function Passengers({
   canPay = false,
   initialDate,
   initialTripId,
+  initialBooking,
+  canReadPayments = false,
 }: {
   canExport: boolean;
   /** `booking.create`: nút "Nhập danh sách" khách mới từ file. */
@@ -44,11 +47,24 @@ export function Passengers({
   canPay?: boolean;
   initialDate?: string;
   initialTripId?: string;
+  /** `?booking=MÃ` (link trong email báo nhà xe): mở chi tiết vé ngay trên chuyến `initialTripId`. */
+  initialBooking?: string;
+  /** `payment.read`: xem ảnh chuyển khoản trong chi tiết vé. */
+  canReadPayments?: boolean;
 }) {
   const [date, setDate] = useState(
     initialDate && isDate(initialDate) ? initialDate : vnToday(),
   );
   const [tripId, setTripId] = useState(initialTripId ?? "");
+  const [openBooking, setOpenBooking] = useState(
+    initialTripId && initialBooking ? initialBooking : "",
+  );
+  const closeBooking = () => {
+    setOpenBooking("");
+    const url = new URL(window.location.href);
+    url.searchParams.delete("booking");
+    window.history.replaceState(null, "", url);
+  };
   const { data, error, loading, reload } = useResource<{
     trips: Trip[];
     meta: { fetchedAt: string };
@@ -76,6 +92,18 @@ export function Passengers({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
+      {openBooking && initialTripId && (
+        <BookingQuickView
+          code={openBooking}
+          tripId={initialTripId}
+          listHref={`/admin/passengers?${new URLSearchParams({ date, trip: initialTripId })}`}
+          canEdit={canEdit}
+          canPay={canPay}
+          canBoard={canBoard}
+          canReadPayments={canReadPayments}
+          onClose={closeBooking}
+        />
+      )}
       <PageHero
         title="Hành khách"
         description="Chọn chuyến để xem khách, soát vé, bán tại quầy và xuất danh sách."

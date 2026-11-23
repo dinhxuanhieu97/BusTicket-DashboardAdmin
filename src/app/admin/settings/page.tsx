@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { StatusBadge } from "@/components/live/shared";
 import { GeneralInformation } from "@/components/live/general-information";
+import { AlertSettingsPanel } from "@/components/live/alert-settings";
 import { TwoFactorSettings } from "@/components/live/two-factor-settings";
 import { ChangePasswordForm } from "@/components/live/password-forms";
 import { canManageTrips } from "@/lib/trip-management";
@@ -35,7 +36,9 @@ export default async function Page({
   }
   const { tab } = await searchParams;
   const canReadGeneral = hasPermission(access.session, "policy.write");
-  const showGeneral = canReadGeneral && tab === "general";
+  const canConfigureAlerts = hasPermission(access.session, "alert.configure");
+  const showAlerts = canConfigureAlerts && tab === "alerts";
+  const showGeneral = !showAlerts && canReadGeneral && tab === "general";
   const user = access.session.user;
   const initial = user.fullName
     ? user.fullName.trim().charAt(0).toUpperCase()
@@ -137,7 +140,9 @@ export default async function Page({
         title="Tài khoản & nhà xe"
         description={
           canReadGeneral
-            ? "Hồ sơ, bảo mật đăng nhập và thông tin chung của nhà xe."
+            ? canConfigureAlerts
+              ? "Hồ sơ, bảo mật đăng nhập, thông tin chung và email thông báo của nhà xe."
+              : "Hồ sơ, bảo mật đăng nhập và thông tin chung của nhà xe."
             : "Hồ sơ và bảo mật đăng nhập của bạn."
         }
       />
@@ -148,7 +153,7 @@ export default async function Page({
         <Link
           className="pn-tab"
           href="/admin/settings"
-          aria-current={showGeneral ? undefined : "page"}
+          aria-current={showGeneral || showAlerts ? undefined : "page"}
         >
           Tài khoản
         </Link>
@@ -161,8 +166,21 @@ export default async function Page({
             Thông tin chung
           </Link>
         )}
+        {canConfigureAlerts && (
+          <Link
+            className="pn-tab"
+            href="/admin/settings?tab=alerts"
+            aria-current={showAlerts ? "page" : undefined}
+          >
+            Thông báo email
+          </Link>
+        )}
       </nav>
-      {showGeneral ? (
+      {showAlerts ? (
+        <div className="max-w-3xl">
+          <AlertSettingsPanel mfaEnabled={user.mfaEnabled} />
+        </div>
+      ) : showGeneral ? (
         <GeneralInformation
           mfaEnabled={user.mfaEnabled}
           canConfigurePayments={

@@ -6,6 +6,7 @@ import {
   badgeText,
   markAllSeen,
   navBadges,
+  newProofs,
   parseSeen,
   settleSeen,
   unreadCount,
@@ -100,4 +101,47 @@ test("a broken or foreign saved mark reads as nothing read", () => {
     parseSeen('{"review":2,"refunds":-1,"closing":1.5,"other":3}'),
     { review: 2 },
   );
+});
+
+test("QS01: transfer proofs awaiting a check come first and open the list in place", () => {
+  const items = attentionItems({ ...money, proofsPending: 3 });
+  assert.deepEqual(
+    items.map((i) => [i.key, i.count, i.opens ?? null]),
+    [
+      ["proofs", 3, "proofs"],
+      ["review", 5, null],
+      ["refunds", 1, null],
+      ["closing", 1, null],
+    ],
+  );
+  assert.equal(attentionTotal({ ...money, proofsPending: 3 }), 10);
+});
+
+test("QS01: an older backend without proofsPending, or a role without payment.read, shows no proof item", () => {
+  assert.equal(
+    attentionItems(money).find((i) => i.key === "proofs"),
+    undefined,
+  );
+  assert.equal(
+    attentionItems({ ...money, proofsPending: null }).find(
+      (i) => i.key === "proofs",
+    ),
+    undefined,
+  );
+});
+
+test("QS01: a popup fires only when the count rises after the first load", () => {
+  assert.equal(newProofs(null, 4), 0);
+  assert.equal(newProofs(2, 4), 2);
+  assert.equal(newProofs(4, 4), 0);
+  assert.equal(newProofs(4, 1), 0);
+  assert.equal(newProofs(1, undefined), 0);
+  assert.equal(newProofs(1, null), 0);
+});
+
+test("QS01: read marks keep the proofs key", () => {
+  assert.deepEqual(parseSeen('{"proofs":2,"review":1,"bogus":3}'), {
+    proofs: 2,
+    review: 1,
+  });
 });
