@@ -363,3 +363,27 @@ test("new pages do not scroll sideways on a phone", async ({ page }) => {
     await noHorizontalOverflow(page);
   }
 });
+
+test("revenue chart axis labels stay inside the chart card and never overlap", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await page.goto("/admin/revenue");
+  await pickPreset(page, "30 ngày qua");
+  const card = page.getByRole("region", { name: "Theo ngày" });
+  const labels = card.locator("[data-axis-x] > span");
+  await expect(labels).toHaveCount(7);
+  const box = (await card.boundingBox())!;
+  const spans = await labels.evaluateAll((els) =>
+    els.map((e) => {
+      const r = e.getBoundingClientRect();
+      return { left: r.left, right: r.right };
+    }),
+  );
+  for (const s of spans) {
+    expect(s.left).toBeGreaterThanOrEqual(box.x);
+    expect(s.right).toBeLessThanOrEqual(box.x + box.width);
+  }
+  for (let i = 1; i < spans.length; i++)
+    expect(spans[i].left).toBeGreaterThan(spans[i - 1].right);
+});
