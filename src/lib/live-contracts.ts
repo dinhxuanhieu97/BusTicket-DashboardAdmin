@@ -206,6 +206,29 @@ export const pendingProofsSchema = z.object({
   ),
 });
 export type PendingProofs = z.infer<typeof pendingProofsSchema>;
+/** `GET payment-proof-notices` (F80): lịch sử "khách gửi ảnh chuyển khoản" 7 ngày, kèm trạng thái hiện tại của đơn. */
+export const proofNoticesSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        /** Đổi khi khách gửi thêm ảnh → thành thông báo mới. */
+        id: z.string(),
+        code: z.string(),
+        contactName: z.string().nullable(),
+        trip: z.object({
+          id: z.string(),
+          name: z.string(),
+          departAt: z.string(),
+        }),
+        proofCount: count,
+        at: z.string(),
+        state: z.enum(["PENDING", "CONFIRMED", "EXPIRED", "CANCELLED"]),
+      }),
+    )
+    .max(50),
+});
+export type ProofNotices = z.infer<typeof proofNoticesSchema>;
+export type ProofNotice = ProofNotices["items"][number];
 /** `GET search?q=`: chuyến (trip.read) và đơn (booking.read, `null` khi không có quyền). */
 export const searchResultSchema = z.object({
   q: z.string(),
@@ -251,6 +274,7 @@ export const resourceSchemas = {
   counters: countersSchema,
   search: searchResultSchema,
   "pending-proofs": pendingProofsSchema,
+  "proof-notices": proofNoticesSchema,
   users: z.object({ users: z.array(userSchema) }),
   trips: z.object({
     trips: z.array(tripSchema),

@@ -64,6 +64,104 @@ test("the bell lists transfer proofs first and opens the ticket in place (QS01)"
   );
 });
 
+const notice = (
+  id: string,
+  code: string,
+  state: "PENDING" | "CONFIRMED" | "EXPIRED" | "CANCELLED",
+  name = "Khách Kiểm Thử Một",
+) => ({
+  id,
+  code,
+  contactName: name,
+  trip: {
+    id: "44444444-4444-4444-8444-444444444444",
+    name: "Chuyến kiểm thử",
+    departAt: "2027-02-05T10:30:00.000Z",
+  },
+  proofCount: 1,
+  at: "2027-02-04T08:00:00.000Z",
+  state,
+});
+const setNotices = (page: Page, proofNotices: unknown[], proofsPending = 0) =>
+  page.request.post(fixture + "/__test/state", {
+    data: { proofNotices, proofsPending },
+  });
+
+test("a read transfer-proof notice stays in the bell after the booking is confirmed (F80)", async ({
+  page,
+}) => {
+  await setNotices(page, [
+    notice("proof:TESTB2:1", "TESTB2", "CONFIRMED", "Khách Cũ"),
+  ]);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/audit-logs");
+  const bell = page.getByRole("button", { name: /^Thông báo/ });
+  // Lần đầu trên máy này: thông báo đã có coi như đã đọc; còn 5 đối soát + 1 hoàn + 1 sắp đóng bán.
+  await expect(bell).toHaveAccessibleName("Thông báo: 7 việc mới cần chú ý");
+
+  await setNotices(
+    page,
+    [
+      notice("proof:TESTA1:1", "TESTA1", "PENDING"),
+      notice("proof:TESTB2:1", "TESTB2", "CONFIRMED", "Khách Cũ"),
+    ],
+    1,
+  );
+  await refreshBell(page);
+  await expect(bell).toHaveAccessibleName("Thông báo: 8 việc mới cần chú ý");
+  await bell.click();
+  const panel = page.getByRole("region", { name: "Thông báo" });
+  const fresh = panel.getByRole("group", { name: "Mới" });
+  const seenGroup = panel.getByRole("group", { name: "Đã xem" });
+  // Dòng tổng "ảnh chuyển khoản chờ kiểm" được thay bằng từng thông báo.
+  await expect(panel).not.toContainText("ảnh chuyển khoản chờ kiểm");
+  await expect(fresh.locator('[data-notice="TESTA1"]')).toContainText(
+    "Khách Kiểm Thử Một gửi ảnh chuyển khoản · TESTA1",
+  );
+  await expect(fresh.locator('[data-notice="TESTA1"]')).toContainText(
+    "Chờ kiểm",
+  );
+  await expect(seenGroup.locator('[data-notice="TESTB2"]')).toContainText(
+    "Đã xác nhận",
+  );
+
+  await fresh.locator('[data-notice="TESTA1"]').click();
+  await expect(page.getByRole("dialog", { name: "Vé TESTA1" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // Nhà xe ghi nhận tiền: đơn rời "chờ kiểm" nhưng thông báo vẫn còn, ở nhóm Đã xem.
+  await setNotices(page, [
+    notice("proof:TESTA1:1", "TESTA1", "CONFIRMED"),
+    notice("proof:TESTB2:1", "TESTB2", "CONFIRMED", "Khách Cũ"),
+  ]);
+  await refreshBell(page);
+  await expect(bell).toHaveAccessibleName("Thông báo: 7 việc mới cần chú ý");
+  await bell.click();
+  await expect(seenGroup.locator('[data-notice="TESTA1"]')).toContainText(
+    "Đã xác nhận",
+  );
+  await expect(panel.locator("[data-notice]")).toHaveCount(2);
+  await page.keyboard.press("Escape");
+
+  // Khách gửi thêm ảnh cho cùng đơn → thông báo mới.
+  await setNotices(
+    page,
+    [
+      { ...notice("proof:TESTA1:2", "TESTA1", "PENDING"), proofCount: 2 },
+      notice("proof:TESTB2:1", "TESTB2", "CONFIRMED", "Khách Cũ"),
+    ],
+    1,
+  );
+  await refreshBell(page);
+  await expect(bell).toHaveAccessibleName("Thông báo: 8 việc mới cần chú ý");
+  await bell.click();
+  await expect(fresh.locator('[data-notice="TESTA1"]')).toContainText(
+    "gửi 2 ảnh chuyển khoản",
+  );
+  await panel.getByRole("button", { name: "Đánh dấu đã đọc tất cả" }).click();
+  await expect(bell).toHaveAccessibleName(/^Thông báo: đã đọc/);
+});
+
 test("a new transfer proof pops up a notice with a shortcut to the list (QS01)", async ({
   page,
 }) => {

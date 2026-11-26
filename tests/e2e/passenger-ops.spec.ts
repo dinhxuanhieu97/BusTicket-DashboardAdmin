@@ -516,6 +516,18 @@ test("staff sees the customer's transfer screenshot and opens it through the BFF
   await expect
     .poll(() => thumb.evaluate((img: HTMLImageElement) => img.naturalWidth))
     .toBe(0); // dữ liệu giả không phải ảnh thật; chỉ kiểm tra đường dẫn và header bên dưới
+  // Bấm ảnh: xem trước trong hộp nổi tại chỗ, không mở tab mới.
+  const pagesBefore = page.context().pages().length;
+  await dialog.getByRole("button", { name: /^Xem ảnh chuyển khoản 1/ }).click();
+  const preview = page.getByRole("dialog", { name: "Ảnh chuyển khoản" });
+  await expect(preview.locator("img[data-proof-preview]")).toHaveAttribute(
+    "src",
+    `/api/payment-proofs/${PROOF_ID}`,
+  );
+  expect(page.context().pages().length).toBe(pagesBefore);
+  await preview.getByRole("button", { name: /Đóng/ }).click();
+  await expect(preview).toHaveCount(0);
+  await expect(dialog).toBeVisible();
 
   const img = await request.get(`/api/payment-proofs/${PROOF_ID}`);
   expect(img.status()).toBe(200);

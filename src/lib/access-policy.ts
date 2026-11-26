@@ -104,12 +104,14 @@ export const resourcePermissions: Record<Resource, string> = {
   counters: "trip.read",
   search: "trip.read",
   "pending-proofs": "payment.read",
+  "proof-notices": "payment.read",
 };
 /** Đường dẫn backend khác tên resource. */
 const backendSegments: Partial<Record<Resource, string>> = {
   "revenue-report": "reports/revenue",
   "bookings-report": "reports/bookings",
   "pending-proofs": "pending-payment-proofs",
+  "proof-notices": "payment-proof-notices",
 };
 const validDate = (v: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(v) &&
@@ -156,6 +158,7 @@ export function readPath(
     counters: [],
     search: ["q"],
     "pending-proofs": [],
+    "proof-notices": [],
   };
   if (!Object.hasOwn(allowed, resource))
     throw new ApiError(404, "NOT_FOUND", "Không tìm thấy dữ liệu.");
