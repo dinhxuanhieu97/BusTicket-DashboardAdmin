@@ -12,6 +12,7 @@ import {
   selectable,
   toggleSeat,
   type LegChoice,
+  type PickedSeat,
   type ReinstateContext,
   type ReinstateResult,
 } from "@/lib/late-reinstate";
@@ -384,7 +385,8 @@ function LegPicker({
   );
 }
 
-function SeatPicker({
+/** Sơ đồ chọn chỗ của một chặng (dùng chung với hộp sửa đơn khi đổi chỗ/chuyến). */
+export function SeatPicker({
   detail,
   bookingCode,
   choice,
@@ -395,7 +397,7 @@ function SeatPicker({
   detail: TripDetail;
   bookingCode: string;
   choice: LegChoice;
-  previous: ReinstateContext["legs"][number]["seats"];
+  previous: PickedSeat[];
   onChange: (c: LegChoice) => void;
   disabled: boolean;
 }) {

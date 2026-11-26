@@ -22,6 +22,8 @@ export type CancelInput = z.infer<typeof cancelInput>;
 
 export const refundSchema = z.object({
   id: z.string(),
+  /** CANCEL: hủy đơn đã thu tiền; ADJUST: khách trả dư sau khi đổi vé/giảm số đã thu. API cũ không có. */
+  kind: z.enum(["CANCEL", "ADJUST"]).optional(),
   bookingCode: z.string(),
   amount: z.number().int(),
   reason: z.string(),

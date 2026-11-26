@@ -32,6 +32,7 @@ export function BookingQuickView({
   canPay,
   canBoard,
   canReadPayments,
+  canManageMoney = false,
   onClose,
 }: {
   code: string;
@@ -43,6 +44,8 @@ export function BookingQuickView({
   canBoard: boolean;
   /** `payment.read`: xem ảnh lệnh chuyển khoản khách gửi. */
   canReadPayments: boolean;
+  /** `payment.manage`: chỉnh tay tổng tiền, cọc, giảm số đã thu khi sửa đơn. */
+  canManageMoney?: boolean;
   onClose: () => void;
 }) {
   const { data, error, loading, reload } = useJson<AdminTripPassengers>(
@@ -60,6 +63,7 @@ export function BookingQuickView({
         canEdit={canEdit}
         canPay={canPay}
         canBoard={canBoard}
+        canManageMoney={canManageMoney}
         onClose={() => setEditing(false)}
         onSaved={(text) => {
           setEditing(false);

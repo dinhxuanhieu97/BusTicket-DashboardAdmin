@@ -84,6 +84,7 @@ export function TripPassengersSection({
   canCancel = false,
   canEdit = false,
   canPay = false,
+  canManageMoney = false,
   className = "rounded-xl border border-line/60 bg-surface/20 p-4",
 }: {
   tripId: string;
@@ -95,6 +96,8 @@ export function TripPassengersSection({
   canEdit?: boolean;
   /** `payment.record`: ghi nhận tiền khách trả trong hộp thoại Sửa. */
   canPay?: boolean;
+  /** `payment.manage`: chỉnh tay tổng tiền, cọc, giảm số đã thu trong hộp thoại Sửa. */
+  canManageMoney?: boolean;
   className?: string;
 }) {
   const [scope, setScope] = useState<PassengerScope>("active");
@@ -424,6 +427,7 @@ export function TripPassengersSection({
           canEdit={canEdit}
           canPay={canPay}
           canBoard={canBoard}
+          canManageMoney={canManageMoney}
           onClose={() => setEditing(null)}
           onSaved={(text) => {
             setEditing(null);
@@ -711,7 +715,7 @@ function PassengerRow({
                 aria-hidden="true"
               />
               <span className="w-12 shrink-0 font-mono text-muted">
-                {b.pickupStop ? b.pickupStop.time : "—"}
+                {b.pickupStop?.time || "—"}
                 {b.pickupStop?.day ? (
                   <sup title={`+${b.pickupStop.day} ngày`}>
                     +{b.pickupStop.day}
@@ -729,7 +733,7 @@ function PassengerRow({
                 aria-hidden="true"
               />
               <span className="w-12 shrink-0 font-mono text-muted">
-                {b.dropoffStop ? b.dropoffStop.time : "—"}
+                {b.dropoffStop?.time || "—"}
                 {b.dropoffStop?.day ? (
                   <sup title={`+${b.dropoffStop.day} ngày`}>
                     +{b.dropoffStop.day}

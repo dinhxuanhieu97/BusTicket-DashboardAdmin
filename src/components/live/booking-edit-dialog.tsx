@@ -13,14 +13,20 @@ import {
   localPhone,
   type AdminPassengerBooking,
 } from "@/lib/trip-passengers";
+import { changeLabels, type BookingChangeResult } from "@/lib/booking-change";
 import { useJson } from "./assigned-trips";
+import {
+  BookingChangeSection,
+  type StagedChange,
+} from "./booking-change-section";
 import { PaymentProofList } from "./payment-proofs";
 import { Notice, postJson } from "./shared";
 
 /**
- * Sửa đơn ngay trên danh sách khách, gộp trong một màn: thông tin liên hệ/đón trả/ghi chú (`booking.update`),
- * thu thêm tiền (`payment.record`) và số người lên xe theo từng chỗ (`booking.board`). Một nút lưu chỉ gửi phần
- * đã đổi, theo thứ tự thông tin → lên xe → thu tiền; API vẫn kiểm tra quyền.
+ * Sửa đơn ngay trên danh sách khách, gộp trong một màn: đổi chỗ/chuyến/tiền và thông tin liên hệ/đón trả/ghi chú
+ * (`booking.update`; chỉnh tiền tay cần `payment.manage`), thu thêm tiền (`payment.record`) và số người lên xe theo
+ * từng chỗ (`booking.board`). Một nút lưu chỉ gửi phần đã đổi, theo thứ tự đổi chỗ/chuyến → thông tin → lên xe →
+ * thu tiền; API vẫn kiểm tra quyền.
  */
 export function BookingEditDialog({
   booking: b,
@@ -28,6 +34,7 @@ export function BookingEditDialog({
   canEdit,
   canPay,
   canBoard,
+  canManageMoney = false,
   onClose,
   onSaved,
 }: {
@@ -36,6 +43,8 @@ export function BookingEditDialog({
   canEdit: boolean;
   canPay: boolean;
   canBoard: boolean;
+  /** `payment.manage`: chỉnh tay tổng tiền, cọc, giảm số đã thu. */
+  canManageMoney?: boolean;
   onClose: () => void;
   /** Đã lưu xong: tải lại danh sách và báo cho người dùng. */
   onSaved: (message: string) => void;
@@ -44,7 +53,14 @@ export function BookingEditDialog({
   const open = b.status === "HOLDING" || b.status === "CONFIRMED";
   const showInfo = canEdit && open && !b.contactErased;
   const showPay = canPay && open;
-  const showBoard = canBoard && boardable;
+  const showChange = canEdit && open;
+
+  // Đổi chỗ/chuyến/tiền đang chờ lưu (đã xem trước trên máy chủ). Một khóa cho một lần đổi.
+  const [staged, setStaged] = useState<StagedChange | null>(null);
+  const [changeKey, setChangeKey] = useState(() => crypto.randomUUID());
+  const movesSeats = !!(staged?.body.items || staged?.body.toTripId);
+  const movesTrip = !!staged?.body.toTripId;
+  const showBoard = canBoard && boardable && !movesSeats;
 
   const { data: detail } = useJson<TripDetail>(
     showInfo ? `/api/trip-management/${encodeURIComponent(tripId)}` : null,
@@ -78,7 +94,10 @@ export function BookingEditDialog({
   // Một khóa cho một lần nhập: bấm lại sau lỗi mạng không ghi hai khoản.
   const [payKey, setPayKey] = useState(() => crypto.randomUUID());
   const [paid, setPaid] = useState(0);
-  const due = Math.max(0, b.dueAmount - paid);
+  const due = Math.max(
+    0,
+    (staged?.preview?.booking.dueAmount ?? b.dueAmount) - paid,
+  );
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +125,12 @@ export function BookingEditDialog({
       if (method === "MANUAL_BANK" && reference.trim().length < 3)
         return setError("Chuyển khoản cần mã giao dịch ngân hàng.");
     }
+    if (staged && !staged.preview)
+      return setError(
+        "Phần đổi chỗ/chuyến chưa xem trước xong (đang tính hoặc có lỗi ở trên).",
+      );
     if (
+      !staged &&
       !Object.keys(infoBody).length &&
       !add.length &&
       !remove.length &&
@@ -118,6 +142,29 @@ export function BookingEditDialog({
     setError(null);
     const done: string[] = [];
     try {
+      if (staged) {
+        const r = await postJson<BookingChangeResult>(
+          `/api/bookings/${encodeURIComponent(b.code)}/change`,
+          staged.body,
+          { headers: { "Idempotency-Key": changeKey } },
+        );
+        setChangeKey(crypto.randomUUID());
+        setStaged(null);
+        done.push(
+          r.changed
+            .filter((c) => c !== "status")
+            .map((c) => changeLabels[c] ?? c)
+            .join(", ") +
+            (r.refundAmount > 0
+              ? ` (khoản cần hoàn ${vnd(r.refundAmount)})`
+              : ""),
+        );
+        // Đã sang chuyến khác: điểm đón/trả cũ không còn khớp danh sách của chuyến này.
+        if (movesTrip) {
+          delete infoBody.pickupStop;
+          delete infoBody.dropoffStop;
+        }
+      }
       if (Object.keys(infoBody).length) {
         await postJson<BookingEditResult>(
           `/api/bookings/${encodeURIComponent(b.code)}`,
@@ -176,7 +223,7 @@ export function BookingEditDialog({
   }
 
   const stops = detail?.stops;
-  const nothing = !showInfo && !showPay && !showBoard;
+  const nothing = !showInfo && !showPay && !showBoard && !showChange;
   return (
     <Modal title={`Sửa đơn ${b.code}`} onClose={onClose}>
       <form className="pn-page-stack" onSubmit={submit} noValidate>
@@ -191,6 +238,17 @@ export function BookingEditDialog({
             Đơn này không còn sửa được (đã hủy, hết hạn hoặc khách đã xóa thông
             tin).
           </Notice>
+        )}
+
+        {showChange && (
+          <Part title="Đổi chỗ, chuyến, tiền">
+            <BookingChangeSection
+              booking={b}
+              tripId={tripId}
+              canManageMoney={canManageMoney}
+              onStage={setStaged}
+            />
+          </Part>
         )}
 
         {showInfo && (
@@ -223,6 +281,7 @@ export function BookingEditDialog({
                 stops={stops?.pickup}
                 value={info.pickupStop}
                 onChange={setField("pickupStop")}
+                locked={movesTrip}
               />
               <StopField
                 id="edit-dropoff"
@@ -230,8 +289,15 @@ export function BookingEditDialog({
                 stops={stops?.dropoff}
                 value={info.dropoffStop}
                 onChange={setField("dropoffStop")}
+                locked={movesTrip}
               />
             </div>
+            {movesTrip && (
+              <p className="text-xs text-muted">
+                Đang đổi sang chuyến khác: điểm đón/trả được khớp lại theo
+                chuyến mới khi lưu; chỉnh tiếp sau khi lưu nếu cần.
+              </p>
+            )}
             <Field id="edit-note" label="Ghi chú">
               <textarea
                 id="edit-note"
@@ -242,6 +308,12 @@ export function BookingEditDialog({
               />
             </Field>
           </Part>
+        )}
+
+        {canBoard && boardable && movesSeats && (
+          <Notice tone="info">
+            Đang đổi chỗ/chuyến: đánh dấu lên xe sau khi lưu.
+          </Notice>
         )}
 
         {showBoard && (
@@ -426,14 +498,33 @@ function StopField({
   stops,
   value,
   onChange,
+  locked = false,
 }: {
   id: string;
   label: string;
   stops: TripDetail["stops"]["pickup"] | undefined;
   value: string;
   onChange: (v: string) => void;
+  /** Đang đổi sang chuyến khác: chưa chọn điểm theo chuyến cũ. */
+  locked?: boolean;
 }) {
   const list = stops ?? [];
+  // Tuyến chưa khai báo điểm: gõ tên tự do (lưu không kèm giờ đón).
+  if (stops && !list.length)
+    return (
+      <Field id={id} label={label}>
+        <input
+          id={id}
+          className="field w-full"
+          maxLength={160}
+          placeholder="Tuyến chưa có danh sách điểm: gõ tên điểm"
+          value={value}
+          disabled={locked}
+          onChange={(e) => onChange(e.target.value)}
+          autoComplete="off"
+        />
+      </Field>
+    );
   // Điểm đang lưu không còn trong tuyến (tuyến đã đổi): vẫn hiện để không mất khi lưu phần khác.
   const missing = value && !list.some((s) => s.name === value);
   return (
@@ -442,7 +533,7 @@ function StopField({
         id={id}
         className="field w-full"
         value={value}
-        disabled={!stops}
+        disabled={!stops || locked}
         onChange={(e) => onChange(e.target.value)}
       >
         <option value="">

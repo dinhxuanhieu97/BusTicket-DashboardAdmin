@@ -29,6 +29,7 @@ export function Passengers({
   canCancel = false,
   canEdit = false,
   canPay = false,
+  canManageMoney = false,
   initialDate,
   initialTripId,
   initialBooking,
@@ -45,6 +46,8 @@ export function Passengers({
   canEdit?: boolean;
   /** `payment.record`: thu thêm tiền trong hộp thoại Sửa. */
   canPay?: boolean;
+  /** `payment.manage`: chỉnh tay tổng tiền, cọc, giảm số đã thu khi sửa đơn. */
+  canManageMoney?: boolean;
   initialDate?: string;
   initialTripId?: string;
   /** `?booking=MÃ` (link trong email báo nhà xe): mở chi tiết vé ngay trên chuyến `initialTripId`. */
@@ -99,6 +102,7 @@ export function Passengers({
           listHref={`/admin/passengers?${new URLSearchParams({ date, trip: initialTripId })}`}
           canEdit={canEdit}
           canPay={canPay}
+          canManageMoney={canManageMoney}
           canBoard={canBoard}
           canReadPayments={canReadPayments}
           onClose={closeBooking}
@@ -282,6 +286,7 @@ export function Passengers({
           canCancel={canCancel}
           canEdit={canEdit}
           canPay={canPay}
+          canManageMoney={canManageMoney}
           className="card pn-panel-inset"
         />
       ) : (
