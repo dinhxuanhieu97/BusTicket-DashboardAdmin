@@ -86,3 +86,23 @@ test("money fields are parsed, validated and flagged for payment.manage", () => 
     /Tiền cọc/,
   );
 });
+
+test("confirmWithoutDeposit is sent on its own and needs payment.manage", () => {
+  const body = buildChangeBody({
+    ...base,
+    confirmWithoutDeposit: true,
+    reason: "Nhà xe cho giữ không cọc",
+  });
+  assert.deepEqual(body, {
+    fromTripId: TRIP,
+    confirmWithoutDeposit: true,
+    reason: "Nhà xe cho giữ không cọc",
+    notifyCustomer: true,
+  });
+  assert.ok(touchesMoney(body!));
+  assert.ok(bookingChangeInput.safeParse(body).success);
+  assert.equal(
+    buildChangeBody({ ...base, confirmWithoutDeposit: false }),
+    null,
+  );
+});

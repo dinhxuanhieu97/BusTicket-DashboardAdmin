@@ -151,10 +151,7 @@ export function BookingEditDialog({
         setChangeKey(crypto.randomUUID());
         setStaged(null);
         done.push(
-          r.changed
-            .filter((c) => c !== "status")
-            .map((c) => changeLabels[c] ?? c)
-            .join(", ") +
+          r.changed.map((c) => changeLabels[c] ?? c).join(", ") +
             (r.refundAmount > 0
               ? ` (khoản cần hoàn ${vnd(r.refundAmount)})`
               : ""),

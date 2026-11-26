@@ -29,17 +29,20 @@ export const bookingChangeInput = z
     totalAmount: money.optional(),
     depositAmount: money.optional(),
     refundAmount: z.number().int().min(1).max(MAX_MONEY).optional(),
+    /** Xác nhận đơn đang giữ chỗ dù chưa thu đủ cọc (trường hợp đặc biệt, cần `payment.manage` + lý do). */
+    confirmWithoutDeposit: z.boolean().optional(),
     reason: z.string().trim().max(300, "Lý do tối đa 300 ký tự.").optional(),
     notifyCustomer: z.boolean().default(true),
   })
   .strict();
 export type BookingChangeInput = z.input<typeof bookingChangeInput>;
 
-/** Có trường tiền chỉnh tay → proxy kiểm thêm quyền `payment.manage`. */
+/** Có trường tiền chỉnh tay hoặc xác nhận không cọc → proxy kiểm thêm quyền `payment.manage`. */
 export const touchesMoney = (b: BookingChangeInput) =>
   b.totalAmount !== undefined ||
   b.depositAmount !== undefined ||
-  b.refundAmount !== undefined;
+  b.refundAmount !== undefined ||
+  b.confirmWithoutDeposit === true;
 
 const stopPoint = z.object({
   name: z.string(),
@@ -111,6 +114,8 @@ export function buildChangeBody(s: {
   totalAmount: string;
   depositAmount: string;
   refundAmount: string;
+  /** Xác nhận đơn đang giữ chỗ dù chưa đủ cọc. */
+  confirmWithoutDeposit?: boolean;
   reason: string;
   notifyCustomer: boolean;
 }): BookingChangeInput | null {
@@ -137,6 +142,7 @@ export function buildChangeBody(s: {
     if (key === "refundAmount" && v === 0) continue;
     body[key] = v;
   }
+  if (s.confirmWithoutDeposit) body.confirmWithoutDeposit = true;
   if (!body.toTripId && !body.items && !touchesMoney(body)) return null;
   if (s.reason.trim()) body.reason = s.reason.trim();
   body.notifyCustomer = s.notifyCustomer;

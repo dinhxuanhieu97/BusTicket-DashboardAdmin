@@ -63,6 +63,8 @@ export function BookingChangeSection({
   const [money, setMoney] = useState({ total: "", deposit: "", refund: "" });
   const [reason, setReason] = useState("");
   const [notify, setNotify] = useState(true);
+  const [noDeposit, setNoDeposit] = useState(false);
+  const holding = b.status === "HOLDING";
   const [preview, setPreview] = useState<BookingChangeResult | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
@@ -109,6 +111,7 @@ export function BookingChangeSection({
           totalAmount: money.total,
           depositAmount: money.deposit,
           refundAmount: money.refund,
+          confirmWithoutDeposit: canManageMoney && holding && noDeposit,
           reason,
           notifyCustomer: notify,
         }),
@@ -117,7 +120,19 @@ export function BookingChangeSection({
     } catch (e) {
       return { body: null, error: (e as Error).message };
     }
-  }, [open, tripId, current, toTripId, seats, money, reason, notify]);
+  }, [
+    open,
+    tripId,
+    current,
+    toTripId,
+    seats,
+    money,
+    reason,
+    notify,
+    canManageMoney,
+    holding,
+    noDeposit,
+  ]);
 
   // Xem trước trên máy chủ (giá, cọc, còn thu, khoản cần hoàn); chờ người dùng ngừng gõ 400 ms.
   // Lý do và "báo khách" không đổi kết quả xem trước → không tính lại khi chỉ gõ lý do.
@@ -176,6 +191,7 @@ export function BookingChangeSection({
     setSeats(current);
     setMoney({ total: "", deposit: "", refund: "" });
     setReason("");
+    setNoDeposit(false);
     setDate(currentDetail ? vnDateOf(currentDetail.trip.departAt) : "");
   };
   const tripName = (id: string) =>
@@ -187,7 +203,8 @@ export function BookingChangeSection({
   const now = Date.now();
   const moneyStaged =
     !!money.total.trim() || !!money.deposit.trim() || !!money.refund.trim();
-  const needsReason = moneyStaged || (preview?.refundAmount ?? 0) > 0;
+  const needsReason =
+    moneyStaged || noDeposit || (preview?.refundAmount ?? 0) > 0;
 
   if (!open)
     return (
@@ -300,6 +317,24 @@ export function BookingChangeSection({
             onChange={(v) => setMoney((m) => ({ ...m, refund: v }))}
           />
         </div>
+      )}
+
+      {canManageMoney && holding && (
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={noDeposit}
+            onChange={(e) => setNoDeposit(e.target.checked)}
+          />
+          <span>
+            Xác nhận không cần cọc
+            <span className="block text-xs text-muted">
+              Trường hợp đặc biệt nhà xe cho giữ chỗ khi khách chưa chuyển cọc.
+              Đơn được xác nhận ngay, không còn hạn giữ chỗ; bắt buộc ghi lý do.
+            </span>
+          </span>
+        </label>
       )}
 
       <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
@@ -450,9 +485,16 @@ function Preview({
           toán hoàn cho khách.
         </Notice>
       )}
-      {z.status !== a.status && z.status === "CONFIRMED" && (
-        <Notice tone="success">Đơn sẽ được xác nhận vì đã đủ cọc.</Notice>
-      )}
+      {z.status !== a.status &&
+        z.status === "CONFIRMED" &&
+        (z.paidAmount >= z.depositAmount && z.paidAmount > 0 ? (
+          <Notice tone="success">Đơn sẽ được xác nhận vì đã đủ cọc.</Notice>
+        ) : (
+          <Notice tone="warning">
+            Đơn sẽ được xác nhận khi chưa đủ cọc (đã thu {vnd(z.paidAmount)} /
+            cọc {vnd(z.depositAmount)}): chỗ được giữ, không còn hạn giữ chỗ.
+          </Notice>
+        ))}
       {r.warnings.map((w) => (
         <Notice key={w} tone="warning">
           {w}
