@@ -108,7 +108,7 @@ export function TripPassengersSection({
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{
-    tone: "success" | "danger";
+    tone: "success" | "warning" | "danger";
     text: string;
   } | null>(null);
   const [editing, setEditing] = useState<AdminPassengerBooking | null>(null);
@@ -429,9 +429,9 @@ export function TripPassengersSection({
           canBoard={canBoard}
           canManageMoney={canManageMoney}
           onClose={() => setEditing(null)}
-          onSaved={(text) => {
+          onSaved={(text, tone = "success") => {
             setEditing(null);
-            setMessage({ tone: "success", text });
+            setMessage({ tone, text });
             reload();
           }}
         />
