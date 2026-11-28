@@ -37,7 +37,21 @@ import {
   LifeBuoy,
   TrendingUp,
 } from "lucide-react";
-import { roleLabels, type AppUser, type Counters } from "@/lib/live-contracts";
+import {
+  roleLabels,
+  type AppUser,
+  type Counters,
+  type ProofNotice,
+  type ProofNotices,
+} from "@/lib/live-contracts";
+import {
+  NOTICE_READ_KEY,
+  markAllNoticesRead,
+  markNoticeRead,
+  parseNoticeRead,
+  settleNoticeRead,
+  unreadNotices,
+} from "@/lib/proof-notices";
 import {
   groupNav,
   mobileNav,
@@ -53,7 +67,11 @@ import { LoadState } from "./shared";
 import { BookingQuickView } from "./booking-quick-view";
 import { CommandPalette, type PaletteItem } from "./command-palette";
 import { AttentionLinks, NotificationBell } from "./notification-bell";
-import { PendingProofsDialog, type PendingProofPick } from "./pending-proofs";
+import {
+  PendingProofsDialog,
+  passengersHref,
+  type PendingProofPick,
+} from "./pending-proofs";
 import { ProofAlertToast, type ProofAlert } from "./proof-alert-toast";
 import { useResource } from "./use-resource";
 import {
@@ -113,6 +131,11 @@ export function LiveShell({
   const canReadTrips = granted?.includes("trip.read") ?? true;
   // Chuông + số trên menu (GF2). Backend cũ chưa có `counters` thì lỗi → ẩn chuông, không báo lỗi.
   const counters = useResource<Counters>(canReadTrips ? "counters" : null);
+  // Lịch sử thông báo ảnh chuyển khoản (F80); backend cũ chưa có thì lỗi → chuông dùng bộ đếm như trước.
+  const canReadPayments = granted?.includes("payment.read") ?? true;
+  const notices = useResource<ProofNotices>(
+    canReadPayments ? "proof-notices" : null,
+  );
   const firstPath = useRef(true);
   const reloadCounters = counters.reload;
   useEffect(() => {
@@ -144,8 +167,15 @@ export function LiveShell({
   const [proofAlert, setProofAlert] = useState<ProofAlert | null>(null);
   const [proofsOpen, setProofsOpen] = useState(false);
   const knownProofs = useRef<number | null>(null);
+  const reloadNotices = notices.reload;
+  const [lastNotices, setLastNotices] = useState<ProofNotice[] | null>(null);
+  useEffect(() => {
+    if (notices.data) setLastNotices(notices.data.items);
+    else if (notices.error) setLastNotices(null);
+  }, [notices.data, notices.error]);
   useEffect(() => {
     if (!counters.data) return;
+    if (canReadPayments) reloadNotices();
     setLastCounters(counters.data);
     const fresh = newProofs(knownProofs.current, counters.data.proofsPending);
     if (fresh) setProofAlert({ id: Date.now(), count: fresh });
@@ -185,7 +215,55 @@ export function LiveShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attentionKey, seen]);
   const attentionCount = unreadCount(attention, seen);
-  const markAttentionRead = () => saveSeen(markAllSeen(attention));
+  // Thông báo ảnh chuyển khoản đã đọc: `undefined` = chưa đọc bộ nhớ, `null` = máy này chưa lưu lần nào.
+  const [noticeStored, setNoticeStored] = useState<string[] | null | undefined>(
+    undefined,
+  );
+  useEffect(() => {
+    try {
+      setNoticeStored(parseNoticeRead(localStorage.getItem(NOTICE_READ_KEY)));
+    } catch {
+      setNoticeStored(null);
+    }
+  }, []);
+  const saveNoticeRead = (next: string[]) => {
+    setNoticeStored(next);
+    try {
+      localStorage.setItem(NOTICE_READ_KEY, JSON.stringify(next));
+    } catch {
+      /* Chỉ mất mốc đã đọc khi tải lại trang. */
+    }
+  };
+  const noticeList = noticeStored === undefined ? null : lastNotices;
+  const noticeRead = noticeList
+    ? settleNoticeRead(noticeList, noticeStored!)
+    : [];
+  const noticeReadKey = JSON.stringify(noticeRead);
+  useEffect(() => {
+    if (noticeList && noticeReadKey !== JSON.stringify(noticeStored))
+      saveNoticeRead(noticeRead);
+    // Chỉ lưu khi mốc hiệu lực khác bản đã lưu (lần đầu, hoặc thông báo cũ rời danh sách).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noticeReadKey, noticeList]);
+  // Có lịch sử thì chuông hiện từng thông báo thay cho dòng tổng "ảnh chuyển khoản chờ kiểm".
+  const bellItems = noticeList
+    ? attention.filter((i) => i.key !== "proofs")
+    : attention;
+  const bellUnread =
+    unreadCount(bellItems, seen) +
+    (noticeList ? unreadNotices(noticeList, noticeRead) : 0);
+  const markAttentionRead = () => {
+    saveSeen(markAllSeen(attention));
+    if (noticeList) saveNoticeRead(markAllNoticesRead(noticeList));
+  };
+  const openNotice = (n: ProofNotice) => {
+    saveNoticeRead(markNoticeRead(noticeRead, n));
+    setQuickBooking({
+      code: n.code,
+      tripId: n.trip.id,
+      href: passengersHref(n.trip.id, n.trip.departAt),
+    });
+  };
   const markAttentionItemRead = (item: AttentionItem) =>
     saveSeen(markSeen(seen, item));
   const permissionKey = JSON.stringify(permissions ?? null);
@@ -717,9 +795,12 @@ export function LiveShell({
         )}
         {shownCounters && (
           <NotificationBell
-            items={attention}
+            items={bellItems}
+            notices={noticeList ?? undefined}
+            noticeRead={noticeRead}
+            onPickNotice={openNotice}
             seen={seen}
-            unread={attentionCount}
+            unread={bellUnread}
             onMarkRead={markAttentionRead}
             onReadItem={markAttentionItemRead}
             onOpenProofs={() => setProofsOpen(true)}

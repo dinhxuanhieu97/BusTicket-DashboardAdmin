@@ -169,6 +169,8 @@ let refunds = [];
 let reportsOff = false;
 /** QS01/QS03: số đơn có ảnh chuyển khoản chờ kiểm (đặt qua `/__test/state`) và cấu hình email báo nhà xe. */
 let proofsPending = 0;
+/** F80: lịch sử thông báo ảnh chuyển khoản; `null` = backend cũ chưa có endpoint (404). */
+let proofNotices = null;
 let alertSettings = null;
 let alertTests = 0;
 const TRIP_STOPS = {
@@ -321,6 +323,7 @@ http
       refunds = [];
       reportsOff = false;
       proofsPending = 0;
+      proofNotices = null;
       alertSettings = null;
       alertTests = 0;
       statusOverrides = {};
@@ -353,6 +356,7 @@ http
         extraAudit = body.extraAudit ?? extraAudit;
         reportsOff = body.reportsOff ?? reportsOff;
         proofsPending = body.proofsPending ?? proofsPending;
+        if ("proofNotices" in body) proofNotices = body.proofNotices;
         requireMfa = body.requireMfa ?? requireMfa;
         if (body.revokeSessions)
           for (const sess of sessions.values()) sess.revoked = true;
@@ -2210,6 +2214,13 @@ http
           : null,
         proofsPending: money ? proofsPending : null,
       });
+    }
+    if (resource === "payment-proof-notices") {
+      if (proofNotices === null)
+        return send(res, 404, {
+          error: { code: "NOT_FOUND", message: "Không tìm thấy." },
+        });
+      return send(res, 200, { items: proofNotices });
     }
     if (resource === "pending-payment-proofs") {
       // Đơn đầu là TESTA1 (có trong danh sách khách chuyến 4444…) để mở được chi tiết vé.

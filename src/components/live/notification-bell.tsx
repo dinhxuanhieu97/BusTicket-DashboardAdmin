@@ -17,6 +17,9 @@ import {
   type AttentionItem,
   type AttentionSeen,
 } from "@/lib/attention";
+import { vnDateOf, vnTime, type ProofNotice } from "@/lib/live-contracts";
+import { isNoticeUnread, noticeState } from "@/lib/proof-notices";
+import { StatusBadge } from "./shared";
 
 const icons = {
   proofs: ImageIcon,
@@ -38,8 +41,15 @@ export function NotificationBell({
   onReadItem,
   onOpenProofs,
   onOpenPanel,
+  notices = [],
+  noticeRead = [],
+  onPickNotice,
 }: {
   items: AttentionItem[];
+  /** Lịch sử "khách gửi ảnh chuyển khoản" (F80): từng thông báo, giữ lại cả khi đơn đã xử lý. */
+  notices?: ProofNotice[];
+  noticeRead?: readonly string[];
+  onPickNotice?: (notice: ProofNotice) => void;
   /** Mốc đã đọc của từng loại việc (để tách nhóm Mới / Đã xem). */
   seen: AttentionSeen;
   unread: number;
@@ -57,9 +67,11 @@ export function NotificationBell({
   const button = useRef<HTMLButtonElement>(null);
   const panelId = useId();
   const titleId = useId();
-  const total = items.reduce((t, i) => t + i.count, 0);
+  const total = items.reduce((t, i) => t + i.count, 0) + notices.length;
   const fresh = items.filter((i) => unreadOf(i, seen) > 0);
   const read = items.filter((i) => unreadOf(i, seen) === 0);
+  const freshNotices = notices.filter((n) => isNoticeUnread(n, noticeRead));
+  const readNotices = notices.filter((n) => !isNoticeUnread(n, noticeRead));
 
   useEffect(() => {
     if (!open) return;
@@ -74,8 +86,16 @@ export function NotificationBell({
     if (unreadOf(item, seen) > 0) onReadItem?.(item);
     setOpen(false);
   };
-  const group = (title: string, list: AttentionItem[]) =>
-    list.length > 0 && (
+  const pickNotice = (n: ProofNotice) => {
+    onPickNotice?.(n);
+    setOpen(false);
+  };
+  const group = (
+    title: string,
+    list: AttentionItem[],
+    noticeList: ProofNotice[],
+  ) =>
+    list.length + noticeList.length > 0 && (
       <div className="pn-notif-group" role="group" aria-label={title}>
         <h3 aria-hidden="true">{title}</h3>
         <ul>
@@ -86,6 +106,15 @@ export function NotificationBell({
                 fresh={unreadOf(item, seen)}
                 onPick={pick}
                 onOpenProofs={onOpenProofs}
+              />
+            </li>
+          ))}
+          {noticeList.map((n) => (
+            <li key={n.id}>
+              <NoticeItem
+                notice={n}
+                unread={isNoticeUnread(n, noticeRead)}
+                onPick={pickNotice}
               />
             </li>
           ))}
@@ -179,26 +208,69 @@ export function NotificationBell({
             </button>
           </div>
           <div className="pn-notif-body scrollbar-clean">
-            {items.length === 0 ? (
+            {items.length + notices.length === 0 ? (
               <p className="pn-notif-empty">
                 <BellOff size={20} aria-hidden="true" />
                 Không có việc nào cần xử lý.
               </p>
-            ) : onlyUnread && fresh.length === 0 ? (
+            ) : onlyUnread && fresh.length + freshNotices.length === 0 ? (
               <p className="pn-notif-empty">
                 <CheckCheck size={20} aria-hidden="true" />
                 Bạn đã xem hết thông báo mới.
               </p>
             ) : (
               <>
-                {group("Mới", fresh)}
-                {!onlyUnread && group("Đã xem", read)}
+                {group("Mới", fresh, freshNotices)}
+                {!onlyUnread && group("Đã xem", read, readNotices)}
               </>
             )}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+/** `HH:mm dd/MM` giờ VN. */
+const shortTime = (value: string) =>
+  `${vnTime(value)} ${vnDateOf(value).slice(8, 10)}/${vnDateOf(value).slice(5, 7)}`;
+
+/** Một thông báo "khách gửi ảnh chuyển khoản": tên khách, mã đơn, trạng thái hiện tại; bấm mở chi tiết vé. */
+function NoticeItem({
+  notice: n,
+  unread,
+  onPick,
+}: {
+  notice: ProofNotice;
+  unread: boolean;
+  onPick: (n: ProofNotice) => void;
+}) {
+  const state = noticeState[n.state];
+  return (
+    <button
+      type="button"
+      className="pn-notif-item"
+      data-unread={unread || undefined}
+      data-notice={n.code}
+      onClick={() => onPick(n)}
+    >
+      <span className="pn-notif-icon" aria-hidden="true">
+        <ImageIcon size={18} />
+      </span>
+      <span className="min-w-0">
+        <span className="pn-notif-text">
+          <b>{n.contactName || "Khách"}</b> gửi
+          {n.proofCount > 1 ? ` ${n.proofCount} ảnh` : " ảnh"} chuyển khoản ·{" "}
+          <span className="font-mono">{n.code}</span>
+        </span>
+        <span className="pn-notif-meta flex flex-wrap items-center gap-x-1.5 gap-y-1">
+          <StatusBadge tone={state.tone} label={state.label} />
+          <span className="tabular-nums">{shortTime(n.at)}</span>
+          <span className="truncate">· {n.trip.name}</span>
+        </span>
+      </span>
+      {unread && <span className="pn-notif-dot" aria-hidden="true" />}
+    </button>
   );
 }
 
