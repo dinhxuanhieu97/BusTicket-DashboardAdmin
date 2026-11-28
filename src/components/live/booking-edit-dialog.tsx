@@ -46,8 +46,11 @@ export function BookingEditDialog({
   /** `payment.manage`: chỉnh tay tổng tiền, cọc, giảm số đã thu. */
   canManageMoney?: boolean;
   onClose: () => void;
-  /** Đã lưu xong: tải lại danh sách và báo cho người dùng. */
-  onSaved: (message: string) => void;
+  /**
+   * Đã lưu: tải lại danh sách và báo cho người dùng. `warning` khi chỗ/chuyến đã đổi nhưng bước sau lỗi — đóng hộp
+   * thoại để không làm tiếp trên số liệu cũ.
+   */
+  onSaved: (message: string, tone?: "success" | "warning") => void;
 }) {
   const boardable = b.status === "CONFIRMED" || b.status === "COMPLETED";
   const open = b.status === "HOLDING" || b.status === "CONFIRMED";
@@ -141,6 +144,7 @@ export function BookingEditDialog({
     setBusy(true);
     setError(null);
     const done: string[] = [];
+    let moved = false;
     try {
       if (staged) {
         const r = await postJson<BookingChangeResult>(
@@ -149,6 +153,7 @@ export function BookingEditDialog({
           { headers: { "Idempotency-Key": changeKey } },
         );
         setChangeKey(crypto.randomUUID());
+        moved = true;
         setStaged(null);
         done.push(
           r.changed.map((c) => changeLabels[c] ?? c).join(", ") +
@@ -209,6 +214,14 @@ export function BookingEditDialog({
       onSaved(`Đã lưu đơn ${b.code}: ${done.join(", ")}.`);
     } catch (err) {
       const msg = (err as Error).message;
+      // Chỗ/chuyến/tiền đã đổi: số liệu trong hộp thoại (chỗ, còn phải thu) đã cũ, nên đóng và tải lại đơn.
+      if (moved) {
+        onSaved(
+          `Đã lưu đơn ${b.code}: ${done.join(", ")}; phần còn lại chưa lưu (${msg}). Mở lại đơn để làm tiếp.`,
+          "warning",
+        );
+        return;
+      }
       setError(
         done.length
           ? `Đã lưu ${done.join(", ")}; phần còn lại lỗi: ${msg}`

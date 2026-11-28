@@ -52,7 +52,10 @@ export function BookingQuickView({
     `/api/trip-management/${encodeURIComponent(tripId)}/passengers?status=all`,
   );
   const [editing, setEditing] = useState(false);
-  const [saved, setSaved] = useState("");
+  const [saved, setSaved] = useState<{
+    text: string;
+    tone: "success" | "warning";
+  } | null>(null);
   const b = data?.bookings.find((x) => x.code === code);
 
   if (editing && b)
@@ -65,9 +68,9 @@ export function BookingQuickView({
         canBoard={canBoard}
         canManageMoney={canManageMoney}
         onClose={() => setEditing(false)}
-        onSaved={(text) => {
+        onSaved={(text, tone = "success") => {
           setEditing(false);
-          setSaved(text);
+          setSaved({ text, tone });
           reload();
         }}
       />
@@ -93,7 +96,7 @@ export function BookingQuickView({
         </div>
       ) : (
         <div className="space-y-4" data-booking-quick-view>
-          {saved && <Notice tone="success">{saved}</Notice>}
+          {saved && <Notice tone={saved.tone}>{saved.text}</Notice>}
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge
               tone={bookingStatusTone[b.status] ?? "neutral"}
