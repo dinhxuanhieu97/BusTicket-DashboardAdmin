@@ -23,7 +23,7 @@ import {
 } from "./shared";
 
 /**
- * Khoản cần hoàn: đơn bị nhân viên hủy sau khi đã thu tiền. Kế toán hoàn tiền ngoài hệ thống (chuyển khoản, tiền mặt)
+ * Khoản cần hoàn: đơn bị nhân viên hủy sau khi đã thu tiền, hoặc phần khách trả dư khi đổi vé/giảm số đã thu (ADJUST). Kế toán hoàn tiền ngoài hệ thống (chuyển khoản, tiền mặt)
  * rồi đánh dấu "Đã hoàn" hoặc "Không hoàn" (`payment.manage`). Hệ thống không tự chuyển tiền.
  */
 export function RefundsPanel({ canManage }: { canManage: boolean }) {
@@ -68,8 +68,8 @@ export function RefundsPanel({ canManage }: { canManage: boolean }) {
             Khoản cần hoàn
           </h2>
           <p className="text-sm text-muted">
-            Đơn đã hủy sau khi thu tiền. Hoàn cho khách ngoài hệ thống rồi đánh
-            dấu tại đây.
+            Đơn đã hủy sau khi thu tiền, hoặc khách trả dư sau khi đổi vé/giảm
+            số đã thu. Hoàn cho khách ngoài hệ thống rồi đánh dấu tại đây.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -110,7 +110,7 @@ export function RefundsPanel({ canManage }: { canManage: boolean }) {
                   <th className={thClass}>Mã vé</th>
                   <th className={thClass}>Khách</th>
                   <th className={`${thClass} text-right`}>Số tiền</th>
-                  <th className={thClass}>Lý do hủy</th>
+                  <th className={thClass}>Lý do</th>
                   <th className={thClass}>Trạng thái</th>
                   {canManage && (
                     <th className={thClass}>
@@ -137,6 +137,11 @@ export function RefundsPanel({ canManage }: { canManage: boolean }) {
                       {vnd(r.amount)}
                     </td>
                     <td className={`${tdClass} max-w-64 break-words`}>
+                      {r.kind === "ADJUST" && (
+                        <span className="block text-xs font-semibold text-warning">
+                          Điều chỉnh khi đổi vé
+                        </span>
+                      )}
                       {r.reason}
                       <span className="block text-xs text-muted">
                         {r.createdBy ?? "—"} · {vnDateTime(r.createdAt)}

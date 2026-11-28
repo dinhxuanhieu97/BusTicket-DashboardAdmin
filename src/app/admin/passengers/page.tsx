@@ -20,6 +20,7 @@ export default async function Page({
       canCancel={hasPermission(session, "booking.cancel")}
       canEdit={hasPermission(session, "booking.update")}
       canPay={hasPermission(session, "payment.record")}
+      canManageMoney={hasPermission(session, "payment.manage")}
       initialDate={typeof query.date === "string" ? query.date : undefined}
       initialBooking={
         typeof query.booking === "string" &&
